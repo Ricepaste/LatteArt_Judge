@@ -1,0 +1,26 @@
+<annotation>
+	<folder>images</folder>
+	<filename>6c7c2f7c9ad5ff94_jpg.rf.03474c21f0dd37242f9305d9d11f7551.jpg</filename>
+	<path>C:\Users\paris\Desktop\Python\LatteArtCNN\still_human_classsificating\Detecting Coffee and Tea.v1i.yolov5pytorch\train\images\6c7c2f7c9ad5ff94_jpg.rf.03474c21f0dd37242f9305d9d11f7551.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>640</width>
+		<height>640</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>latte</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>124</xmin>
+			<ymin>166</ymin>
+			<xmax>348</xmax>
+			<ymax>287</ymax>
+		</bndbox>
+	</object>
+</annotation>
