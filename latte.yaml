@@ -2,7 +2,7 @@
 path: ../datasets/latte  # 資料根目錄
 train: images/train     # 訓練用資料集（相對於 path）
 val: images/train       # 驗證用資料集（相對於 path）
-test:                   # 測試用資料集（相對於 path，可省略）
+test: images/test  # 測試用資料集（相對於 path，可省略）
 
 # 物件類別設定
 nc: 1           # 類別數量
