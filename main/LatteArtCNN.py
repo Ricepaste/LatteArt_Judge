@@ -1,4 +1,6 @@
 import torch
+import cv2
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Current Running Device: ", end="")
@@ -15,3 +17,13 @@ results = model(imgs, size=64)
 results.print()
 
 results.show()
+
+for img in imgs:
+    crop_img = cv2.imread(img)
+    x_lt = results.xyxy[0].cpu().numpy()[0][0]
+    y_lt = results.xyxy[0].cpu().numpy()[0][1]
+    x_rb = results.xyxy[0].cpu().numpy()[0][2]
+    y_rb = results.xyxy[0].cpu().numpy()[0][3]
+    crop_img = crop_img[int(y_lt):int(y_rb), int(x_lt):int(x_rb)]
+    cv2.imshow("cropped", crop_img)
+    cv2.waitKey(0)
