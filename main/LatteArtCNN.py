@@ -17,13 +17,15 @@ results = model(imgs, size=64)
 results.print()
 
 results.show()
+print(results.xyxy)
 
 for img in imgs:
-    crop_img = cv2.imread(img)
-    x_lt = results.xyxy[0].cpu().numpy()[0][0]
-    y_lt = results.xyxy[0].cpu().numpy()[0][1]
-    x_rb = results.xyxy[0].cpu().numpy()[0][2]
-    y_rb = results.xyxy[0].cpu().numpy()[0][3]
-    crop_img = crop_img[int(y_lt):int(y_rb), int(x_lt):int(x_rb)]
-    cv2.imshow("cropped", crop_img)
-    cv2.waitKey(0)
+    for i in range(results.xyxy[0].cpu().numpy().shape[0]):
+        crop_img = cv2.imread(img)
+        x_lt = results.xyxy[0].cpu().numpy()[i][0]
+        y_lt = results.xyxy[0].cpu().numpy()[i][1]
+        x_rb = results.xyxy[0].cpu().numpy()[i][2]
+        y_rb = results.xyxy[0].cpu().numpy()[i][3]
+        crop_img = crop_img[int(y_lt):int(y_rb), int(x_lt):int(x_rb)]
+        cv2.imshow("cropped", crop_img)
+        cv2.waitKey(0)
