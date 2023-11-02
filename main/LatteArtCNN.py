@@ -1,7 +1,7 @@
 import torch
 import cv2
 
-show_img = False
+show_img = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Current Running Device: ", end="")
