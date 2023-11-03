@@ -143,7 +143,16 @@ def write_score(index, score):
 
     # Save df into Score.csv
     df.to_csv('./LabelTool/Score.csv', index=False, header=False)
-
+    files = os.listdir('./LabelTool/')
+    i = 0
+    name = 'BackUp.csv'
+    for file in files:
+        if file == name:
+            i += 1
+            name = 'BackUp' + str(i) + '.csv'
+        else:
+            df.to_csv('./LabelTool/' + name, index=False, header=False)
+            break
     
     
     
