@@ -10,6 +10,8 @@ import torchvision.models as models
 from torchvision.models import EfficientNet_B1_Weights
 from torch.utils.tensorboard import SummaryWriter
 
+# TODO dataLoader's label need to custom
+
 writer = SummaryWriter('runs/efficientnet_b1')
 
 # 同時含訓練/評估
