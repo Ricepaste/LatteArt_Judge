@@ -78,7 +78,7 @@ window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
 button = tk.Button(window, text="Send", command=send_score)
 user_input = tk.Entry(window, width=USER_INPUT_BAR_SIZE)
 input_title = tk.Label(window, text="拉花評分: ", font=("Arial", 10))
-input_remind = tk.Label(window, text="(請輸入0~10分)", font=("Arial", 10))
+input_remind = tk.Label(window, text="(請輸入介於0~10分的整數)", font=("Arial", 10))
 
 
 score_judge()
