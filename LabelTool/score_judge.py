@@ -7,6 +7,7 @@ IMAGE_SIZE = 300
 WINDOW_SIZE = 500
 USER_INPUT_BAR_SIZE = 10
 
+
 def import_image(path):
     global img
     img = Image.open(path)
@@ -25,13 +26,15 @@ def score_judge():
     curr_img = import_image(result[i])
     curr_img.pack()
 
-    button.place(x = WINDOW_SIZE/2+USER_INPUT_BAR_SIZE*7/2+15, y=IMAGE_SIZE+45)
+    button.place(x=WINDOW_SIZE/2+USER_INPUT_BAR_SIZE*7/2+15, y=IMAGE_SIZE+45)
 
     user_input.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2, y=IMAGE_SIZE+50)
-    
-    input_title.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2-70, y=IMAGE_SIZE+47)
-    
-    input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2-20, y=IMAGE_SIZE+80)
+
+    input_title.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
+                      7/2-70, y=IMAGE_SIZE+47)
+
+    input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
+                       7/2-20, y=IMAGE_SIZE+80)
 
 
 def window_close():
@@ -47,9 +50,9 @@ def send_score():
     else:
         curr_img.destroy()
         get_num_from_bar()
-        if (not(score.isdigit()) or (int(score) < 0 or int(score) > 10)):
+        if (not (score.isdigit()) or (int(score) < 0 or int(score) > 10)):
             messagebox.showerror(title="錯誤輸入", message="媽的文盲")
-            i-=1
+            i -= 1
         clearBar()
         score_judge()
 
@@ -59,12 +62,12 @@ def get_num_from_bar():
     score = user_input.get()
     # print(score)
 
+
 def clearBar():
-    user_input.delete(0, 'end')    
+    user_input.delete(0, 'end')
 
 
-
-dirpath = r"backup27"
+dirpath = r".\\LabelTool\\backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
     dirpath) if os.path.isfile(os.path.join(dirpath, f))]
 
