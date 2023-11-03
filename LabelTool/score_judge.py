@@ -82,13 +82,15 @@ def score_judge():
     curr_img = import_image(result[min_index])
     curr_img.pack()
 
-    button.place(x = WINDOW_SIZE/2+USER_INPUT_BAR_SIZE*7/2+15, y=IMAGE_SIZE+45)
+    button.place(x=WINDOW_SIZE/2+USER_INPUT_BAR_SIZE*7/2+15, y=IMAGE_SIZE+45)
 
     user_input.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2, y=IMAGE_SIZE+50)
-    
-    input_title.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2-70, y=IMAGE_SIZE+47)
-    
-    input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2-20, y=IMAGE_SIZE+80)
+
+    input_title.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
+                      7/2-70, y=IMAGE_SIZE+47)
+
+    input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
+                       7/2-20, y=IMAGE_SIZE+80)
 
 
 def window_close():
@@ -109,9 +111,10 @@ def send_score():
 def get_num_from_bar():
     global score
     score = user_input.get()
+    # print(score)
 
 def clearBar():
-    user_input.delete(0, 'end')    
+    user_input.delete(0, 'end')
 
 def write_score(index, score):
     temp_list = []
@@ -158,7 +161,7 @@ window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
 button = tk.Button(window, text="Send", command=send_score)
 user_input = tk.Entry(window, width=USER_INPUT_BAR_SIZE)
 input_title = tk.Label(window, text="拉花評分: ", font=("Arial", 10))
-input_remind = tk.Label(window, text="(請輸入0~10分)", font=("Arial", 10))
+input_remind = tk.Label(window, text="(請輸入介於0~10分的整數)", font=("Arial", 10))
 
 
 score_judge()
