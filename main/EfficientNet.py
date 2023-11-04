@@ -13,13 +13,22 @@ from torch.optim import lr_scheduler
 from torch.utils.data.dataset import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-# TODO transformer 要研究
+# TODO transformer 要研究 存權重
 
-writer = SummaryWriter('runs/efficientnet_b1')
+files = os.listdir('.\\runs')
+i = 0
+name = "efficientnet_b1"
+while name in files:
+    i += 1
+    name = "efficientnet_b1_{}".format(i)
+writer = SummaryWriter('runs\\{}'.format(name))
+
 LR = 0.01
-MOMENTUM = 0.9
+MOMENTUM = 0.87
 BATCH_SIZE = 16
-EPOCHS = 200
+EPOCHS = 100
+LOAD_MODEL = False
+LOAD_MODEL_PATH = '.\\EFN_Model\\best.pt'
 
 
 class TonyLatteDataset(Dataset):
@@ -233,13 +242,25 @@ model = model.to(device)
 exp_lr_scheduler = lr_scheduler.StepLR(
     optimizer, step_size=7, gamma=0.1)
 
+if (LOAD_MODEL):
+    model.load_state_dict(torch.load(LOAD_MODEL_PATH))
+
 model = train_model(model, criterion, optimizer,
                     exp_lr_scheduler, num_epochs=EPOCHS)
+
+files = os.listdir('.\\EFN_Model')
+i = 0
+name = "best.pt"
+while name in files:
+    i += 1
+    name = "best{}.pt".format(i)
+torch.save(model.state_dict(), '.\\EFN_Model\\{}'.format(name))
 
 writer.flush()
 writer.close()
 # ------------------------------train done--------------------------------
 
+model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 # start evaluating the model
 model.eval()
 
