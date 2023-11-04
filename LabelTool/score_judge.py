@@ -137,16 +137,14 @@ def write_score(index, score):
 
     # Save df into Score.csv
     df.to_csv('./LabelTool/Score.csv', index=False, header=False)
-    files = os.listdir('./LabelTool/')
-    i = 0
+    # files = os.listdir('./LabelTool/')
+    # i = 0
     name = 'BackUp.csv'
-    for file in files:
-        if file == name:
-            i += 1
-            name = 'BackUp' + str(i) + '.csv'
-        else:
-            df.to_csv('./LabelTool/' + name, index=False, header=False)
-            break
+    # while name in files:
+    #     i += 1
+    #     name = 'BackUp' + str(i) + '.csv'
+
+    df.to_csv('./LabelTool/' + name, index=False, header=False)
 
 
 dirpath = r"./LabelTool/backup27"
@@ -205,7 +203,7 @@ random.shuffle(average_index_shuffle)
 train_index_shuffle = average_index_shuffle[:cut]
 test_index_shuffle = average_index_shuffle[cut:]
 
-dir1 = os.listdir('./LabelTool/train/images') 
+dir1 = os.listdir('./LabelTool/train/images')
 dir2 = os.listdir('./LabelTool/val/images')
 dir3 = os.listdir('./LabelTool/train/labels')
 dir4 = os.listdir('./LabelTool/val/labels')
