@@ -6,6 +6,8 @@ import csv
 import numpy as np
 import pandas as pd
 import math
+import shutil
+import random
 
 IMAGE_SIZE = 300
 WINDOW_SIZE = 500
@@ -34,7 +36,7 @@ def score_judge():
     except pd.errors.EmptyDataError:
         print("Empty")
         arr = np.array([])
-    print(arr)
+    # print(arr)
     arr = arr.tolist()
     
     min_value = 100
@@ -45,7 +47,7 @@ def score_judge():
         length = 0
         if (STOP == len(result)):
             window_close()
-            exit(0)
+            # exit(0)
         try:
             length = len(arr[i])
             if (min_value > length):
@@ -57,40 +59,29 @@ def score_judge():
             else:
                 if (i == len(result)-1):
                     window_close()
-                    exit(0)
+                    # exit(0)
         except:
             min_index = i
             STOP += 1
             i += 1
             break
+          
+    try:
+        curr_img = import_image(result[min_index])
+    
+        curr_img.pack()
 
-    # for i in range(len(result)):
-    #     length = 0
-    #     try:
-    #         length = len(arr[i])
-    #         if (min_value > length):
-    #             min_value = length
-    #             min_index = i
-    #         STOP += 1
-    #     except:
-    #         min_index = i
-    #         STOP += 1
-    #         break
+        button.place(x=WINDOW_SIZE/2+USER_INPUT_BAR_SIZE*7/2+15, y=IMAGE_SIZE+45)
 
-                
-        
-    curr_img = import_image(result[min_index])
-    curr_img.pack()
+        user_input.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2, y=IMAGE_SIZE+50)
 
-    button.place(x=WINDOW_SIZE/2+USER_INPUT_BAR_SIZE*7/2+15, y=IMAGE_SIZE+45)
+        input_title.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
+                        7/2-70, y=IMAGE_SIZE+47)
 
-    user_input.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE*7/2, y=IMAGE_SIZE+50)
-
-    input_title.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
-                      7/2-70, y=IMAGE_SIZE+47)
-
-    input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
-                       7/2-20, y=IMAGE_SIZE+80)
+        input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
+                        7/2-20, y=IMAGE_SIZE+80)
+    except:
+        pass
 
 
 def window_close():
@@ -176,3 +167,79 @@ input_remind = tk.Label(window, text="(請輸入介於0~10分的整數)", font=(
 score_judge()
 
 window.mainloop()
+
+
+# 11/4
+
+Train_Size = 0.7
+Test_Size = 0.3
+
+# Read the data
+data = pd.read_csv('./LabelTool/Score.csv', header=None)
+data = np.array(data.values)
+
+average = []
+
+for i in range(len(data)):
+    sum = 0
+    count = 0
+    for j in range(len(data[i])):
+        if (math.isnan(data[i][j])):
+            break
+        else:
+            sum += data[i][j]
+            count += 1
+    average.append(sum/count)
+    
+# print(average)
+
+cut = int(len(average)*Train_Size)
+
+# train = average[:cut]
+# test = average[cut:]
+
+# train_data = result[:cut]
+# test_data = result[cut:]
+
+average_index_shuffle = [i for i in range(len(average))]
+random.shuffle(average_index_shuffle)
+train_index_shuffle = average_index_shuffle[:cut]
+test_index_shuffle = average_index_shuffle[cut:]
+
+dir1 = os.listdir('./LabelTool/Train/Image') 
+dir2 = os.listdir('./LabelTool/Test/Image')
+dir3 = os.listdir('./LabelTool/Train/Label')
+dir4 = os.listdir('./LabelTool/Test/Label')
+
+try:
+    if (len(dir1) != 0 or len(dir2) != 0 or len(dir3) != 0 or len(dir4) != 0):
+        raise Exception("The folder is not empty")
+except:
+    for file in os.listdir('./LabelTool/Train/Image'):
+        os.remove('./LabelTool/Train/Image/' + file)
+    for file in os.listdir('./LabelTool/Test/Image'):
+        os.remove('./LabelTool/Test/Image/' + file)
+    for file in os.listdir('./LabelTool/Train/Label'):
+        os.remove('./LabelTool/Train/Label/' + file)
+    for file in os.listdir('./LabelTool/Test/Label'):
+        os.remove('./LabelTool/Test/Label/' + file)
+
+# copy the image to the corresponding folder
+for m in train_index_shuffle:
+    shutil.copy(result[m], './LabelTool/Train/Image')
+    temp = result[m].split('./LabelTool/backup27')
+    file_path = '.\\LabelTool\\Train\\Label{}.txt'.format(temp[1])
+    content = average[m]
+    with open(file_path, 'w') as f:
+        f.write(str(content))
+
+# index_temp = 0
+
+for n in test_index_shuffle:
+    temp = result[n].split('./LabelTool/backup27')
+    shutil.copy(result[n], './LabelTool/Test/Image')
+    file_path = '.\\LabelTool\\Test\\Label{}.txt'.format(temp[1])
+    content = average[n]
+    # index_temp += 1
+    with open(file_path, 'w') as f:
+        f.write(str(content))
