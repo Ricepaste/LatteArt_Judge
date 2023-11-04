@@ -1,18 +1,68 @@
-import torch
 import time
 import os
 import copy
-from torchvision import datasets, transforms
-import torch.optim as optim
-from torch.optim import lr_scheduler
+from PIL import Image
+import torch
+# from torchvision import datasets
+from torchvision import transforms
 from torchvision.io import read_image
 import torchvision.models as models
 from torchvision.models import EfficientNet_B1_Weights
+import torch.optim as optim
+from torch.optim import lr_scheduler
+from torch.utils.data.dataset import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-# TODO dataLoader's label need to custom
+# TODO transformer 要研究
 
 writer = SummaryWriter('runs/efficientnet_b1')
+LR = 0.001
+MOMENTUM = 0.9
+BATCH_SIZE = 8
+EPOCHS = 200
+
+
+class TonyLatteDataset(Dataset):
+    def __init__(self, root, transform):
+        # --------------------------------------------
+        # Initialize paths, transforms, and so on
+        # --------------------------------------------
+        self.transform = transform
+
+        # Load image path and annotations
+        files = os.listdir(root+"\\images")
+        self.imgs = ['{}\\images\\{}'.format(
+            root, filename) for filename in files]
+        for i in range(len(files)):
+            files[i] = files[i].replace('jpg', 'txt')
+        self.lbls = ['{}\\labels\\{}'.format(
+            root, filename) for filename in files]
+
+        assert len(self.imgs) == len(
+            self.lbls), 'images & labels mismatched length!'
+
+    def __getitem__(self, index):
+        # --------------------------------------------
+        # 1. Read from file (using numpy.fromfile, PIL.Image.open)
+        # 2. Preprocess the data (torchvision.Transform)
+        # 3. Return the data (e.g. image and label)
+        # --------------------------------------------
+        imgpath = self.imgs[index]
+        img = Image.open(imgpath).convert('RGB')
+        with open(self.lbls[index], 'r') as f:
+            lbl = float(f.read())
+        # lbl = int(self.lbls[index])
+        if self.transform is not None:
+            img = self.transform(img)
+
+        print(self.imgs[index], lbl)
+        return img, lbl
+
+    def __len__(self):
+        # --------------------------------------------
+        # Indicate the total size of the dataset
+        # --------------------------------------------
+        return len(self.imgs)
 
 # 同時含訓練/評估
 
@@ -22,7 +72,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
-    best_loss = 10000
+    best_loss = float('inf')
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -41,7 +91,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             # 逐批訓練或驗證
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
-                labels *= 4
                 labels = labels.to(device)
 
                 # zero the parameter gradients
@@ -102,6 +151,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     return model
 
 
+# -------------------------main---------------------------
+
 # 訓練資料進行資料增補，驗證資料不需要
 data_transforms = {
     'train': transforms.Compose([
@@ -124,11 +175,14 @@ data_transforms = {
 # 準備資料集匯入器
 # 使用 ImageFolder 可方便轉換為 dataset
 data_dir = '.\\main\\cropPhoto'
-image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
-                                          data_transforms[x])
+# image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
+#                                           data_transforms[x])
+#                   for x in ['train', 'val']}
+image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
+                                      data_transforms[x])
                   for x in ['train', 'val']}
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],
-                                              batch_size=8,
+                                              batch_size=BATCH_SIZE,
                                               shuffle=True,
                                               num_workers=0)
                for x in ['train', 'val']}
@@ -169,7 +223,7 @@ model._modules['classifier'] = torch.nn.Sequential(
 criterion = torch.nn.MSELoss(reduction='mean')
 
 # 定義優化器為隨機梯度下降，學習率為0.001，動量為0.9
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM)
 model = model.to(device)
 
 # 每7個執行週期，學習率降 0.1
@@ -177,8 +231,10 @@ exp_lr_scheduler = lr_scheduler.StepLR(
     optimizer, step_size=7, gamma=0.1)
 
 model = train_model(model, criterion, optimizer,
-                    exp_lr_scheduler, num_epochs=200)
+                    exp_lr_scheduler, num_epochs=EPOCHS)
 
+writer.flush()
+writer.close()
 # ------------------------------train done--------------------------------
 
 # start evaluating the model
