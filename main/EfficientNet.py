@@ -18,7 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter('runs/efficientnet_b1')
 LR = 0.001
 MOMENTUM = 0.9
-BATCH_SIZE = 8
+BATCH_SIZE = 128
 EPOCHS = 200
 
 
@@ -184,7 +184,7 @@ data_transforms = {
 
 # 準備資料集匯入器
 # 使用 ImageFolder 可方便轉換為 dataset
-data_dir = '.\\main\\cropPhoto'
+data_dir = '.\\LabelTool'
 # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
 #                                           data_transforms[x])
 #                   for x in ['train', 'val']}

@@ -206,40 +206,42 @@ random.shuffle(average_index_shuffle)
 train_index_shuffle = average_index_shuffle[:cut]
 test_index_shuffle = average_index_shuffle[cut:]
 
-dir1 = os.listdir('./LabelTool/Train/Image') 
-dir2 = os.listdir('./LabelTool/Test/Image')
-dir3 = os.listdir('./LabelTool/Train/Label')
-dir4 = os.listdir('./LabelTool/Test/Label')
+dir1 = os.listdir('./LabelTool/train/images') 
+dir2 = os.listdir('./LabelTool/val/images')
+dir3 = os.listdir('./LabelTool/train/labels')
+dir4 = os.listdir('./LabelTool/val/labels')
 
 try:
     if (len(dir1) != 0 or len(dir2) != 0 or len(dir3) != 0 or len(dir4) != 0):
         raise Exception("The folder is not empty")
 except:
-    for file in os.listdir('./LabelTool/Train/Image'):
-        os.remove('./LabelTool/Train/Image/' + file)
-    for file in os.listdir('./LabelTool/Test/Image'):
-        os.remove('./LabelTool/Test/Image/' + file)
-    for file in os.listdir('./LabelTool/Train/Label'):
-        os.remove('./LabelTool/Train/Label/' + file)
-    for file in os.listdir('./LabelTool/Test/Label'):
-        os.remove('./LabelTool/Test/Label/' + file)
+    for file in os.listdir('./LabelTool/train/images'):
+        os.remove('./LabelTool/train/images/' + file)
+    for file in os.listdir('./LabelTool/val/images'):
+        os.remove('./LabelTool/val/images/' + file)
+    for file in os.listdir('./LabelTool/train/labels'):
+        os.remove('./LabelTool/train/labels/' + file)
+    for file in os.listdir('./LabelTool/val/labels'):
+        os.remove('./LabelTool/val/labels/' + file)
 
 # copy the image to the corresponding folder
 for m in train_index_shuffle:
-    shutil.copy(result[m], './LabelTool/Train/Image')
+    shutil.copy(result[m], './LabelTool/train/images')
     temp = result[m].split('./LabelTool/backup27')
-    file_path = '.\\LabelTool\\Train\\Label{}.txt'.format(temp[1])
+    fuck = temp[1].split('.jpg')
+    file_path = '.\\LabelTool\\train\\labels{}.txt'.format(fuck[0])
     content = average[m]
-    with open(file_path, 'w') as f:
+    with open(file_path, 'w+') as f:
         f.write(str(content))
 
-# index_temp = 0
+# index_temp = 02
 
 for n in test_index_shuffle:
     temp = result[n].split('./LabelTool/backup27')
-    shutil.copy(result[n], './LabelTool/Test/Image')
-    file_path = '.\\LabelTool\\Test\\Label{}.txt'.format(temp[1])
+    fuck = temp[1].split('.jpg')
+    shutil.copy(result[n], './LabelTool/val/images')
+    file_path = '.\\LabelTool\\val\\labels{}.txt'.format(fuck[0])
     content = average[n]
     # index_temp += 1
-    with open(file_path, 'w') as f:
+    with open(file_path, 'w+') as f:
         f.write(str(content))
