@@ -38,5 +38,6 @@ for img in range(len(imgs)):
             cv2.waitKey(0)
 
         output_index += 1
-        path = '.\\main\\cropPhoto\\cropPhotocrop_{}.jpg'.format(output_index)
+        path = '.\\main\\cropPhoto\\output\\cropPhotocrop_{}.jpg'.format(
+            output_index)
         cv2.imwrite(path, crop_img)
