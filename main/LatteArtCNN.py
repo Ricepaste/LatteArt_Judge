@@ -1,7 +1,8 @@
 import torch
 import cv2
+import os
 
-show_img = True
+show_img = False
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Current Running Device: ", end="")
@@ -13,7 +14,8 @@ model = torch.hub.load('.\\yolov5', 'custom', source='local',
                        path='.\\Crop_Model\\exp62_v3\\weights\\best.pt',
                        force_reload=True).to(device)
 
-imgs = ['.\\main\\inputPhoto\\{}.jpg'.format(i)for i in range(5)]
+files = os.listdir('.\\main\\inputPhoto')
+imgs = ['.\\main\\inputPhoto\\{}'.format(file_name)for file_name in files]
 results = model(imgs, size=64)
 results.print()
 
