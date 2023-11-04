@@ -153,6 +153,16 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 # -------------------------main---------------------------
 
+# Step 1: Initialize model with the best available weights
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+weights = EfficientNet_B1_Weights.DEFAULT
+model = models.efficientnet_b1(weights=weights)
+
+# Step 2: Initialize the inference transforms
+# 資料強化還沒有做，需要研究原轉換函數內容
+preprocess = weights.transforms()
+print(preprocess)
+
 # 訓練資料進行資料增補，驗證資料不需要
 data_transforms = {
     'train': transforms.Compose([
@@ -178,8 +188,11 @@ data_dir = '.\\main\\cropPhoto'
 # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
 #                                           data_transforms[x])
 #                   for x in ['train', 'val']}
+# image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
+#                                       data_transforms[x])
+#                   for x in ['train', 'val']}
 image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
-                                      data_transforms[x])
+                                      preprocess)
                   for x in ['train', 'val']}
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],
                                               batch_size=BATCH_SIZE,
@@ -193,16 +206,6 @@ for i, x in dataloaders['train']:
     print(i.shape)
     print(x)
     print(x.data)
-
-# Step 1: Initialize model with the best available weights
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-weights = EfficientNet_B1_Weights.DEFAULT
-model = models.efficientnet_b1(weights=weights)
-
-# Step 2: Initialize the inference transforms
-# 資料強化還沒有做，需要研究原轉換函數內容
-preprocess = weights.transforms()
-# print(preprocess)
 
 # freeze all the parameters in the old model
 for param in model.parameters():
