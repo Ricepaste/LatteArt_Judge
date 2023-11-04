@@ -16,9 +16,9 @@ from torch.utils.tensorboard import SummaryWriter
 # TODO transformer 要研究
 
 writer = SummaryWriter('runs/efficientnet_b1')
-LR = 0.001
+LR = 0.01
 MOMENTUM = 0.9
-BATCH_SIZE = 128
+BATCH_SIZE = 16
 EPOCHS = 200
 
 
