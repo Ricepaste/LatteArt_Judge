@@ -27,8 +27,9 @@ LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
-LOAD_MODEL = False
-LOAD_MODEL_PATH = '.\\EFN_Model\\best.pt'
+LOAD_MODEL = True
+LOAD_MODEL_PATH = '.\\EFN_Model\\best2.pt'
+MODE = 'test'  # train or test
 
 
 class TonyLatteDataset(Dataset):
@@ -245,19 +246,20 @@ exp_lr_scheduler = lr_scheduler.StepLR(
 if (LOAD_MODEL):
     model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 
-model = train_model(model, criterion, optimizer,
-                    exp_lr_scheduler, num_epochs=EPOCHS)
+if MODE == 'train':
+    model = train_model(model, criterion, optimizer,
+                        exp_lr_scheduler, num_epochs=EPOCHS)
 
-files = os.listdir('.\\EFN_Model')
-i = 0
-name = "best.pt"
-while name in files:
-    i += 1
-    name = "best{}.pt".format(i)
-torch.save(model.state_dict(), '.\\EFN_Model\\{}'.format(name))
+    files = os.listdir('.\\EFN_Model')
+    i = 0
+    name = "best.pt"
+    while name in files:
+        i += 1
+        name = "best{}.pt".format(i)
+    torch.save(model.state_dict(), '.\\EFN_Model\\{}'.format(name))
 
-writer.flush()
-writer.close()
+    writer.flush()
+    writer.close()
 # ------------------------------train done--------------------------------
 
 model.load_state_dict(torch.load(LOAD_MODEL_PATH))
@@ -265,20 +267,21 @@ model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 model.eval()
 
 # Step 3: Apply inference preprocessing transforms
-img = read_image(".\\main\\cropPhoto\\cropPhotocrop_2.jpg")
+img = read_image(".\\main\\cropPhoto\\test.jpg")
 batch = preprocess(img).unsqueeze(0).to(device)
 
 # Step 4: Use the model and print the predicted category
 # prediction = model(batch).squeeze(0).softmax(0)
 prediction = model(batch).squeeze(0)
-class_id = prediction.argmax().item()
-score = prediction[class_id].item()
-category_name = weights.meta["categories"][class_id]
-print(f"{category_name}: {100 * score:.1f}%")
+# class_id = prediction.argmax().item()
+# score = prediction[class_id].item()
+# category_name = weights.meta["categories"][class_id]
+# print(f"{category_name}: {100 * score:.1f}%")
 
-print(prediction.detach().cpu().numpy())
-for i in range(prediction.detach().cpu().numpy().shape[0]):
-    print(weights.meta["categories"][i])
+print('\nThe Score of TEST photo is: {}point'.format(
+    prediction.detach().cpu().numpy()[0]))
+# for i in range(prediction.detach().cpu().numpy().shape[0]):
+#     print(weights.meta["categories"][i])
 
 
 # if __name__ == "__main__":
