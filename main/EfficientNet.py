@@ -13,7 +13,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data.dataset import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-# TODO transformer 要研究 存權重
+# TODO 灰階、對比度、label標準化、資料強化是否旋轉？ 存最佳權重(正確率功能要修好))
 
 
 LR = 0.01
