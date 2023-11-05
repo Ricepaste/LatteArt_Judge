@@ -15,21 +15,23 @@ from torch.utils.tensorboard import SummaryWriter
 
 # TODO transformer 要研究 存權重
 
-files = os.listdir('.\\runs')
-i = 0
-name = "efficientnet_b1"
-while name in files:
-    i += 1
-    name = "efficientnet_b1_{}".format(i)
-writer = SummaryWriter('runs\\{}'.format(name))
 
 LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
 LOAD_MODEL = True
-LOAD_MODEL_PATH = '.\\EFN_Model\\best2.pt'
+LOAD_MODEL_PATH = '.\\EFN_Model\\best2_ya.pt'
 MODE = 'test'  # train or test
+
+if MODE == 'train':
+    files = os.listdir('.\\runs')
+    i = 0
+    name = "efficientnet_b1"
+    while name in files:
+        i += 1
+        name = "efficientnet_b1_{}".format(i)
+    writer = SummaryWriter('runs\\{}'.format(name))
 
 
 class TonyLatteDataset(Dataset):
