@@ -20,9 +20,9 @@ LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
-LOAD_MODEL = True
+LOAD_MODEL = False
 LOAD_MODEL_PATH = '.\\EFN_Model\\best2_ya.pt'
-MODE = 'test'  # train or test
+MODE = 'train'  # train or test
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -128,12 +128,19 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # 統計損失
                 running_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum(preds == labels.data)
+                # 統計正確率
+                edge_up = outputs <= (labels.data + 0.5)
+                edge_down = outputs > (labels.data - 0.5)
+                # print(edge_up)
+                # print(edge_down)
+                for i in range(len(edge_up)):
+                    if edge_up[i] and edge_down[i]:
+                        running_corrects += 1
             if phase == 'train':
                 scheduler.step()
 
             epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / dataset_sizes[phase]
+            epoch_acc = float(running_corrects) / dataset_sizes[phase]
 
             if phase == 'train':
                 writer.add_scalar('training loss', epoch_loss, epoch)
