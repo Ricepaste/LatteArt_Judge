@@ -24,6 +24,7 @@ LOAD_MODEL = True
 LOAD_MODEL_PATH = '.\\EFN_Model\\best_fu_blind.pt'
 MODE = 'test'  # train or test
 GRAY_VISION = True
+GRAY_VISION_PREVIEW = True
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -310,8 +311,7 @@ model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 model.eval()
 
 gray = transforms.Compose([
-    transforms.CenterCrop(240),
-    transforms.Resize(255),
+    transforms.Resize(240),
     transforms.ToTensor(),
     transforms.Grayscale(num_output_channels=3),
     transforms.Normalize([0.485, 0.456, 0.406],
@@ -321,13 +321,15 @@ gray = transforms.Compose([
 # Step 3: Apply inference preprocessing transforms
 if GRAY_VISION:
     img = Image.open(".\\main\\cropPhoto\\test.jpg").convert('RGB')
-else:
-    img = read_image(".\\main\\cropPhoto\\test.jpg")
-
-if GRAY_VISION:
     batch = gray(img).unsqueeze(0).to(device)
 else:
+    img = read_image(".\\main\\cropPhoto\\test.jpg")
     batch = preprocess(img).unsqueeze(0).to(device)
+
+if GRAY_VISION_PREVIEW:
+    tt = transforms.ToPILImage()
+    imgg = tt(gray(img))
+    imgg.show()
 
 # Step 4: Use the model and print the predicted category
 # prediction = model(batch).squeeze(0).softmax(0)
