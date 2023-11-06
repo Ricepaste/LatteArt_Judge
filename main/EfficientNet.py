@@ -13,7 +13,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data.dataset import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-# TODO 灰階、對比度、label標準化、資料強化是否旋轉？
+# TODO 對比度提高、label標準化、增加模型複雜度
 
 
 LR = 0.01
@@ -21,7 +21,7 @@ MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
 LOAD_MODEL = True
-LOAD_MODEL_PATH = '.\\EFN_Model\\best_fu_blind.pt'
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_LRL400.pt'
 MODE = 'test'  # train or test
 GRAY_VISION = True
 GRAY_VISION_PREVIEW = True
@@ -212,25 +212,26 @@ data_transforms = {
         transforms.RandomResizedCrop(240, scale=(0.8, 1)),  # 資料增補 224
         transforms.Resize(255),
         transforms.ToTensor(),
-        transforms.Grayscale(num_output_channels=3),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
-        transforms.RandomHorizontalFlip(p=0.25),
-        transforms.RandomVerticalFlip(p=0.25),
+        transforms.Grayscale(num_output_channels=3),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(degrees=10),
-        # transforms.RandomAffine(degrees=10),
+        transforms.RandomAffine(degrees=10),
     ]),
     'val': transforms.Compose([
+        transforms.Resize(255),
         transforms.CenterCrop(240),
         transforms.Resize(255),
         transforms.ToTensor(),
-        transforms.Grayscale(num_output_channels=3),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
-        transforms.RandomHorizontalFlip(p=0.25),
-        transforms.RandomVerticalFlip(p=0.25),
+        transforms.Grayscale(num_output_channels=3),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(degrees=10),
-        # transforms.RandomAffine(degrees=10),
+        transforms.RandomAffine(degrees=10),
     ]),
 }
 
@@ -268,9 +269,12 @@ for param in model.parameters():
 
 # change the last layer of the model to fit our problem
 model._modules['classifier'] = torch.nn.Sequential(
-    # torch.nn.Dropout(p=0.2, inplace=False),
+    torch.nn.Linear(1280, 400),
     # torch.nn.Sigmoid(),
-    torch.nn.Linear(1280, 1),
+    torch.nn.ReLU(),
+    # torch.nn.Dropout(p=0.2, inplace=False),
+    torch.nn.Linear(400, 1),
+    # torch.nn.Linear(1280, 1),
 )
 
 # print('new top layer for transfer learning',
@@ -313,9 +317,9 @@ model.eval()
 gray = transforms.Compose([
     transforms.Resize(240),
     transforms.ToTensor(),
-    transforms.Grayscale(num_output_channels=3),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225]),
+    transforms.Grayscale(num_output_channels=3),
 ])
 
 # Step 3: Apply inference preprocessing transforms
