@@ -196,6 +196,28 @@ dirpath = r"./LabelTool/backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
     dirpath) if os.path.isfile(os.path.join(dirpath, f))]
 
+path1 = "./LabelTool/train"
+path2 = "./LabelTool/val"
+path3 = "./LabelTool/train/images"
+path4 = "./LabelTool/train/labels"
+path5 = "./LabelTool/val/images"
+path6 = "./LabelTool/val/labels"
+
+if (not(os.path.exists(path1))):
+    os.mkdir(path1)
+if (not(os.path.exists(path2))):
+    os.mkdir(path2)
+if (not(os.path.exists(path3))):
+    os.mkdir(path3)
+if (not(os.path.exists(path4))):
+    os.mkdir(path4)
+if (not(os.path.exists(path5))):
+    os.mkdir(path5)
+if (not(os.path.exists(path6))):
+    os.mkdir(path6)    
+    
+        
+
 window = tk.Tk()
 window.title('Score')
 window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
