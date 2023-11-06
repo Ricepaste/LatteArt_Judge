@@ -14,6 +14,7 @@ WINDOW_SIZE = 500
 USER_INPUT_BAR_SIZE = 10
 STOP = 0
 i = 0
+CHECK_FLAG = 0
 
 
 def import_image(path):
@@ -39,7 +40,35 @@ def score_judge():
      
     min_value = 100
     min_index = 0
+    
+    # temp_length = []
 
+    # if (len(arr) != len(result)):
+    #     min_index = len(arr)
+    # else:
+    #     if (STOP == len(result)):
+    #         window_close()
+    #     for i in range(len(arr)):
+    #         length = 0
+    #         for j in range(len(arr[i])):
+    #             try:
+    #                 if (math.isnan(arr[i][j])):
+    #                     continue
+    #             except:
+    #                 if (arr[i][j] == 'N'):
+    #                     continue
+    #                 else:
+    #                     length += 1
+    #         if (length < min_value):
+    #             min_value = length
+    #             min_index = i
+    #         temp_length.append(length)
+                
+    # min_value = min(temp_length)
+    # min_index = temp_length.index(min_value)
+    # STOP += 1
+
+    
     temp_length = []
             
     if (len(arr) != len(result)):
@@ -51,6 +80,8 @@ def score_judge():
         for k in range(len(arr)):
             length = 0
             for p in range(len(arr[k])):
+                # if (math.isnan(arr[k][p])):
+                #     length += 1
                 if (math.isnan(arr[k][p])):
                     continue
                 else:
@@ -60,29 +91,6 @@ def score_judge():
         min_value = min(temp_length)
         min_index = temp_length.index(min_value)
     STOP += 1
-    # i = 0
-    # while (1):
-    #     length = 0
-    #     if (STOP == len(result)):
-    #         window_close()
-    #         # exit(0)
-    #     try:
-    #         length = len(arr[i])
-    #         if (min_value > length):
-    #             min_value = length
-    #             min_index = i
-    #             STOP += 1
-    #             i += 1
-    #             break
-    #         else:
-    #             if (i == len(result)-1):
-    #                 window_close()
-    #                 # exit(0)
-    #     except:
-    #         min_index = i
-    #         STOP += 1
-    #         i += 1
-    #         break
 
     try:
         curr_img = import_image(result[min_index])
@@ -119,10 +127,11 @@ def send_score(event=None):
     get_num_from_bar()
     if (not (score.isdigit()) or (int(score) < 0 or int(score) > 10)):
         messagebox.showerror(title="錯誤輸入", message="媽的文盲")
-        i-=1
+        # i-=1
         STOP-=1
     else:
         write_score(min_index, score)
+        # print("CHECK FLAG2: ", CHECK_FLAG)
     clearBar()
     score_judge()
 
@@ -137,26 +146,36 @@ def clearBar():
 
 
 def write_score(index, score):
+    global CHECK_FLAG
     temp_list = []
     try:
         temp_list = arr[index]
         for k in range(len(temp_list)):
-            if (math.isnan(temp_list[k])):
-                temp_list[k] = score
+            if (CHECK_FLAG == 0 and math.isnan(temp_list[k])):
+                temp_list.append(score)
                 break
             else:
-                if (k == len(temp_list)-1):
-                    temp_list.append(score)
-                    break
+                if (CHECK_FLAG == 1 and math.isnan(temp_list[k]) and k == len(temp_list)-1):
+                    temp_list[-1] = score
                 else:
-                    continue
+                    if (k == len(temp_list)-1):
+                        temp_list.append(score)
+                        break
+                    else:
+                        continue
+                
 
         arr[index] = temp_list
     except:
         temp_list.append(score)
-        arr.append(temp_list)
+        try:
+            arr[index] = temp_list
+        except:
+            arr.append(temp_list)
     # print(arr)
 
+    CHECK_FLAG = 1
+    # print("CHECK FLAG: ", CHECK_FLAG)
     # Convert arr to a DataFrame
     df = pd.DataFrame(arr)
     # print(df)
@@ -192,6 +211,24 @@ window.bind('<Return>', send_score)
 window.mainloop()
 
 
+# 11/6 補nan
+nan_data = pd.read_csv('./LabelTool/Score.csv', header=None)
+nan_data = np.array(nan_data.values)
+nan_data = nan_data.tolist()
+lengthofdata = max([len(nan_data[i]) for i in range(len(nan_data))])
+# print(data)
+if (len(nan_data) != len(result)):
+    # insert nan into data
+    for i in range(len(result)-len(nan_data)):
+        nan_data.append([math.nan])
+for k in range(len(nan_data)):
+    if (len(nan_data[k]) != lengthofdata):
+        for p in range(lengthofdata-len(nan_data[k])):
+            nan_data[k].append(math.nan)
+        
+df = pd.DataFrame(nan_data)
+df.to_csv('./LabelTool/Score.csv', index=False, header=False)
+
 # 11/4
 
 Train_Size = 0.7
@@ -207,12 +244,17 @@ for i in range(len(data)):
     sum = 0
     count = 0
     for j in range(len(data[i])):
-        if (math.isnan(data[i][j])):
-            break
+        if (data[i][j] == "N"):
+            continue
+        # if (math.isnan(data[i][j])):
+        #     break
         else:
             sum += data[i][j]
             count += 1
-    average.append(sum/count)
+    try:
+        average.append(sum/count)
+    except:
+        pass
 
 # print(average)
 
