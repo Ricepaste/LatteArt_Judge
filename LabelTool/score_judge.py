@@ -244,10 +244,8 @@ for i in range(len(data)):
     sum = 0
     count = 0
     for j in range(len(data[i])):
-        if (data[i][j] == "N"):
+        if (math.isnan(data[i][j])):
             continue
-        # if (math.isnan(data[i][j])):
-        #     break
         else:
             sum += data[i][j]
             count += 1
@@ -297,7 +295,8 @@ for m in train_index_shuffle:
     file_path = '.\\LabelTool\\train\\labels{}.txt'.format(fuck[0])
     content = average[m]
     with open(file_path, 'w+') as f:
-        f.write(str(content))
+        if (not(math.isnan(content))):
+            f.write(str(content))
 
 # index_temp = 02
 
@@ -309,4 +308,6 @@ for n in test_index_shuffle:
     content = average[n]
     # index_temp += 1
     with open(file_path, 'w+') as f:
-        f.write(str(content))
+        if (not(math.isnan(content))):
+            f.write(str(content))
+            
