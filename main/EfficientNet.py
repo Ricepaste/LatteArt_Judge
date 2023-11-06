@@ -13,16 +13,17 @@ from torch.optim import lr_scheduler
 from torch.utils.data.dataset import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-# TODO 灰階、對比度、label標準化、資料強化是否旋轉？ 存最佳權重(正確率功能要修好))
+# TODO 灰階、對比度、label標準化、資料強化是否旋轉？
 
 
 LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
-LOAD_MODEL = False
-LOAD_MODEL_PATH = '.\\EFN_Model\\best2_ya.pt'
-MODE = 'train'  # train or test
+LOAD_MODEL = True
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_fu_blind.pt'
+MODE = 'test'  # train or test
+GRAY_VISION = True
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -84,7 +85,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
-    best_loss = float('inf')
+    # best_loss = float('inf')
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -153,8 +154,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 phase, epoch_loss, epoch_acc))
 
             # 如果是評估階段，且準確率創新高即存入 best_model_wts
-            if phase == 'val' and\
-                    (epoch_acc >= best_acc or epoch_loss <= best_loss):
+            # if phase == 'val' and\
+            #         (epoch_acc >= best_acc or epoch_loss <= best_loss):
+            if phase == 'val' and (epoch_acc >= best_acc):
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
 
@@ -165,8 +167,29 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
         (time_elapsed // 60), (time_elapsed % 60)))
     print(f'Best val Acc: {best_acc:4f}')
 
+    # 存最後權重
+    files = os.listdir('.\\runs')
+    i = 0
+    name = "efficientnet_b1"
+    while name in files:
+        old_name = name
+        i += 1
+        name = "efficientnet_b1_{}".format(i)
+    torch.save(model.state_dict(), '.\\runs\\{}\\last.pt'.format(old_name))
+
     # 載入最佳模型
     model.load_state_dict(best_model_wts)
+
+    # 存最佳權重
+    files = os.listdir('.\\runs')
+    i = 0
+    name = "efficientnet_b1"
+    while name in files:
+        old_name = name
+        i += 1
+        name = "efficientnet_b1_{}".format(i)
+    torch.save(model.state_dict(), '.\\runs\\{}\\best.pt'.format(old_name))
+
     return model
 
 
@@ -185,19 +208,28 @@ print(preprocess)
 # 訓練資料進行資料增補，驗證資料不需要
 data_transforms = {
     'train': transforms.Compose([
-        # transforms.Resize(256),  # null
-        transforms.RandomResizedCrop(224),  # 資料增補 224
-        transforms.RandomHorizontalFlip(),
+        transforms.RandomResizedCrop(240, scale=(0.8, 1)),  # 資料增補 224
+        transforms.Resize(255),
         transforms.ToTensor(),
-        # transforms.Normalize([0.485, 0.456, 0.406],
-        #                      [0.229, 0.224, 0.225])
+        transforms.Grayscale(num_output_channels=3),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225]),
+        transforms.RandomHorizontalFlip(p=0.25),
+        transforms.RandomVerticalFlip(p=0.25),
+        transforms.RandomRotation(degrees=10),
+        # transforms.RandomAffine(degrees=10),
     ]),
     'val': transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.CenterCrop(240),
+        transforms.Resize(255),
         transforms.ToTensor(),
-        # transforms.Normalize([0.485, 0.456, 0.406],
-        #                      [0.229, 0.224, 0.225])
+        transforms.Grayscale(num_output_channels=3),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225]),
+        transforms.RandomHorizontalFlip(p=0.25),
+        transforms.RandomVerticalFlip(p=0.25),
+        transforms.RandomRotation(degrees=10),
+        # transforms.RandomAffine(degrees=10),
     ]),
 }
 
@@ -207,12 +239,12 @@ data_dir = '.\\LabelTool'
 # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
 #                                           data_transforms[x])
 #                   for x in ['train', 'val']}
-# image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
-#                                       data_transforms[x])
-#                   for x in ['train', 'val']}
 image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
-                                      preprocess)
+                                      data_transforms[x])
                   for x in ['train', 'val']}
+# image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
+#                                       preprocess)
+#                   for x in ['train', 'val']}
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],
                                               batch_size=BATCH_SIZE,
                                               shuffle=True,
@@ -236,7 +268,9 @@ for param in model.parameters():
 # change the last layer of the model to fit our problem
 model._modules['classifier'] = torch.nn.Sequential(
     # torch.nn.Dropout(p=0.2, inplace=False),
-    torch.nn.Linear(1280, 1))
+    # torch.nn.Sigmoid(),
+    torch.nn.Linear(1280, 1),
+)
 
 # print('new top layer for transfer learning',
 #       model._modules['classifier'], sep='\n')
@@ -259,13 +293,13 @@ if MODE == 'train':
     model = train_model(model, criterion, optimizer,
                         exp_lr_scheduler, num_epochs=EPOCHS)
 
-    files = os.listdir('.\\EFN_Model')
-    i = 0
-    name = "best.pt"
-    while name in files:
-        i += 1
-        name = "best{}.pt".format(i)
-    torch.save(model.state_dict(), '.\\EFN_Model\\{}'.format(name))
+    # files = os.listdir('.\\EFN_Model')
+    # i = 0
+    # name = "best.pt"
+    # while name in files:
+    #     i += 1
+    #     name = "best{}.pt".format(i)
+    # torch.save(model.state_dict(), '.\\EFN_Model\\{}'.format(name))
 
     writer.flush()
     writer.close()
@@ -275,9 +309,25 @@ model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 # start evaluating the model
 model.eval()
 
+gray = transforms.Compose([
+    transforms.CenterCrop(240),
+    transforms.Resize(255),
+    transforms.ToTensor(),
+    transforms.Grayscale(num_output_channels=3),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225]),
+])
+
 # Step 3: Apply inference preprocessing transforms
-img = read_image(".\\main\\cropPhoto\\test.jpg")
-batch = preprocess(img).unsqueeze(0).to(device)
+if GRAY_VISION:
+    img = Image.open(".\\main\\cropPhoto\\test.jpg").convert('RGB')
+else:
+    img = read_image(".\\main\\cropPhoto\\test.jpg")
+
+if GRAY_VISION:
+    batch = gray(img).unsqueeze(0).to(device)
+else:
+    batch = preprocess(img).unsqueeze(0).to(device)
 
 # Step 4: Use the model and print the predicted category
 # prediction = model(batch).squeeze(0).softmax(0)
