@@ -28,44 +28,66 @@ def import_image(path):
 
 def score_judge():
     global curr_img, arr, min_index, STOP, i
-
     try:
         arr = pd.read_csv('./LabelTool/Score.csv', header=None)
         arr = np.array(arr.values)
     except pd.errors.EmptyDataError:
         print("Empty")
         arr = np.array([])
-    # print(arr)
+        
     arr = arr.tolist()
-
+     
     min_value = 100
     min_index = 0
 
-    while (1):
-        length = 0
+    temp_length = []
+            
+    if (len(arr) != len(result)):
+        min_index = len(arr)
+    else:
         if (STOP == len(result)):
             window_close()
             # exit(0)
-        try:
-            length = len(arr[i])
-            if (min_value > length):
-                min_value = length
-                min_index = i
-                STOP += 1
-                i += 1
-                break
-            else:
-                if (i == len(result)-1):
-                    window_close()
-                    # exit(0)
-        except:
-            min_index = i
-            STOP += 1
-            i += 1
-            break
+        for k in range(len(arr)):
+            length = 0
+            for p in range(len(arr[k])):
+                if (math.isnan(arr[k][p])):
+                    continue
+                else:
+                    length += 1
+            temp_length.append(length)
+                    
+        min_value = min(temp_length)
+        min_index = temp_length.index(min_value)
+    STOP += 1
+    # i = 0
+    # while (1):
+    #     length = 0
+    #     if (STOP == len(result)):
+    #         window_close()
+    #         # exit(0)
+    #     try:
+    #         length = len(arr[i])
+    #         if (min_value > length):
+    #             min_value = length
+    #             min_index = i
+    #             STOP += 1
+    #             i += 1
+    #             break
+    #         else:
+    #             if (i == len(result)-1):
+    #                 window_close()
+    #                 # exit(0)
+    #     except:
+    #         min_index = i
+    #         STOP += 1
+    #         i += 1
+    #         break
 
     try:
         curr_img = import_image(result[min_index])
+        curr_image_index = tk.Label(window, text = "{}/{}".format(min_index, len(result)))
+
 
         curr_img.pack()
 
@@ -80,25 +102,29 @@ def score_judge():
 
         input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
                            7/2-20, y=IMAGE_SIZE+80)
+        
+        curr_image_index.place(x=WINDOW_SIZE - 50, y=0
+                               )
     except:
         pass
-
 
 def window_close():
     window.destroy()
 
 
-def send_score():
+def send_score(event=None):
     # send score to excel to the corresponding index
+    global i, STOP
     curr_img.destroy()
     get_num_from_bar()
     if (not (score.isdigit()) or (int(score) < 0 or int(score) > 10)):
         messagebox.showerror(title="錯誤輸入", message="媽的文盲")
+        i-=1
+        STOP-=1
     else:
         write_score(min_index, score)
     clearBar()
     score_judge()
-
 
 def get_num_from_bar():
     global score
@@ -160,9 +186,9 @@ user_input = tk.Entry(window, width=USER_INPUT_BAR_SIZE)
 input_title = tk.Label(window, text="拉花評分: ", font=("Arial", 10))
 input_remind = tk.Label(window, text="(請輸入介於0~10分的整數)", font=("Arial", 10))
 
-
 score_judge()
 
+window.bind('<Return>', send_score)
 window.mainloop()
 
 
