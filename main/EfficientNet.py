@@ -21,7 +21,7 @@ MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
 LOAD_MODEL = True
-LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_LRL400.pt'
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_LLrDL400.pt'
 MODE = 'test'  # train or test
 GRAY_VISION = True
 GRAY_VISION_PREVIEW = True
@@ -271,8 +271,8 @@ for param in model.parameters():
 model._modules['classifier'] = torch.nn.Sequential(
     torch.nn.Linear(1280, 400),
     # torch.nn.Sigmoid(),
-    torch.nn.ReLU(),
-    # torch.nn.Dropout(p=0.2, inplace=False),
+    torch.nn.LeakyReLU(),
+    torch.nn.Dropout(p=0.2, inplace=False),
     torch.nn.Linear(400, 1),
     # torch.nn.Linear(1280, 1),
 )
@@ -285,6 +285,7 @@ criterion = torch.nn.MSELoss(reduction='mean')
 
 # 定義優化器為隨機梯度下降，學習率為0.001，動量為0.9
 optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM)
+
 model = model.to(device)
 
 # 每7個執行週期，學習率降 0.1
