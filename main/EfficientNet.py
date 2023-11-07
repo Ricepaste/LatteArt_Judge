@@ -21,7 +21,7 @@ MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
 LOAD_MODEL = True
-LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_LRL400.pt'
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_bigsat.pt'
 MODE = 'test'  # train or test
 GRAY_VISION = True
 GRAY_VISION_PREVIEW = True
@@ -211,6 +211,7 @@ data_transforms = {
     'train': transforms.Compose([
         transforms.RandomResizedCrop(240, scale=(0.8, 1)),  # 資料增補 224
         transforms.Resize(255),
+        transforms.ColorJitter(contrast=(0.5, 1), saturation=(1, 1.5)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
@@ -224,6 +225,7 @@ data_transforms = {
         transforms.Resize(255),
         transforms.CenterCrop(240),
         transforms.Resize(255),
+        transforms.ColorJitter(contrast=(0.5, 1), saturation=(1, 1.5)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
@@ -271,8 +273,8 @@ for param in model.parameters():
 model._modules['classifier'] = torch.nn.Sequential(
     torch.nn.Linear(1280, 400),
     # torch.nn.Sigmoid(),
-    torch.nn.ReLU(),
-    # torch.nn.Dropout(p=0.2, inplace=False),
+    torch.nn.LeakyReLU(),
+    torch.nn.Dropout(p=0.2, inplace=False),
     torch.nn.Linear(400, 1),
     # torch.nn.Linear(1280, 1),
 )
@@ -285,6 +287,7 @@ criterion = torch.nn.MSELoss(reduction='mean')
 
 # 定義優化器為隨機梯度下降，學習率為0.001，動量為0.9
 optimizer = optim.SGD(model.parameters(), lr=LR, momentum=MOMENTUM)
+
 model = model.to(device)
 
 # 每7個執行週期，學習率降 0.1
@@ -316,6 +319,7 @@ model.eval()
 
 gray = transforms.Compose([
     transforms.Resize(240),
+    transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225]),
