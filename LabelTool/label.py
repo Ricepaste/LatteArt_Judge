@@ -13,7 +13,8 @@ result = [os.path.join(dirpath, f) for f in os.listdir(
 data = pd.read_csv('./LabelTool/Score.csv', header=None)
 data = pd.DataFrame(data)
 
-# 行平均值、標準差
+# 標準化
+# # 行平均值、標準差
 col_mean = data.mean(axis=0)
 col_mean = col_mean.values.tolist()
 col_std = data.std(axis=0)
@@ -32,6 +33,21 @@ for i in range(len(data)):
         if ((data[j][i] < -1) or (data[j][i] > 1)):
             data[j][i] = math.nan
             
+# 歸一化     
+col_max = data.max(axis=0)
+col_max = col_max.values.tolist()
+col_min = data.min(axis=0)
+col_min = col_min.values.tolist()
+            
+for i in range(len(data)):
+    for j in range(len(data.columns)):
+        if (math.isnan(data[j][i])):
+            continue
+        else:
+            data[j][i] = (((data[j][i] - col_min[j]) / \
+                (col_max[j] - col_min[j])) * 10).round(4)            
+            
+
             
 print(data)
 
