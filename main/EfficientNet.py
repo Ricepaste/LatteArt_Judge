@@ -15,16 +15,16 @@ from torch.utils.tensorboard import SummaryWriter
 
 # TODO 對比度提高、label標準化、增加模型複雜度
 
-
+WORKERS = 0
 LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
-LOAD_MODEL = True
+LOAD_MODEL = False
 LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_bigsat.pt'
-MODE = 'test'  # train or test
+MODE = 'train'  # train or test
 GRAY_VISION = True
-GRAY_VISION_PREVIEW = True
+GRAY_VISION_PREVIEW = False
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -69,7 +69,7 @@ class TonyLatteDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        print(self.imgs[index], lbl)
+        # print(self.imgs[index], lbl)
         return img, lbl
 
     def __len__(self):
@@ -120,7 +120,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     labels = labels.float()
                     loss = criterion(outputs, labels)
 
-                    print(outputs, labels)
+                    # print(outputs, labels)
                     print('loss:\n', loss)
 
                     # 訓練時需要 backward + optimize
@@ -211,7 +211,7 @@ data_transforms = {
     'train': transforms.Compose([
         transforms.RandomResizedCrop(240, scale=(0.8, 1)),  # 資料增補 224
         transforms.Resize(255),
-        transforms.ColorJitter(contrast=(0.5, 1), saturation=(1, 1.5)),
+        transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
@@ -222,18 +222,19 @@ data_transforms = {
         transforms.RandomAffine(degrees=10),
     ]),
     'val': transforms.Compose([
+        # transforms.Resize((255, 255)),
         transforms.Resize(255),
         transforms.CenterCrop(240),
         transforms.Resize(255),
-        transforms.ColorJitter(contrast=(0.5, 1), saturation=(1, 1.5)),
+        # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
         transforms.Grayscale(num_output_channels=3),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        transforms.RandomRotation(degrees=10),
-        transforms.RandomAffine(degrees=10),
+        # transforms.RandomHorizontalFlip(p=0.5),
+        # transforms.RandomVerticalFlip(p=0.5),
+        # transforms.RandomRotation(degrees=10),
+        # transforms.RandomAffine(degrees=10),
     ]),
 }
 
@@ -252,7 +253,7 @@ image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],
                                               batch_size=BATCH_SIZE,
                                               shuffle=True,
-                                              num_workers=0)
+                                              num_workers=WORKERS)
                for x in ['train', 'val']}
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 print(dataset_sizes)
@@ -271,6 +272,7 @@ for param in model.parameters():
 
 # change the last layer of the model to fit our problem
 model._modules['classifier'] = torch.nn.Sequential(
+    # torch.nn.FeatureAlphaDropout(p=0.2, inplace=False),
     torch.nn.Linear(1280, 400),
     # torch.nn.Sigmoid(),
     torch.nn.LeakyReLU(),
@@ -313,12 +315,13 @@ if MODE == 'train':
     writer.close()
 # ------------------------------train done--------------------------------
 
-model.load_state_dict(torch.load(LOAD_MODEL_PATH))
+if (LOAD_MODEL):
+    model.load_state_dict(torch.load(LOAD_MODEL_PATH))
 # start evaluating the model
 model.eval()
 
 gray = transforms.Compose([
-    transforms.Resize(240),
+    transforms.Resize((255, 255)),
     transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
