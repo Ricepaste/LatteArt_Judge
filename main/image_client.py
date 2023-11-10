@@ -2,6 +2,7 @@ import socket
 from tkinter import filedialog
 import tkinter as tk
 from PIL import Image, ImageTk
+import select
 
 WINDOW_HEIGHT = 500
 WINDOW_WIDTH = 500
@@ -51,16 +52,26 @@ def entry_button_clicked():
 
 def sent_clicked():
     global filename, client
-    # im = open(".\\main\\TCP_photo\\test.jpg", mode='rb')
-    im = open(filename, mode='rb')
-    im_byte = im.read()
-    # 傳送資料
-    # client.sendall(data)
-    client.sendall(im_byte)
-    # 接收服務端的反饋資料
-    rec_data = client.recv(1024)
-    print(b'form server receive:' + rec_data)
-    im.close()
+
+    try:
+        im = open(filename, mode='rb')
+        im_byte = im.read()
+
+        client.sendall(im_byte)
+
+        # Use select to check if the socket is ready for reading
+        ready_to_read, _, _ = select.select([client], [], [], 0.1)
+
+        if ready_to_read:
+            rec_data = client.recv(1024)
+            print(b'from server receive:' + rec_data)
+        else:
+            print("No data received within the timeout.")
+
+        im.close()
+
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 # global image_p
