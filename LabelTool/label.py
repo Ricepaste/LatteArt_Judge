@@ -136,15 +136,16 @@ for n in test_index_shuffle:
     with open(file_path, 'w+') as f:
         if (not (math.isnan(content))):
             f.write(str(content))
-            
-            
+
+
 # 11/12 create label_propability.csv
 L_P = pd.read_csv("./LabelTool/Label.csv", header=None, names=['Values'])
 label_col = np.array(L_P['Values'].astype(float))
 label_col_rounded = np.round(label_col)
 
 
-target_dict = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0}
+target_dict = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0,
+               5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}
 
 # count label amount
 for i in range(len(label_col_rounded)):
@@ -153,27 +154,28 @@ for i in range(len(label_col_rounded)):
 
 
 # find min label
-min_label = 10000        
+min_label = 10000
 for i in range(len(target_dict)):
     if target_dict[i] != 0:
         if min_label > target_dict[i]:
             min_label = target_dict[i]
-            
-            
+
+
 # find data length
 n = 0
 for i in range(len(label_col_rounded)):
-    if not(math.isnan(label_col_rounded[i])):
+    if not (math.isnan(label_col_rounded[i])):
         n += 1
 
 target = []
 
 # use format: min_label / target_dict[i]
 for i in range(len(label_col_rounded)):
-    if (target_dict[i] == 0):
+
+    if (math.isnan(label_col_rounded[i]) or target_dict[label_col_rounded[i]] == 0):
         target.append(0)
     else:
-        target.append(min_label / target_dict[i])
+        target.append(min_label / target_dict[label_col_rounded[i]])
 
 # save to csv
 target = np.array(target)
