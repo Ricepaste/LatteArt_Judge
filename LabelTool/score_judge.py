@@ -109,7 +109,7 @@ def score_judge():
                           7/2-70, y=IMAGE_SIZE+47)
 
         input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
-                           7/2-20, y=IMAGE_SIZE+80)
+                           7/2-90, y=IMAGE_SIZE+80)
         
         curr_image_index.place(x=WINDOW_SIZE - 50, y=0
                                )
@@ -126,9 +126,12 @@ def send_score(event=None):
     curr_img.destroy()
     get_num_from_bar()
     if (not (score.isdigit()) or (int(score) < 0 or int(score) > 10)):
-        messagebox.showerror(title="錯誤輸入", message="媽的文盲")
-        # i-=1
-        STOP-=1
+        if (int(score) == -1):
+            write_score(min_index, math.nan)
+        else:
+            messagebox.showerror(title="錯誤輸入", message="媽的文盲")
+            # i-=1
+            STOP-=1
     else:
         write_score(min_index, score)
         # print("CHECK FLAG2: ", CHECK_FLAG)
@@ -225,7 +228,7 @@ window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
 button = tk.Button(window, text="Send", command=send_score)
 user_input = tk.Entry(window, width=USER_INPUT_BAR_SIZE)
 input_title = tk.Label(window, text="拉花評分: ", font=("Arial", 10))
-input_remind = tk.Label(window, text="(請輸入介於0~10分的整數)", font=("Arial", 10))
+input_remind = tk.Label(window, text="(請輸入介於0~10分的整數，-1表示無效資料)", font=("Arial", 10))
 
 score_judge()
 
