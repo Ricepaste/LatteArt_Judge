@@ -201,6 +201,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
+        # epoch 10 之後開始訓練原模型
+        if (epoch == 10):
+            for param in model.parameters():
+                param.requires_grad = True
+
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
