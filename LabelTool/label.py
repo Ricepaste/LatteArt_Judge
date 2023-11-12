@@ -179,4 +179,3 @@ for i in range(len(label_col_rounded)):
 target = np.array(target)
 df = pd.DataFrame(target)
 df.to_csv('./LabelTool/label_probability.csv', index=False, header=False)
-

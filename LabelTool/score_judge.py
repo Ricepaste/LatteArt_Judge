@@ -15,6 +15,7 @@ USER_INPUT_BAR_SIZE = 10
 STOP = 0
 i = 0
 CHECK_FLAG = 0
+temp_index = []
 
 
 def import_image(path):
@@ -90,12 +91,13 @@ def score_judge():
                     
         min_value = min(temp_length)
         min_index = temp_length.index(min_value)
+        # save the index of the image that has been scored
+        temp_index.append(min_index)
     STOP += 1
 
     try:
         curr_img = import_image(result[min_index])
         curr_image_index = tk.Label(window, text = "{}/{}".format(min_index, len(result)))
-
 
         curr_img.pack()
 
@@ -113,6 +115,8 @@ def score_judge():
         
         curr_image_index.place(x=WINDOW_SIZE - 50, y=0
                                )
+        back_button.place(x=WINDOW_SIZE/2+USER_INPUT_BAR_SIZE *
+                     7/2+60, y=IMAGE_SIZE+45)
     except:
         pass
 
@@ -194,6 +198,14 @@ def write_score(index, score):
 
     df.to_csv('./LabelTool/' + name, index=False, header=False)
 
+def backmenu():
+    temp_window = tk.Tk()
+    temp_window.title('Back Menu')
+    temp_window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
+    
+    
+    
+
 
 dirpath = r"./LabelTool/backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
@@ -229,6 +241,8 @@ button = tk.Button(window, text="Send", command=send_score)
 user_input = tk.Entry(window, width=USER_INPUT_BAR_SIZE)
 input_title = tk.Label(window, text="拉花評分: ", font=("Arial", 10))
 input_remind = tk.Label(window, text="(請輸入介於0~10分的整數，-1表示無效資料)", font=("Arial", 10))
+# back_button = tk.Button(window, text="Back", command = back_menu)
+
 
 score_judge()
 
