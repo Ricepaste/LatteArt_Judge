@@ -83,7 +83,10 @@ def score_judge():
             for p in range(len(arr[k])):
                 # if (math.isnan(arr[k][p])):
                 #     length += 1
-                if (math.isnan(arr[k][p])):
+                if (arr[k][p] == "."):
+                    length += 1
+                    continue
+                elif (math.isnan(float(arr[k][p]))):
                     continue
                 else:
                     length += 1
@@ -131,7 +134,7 @@ def send_score(event=None):
     get_num_from_bar()
     if (not (score.isdigit()) or (int(score) < 0 or int(score) > 10)):
         if (int(score) == -1):
-            write_score(min_index, math.nan)
+            write_score(min_index, ".")
         else:
             messagebox.showerror(title="錯誤輸入", message="媽的文盲")
             # i-=1
@@ -203,6 +206,17 @@ def back_menu():
     temp_window.title('Back Menu')
     temp_window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
     
+    frame = tk.Frame(temp_window, height = 10, width = 15)
+    temp_scrollbar = tk.Scrollbar(frame)
+    temp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+    text = tk.Text(frame, height = 10, width = 15, yscrollcommand = temp_scrollbar.set)
+    text.pack()
+    
+    temp_scrollbar.config(command = text.yview)
+    frame.pack()
+    
+    temp_window.mainloop()
     
     
 

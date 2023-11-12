@@ -13,14 +13,25 @@ result = [os.path.join(dirpath, f) for f in os.listdir(
 
 # 11/7 計算標準差 資料標準化 去離群值
 data = pd.read_csv('./LabelTool/Score.csv', header=None)
+data = data.apply(pd.to_numeric, errors='coerce')
 data = pd.DataFrame(data)
+
+# change all of the '.' in data to nan
+for i in range(len(data)):
+    for j in range(len(data.columns)):
+        if (data[j][i] == '.'):
+            data[j][i] = math.nan
 
 # 標準化
 # # 行平均值、標準差
-col_mean = data.mean(axis=0)
+col_mean = data.mean(axis=0, numeric_only=True)
 col_mean = col_mean.values.tolist()
-col_std = data.std(axis=0)
+
+col_std = data.std(axis=0, numeric_only=True)
 col_std = col_std.values.tolist()
+
+print(col_mean)
+print(col_std)
 
 # 標準化
 data = ((data - col_mean) / col_std).round(4)
@@ -70,6 +81,8 @@ for i in range(len(data)):
     sum = 0
     count = 0
     for j in range(len(data[i])):
+        if (data[i][j] == '.'):
+            continue
         if (math.isnan(data[i][j])):
             continue
         else:
