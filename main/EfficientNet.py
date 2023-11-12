@@ -22,11 +22,11 @@ LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
-LOAD_MODEL = True
+LOAD_MODEL = False
 LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_500.pt'
-MODE = 'test'  # train or test
+MODE = 'train'  # train or test
 GRAY_VISION = True
-GRAY_VISION_PREVIEW = True
+GRAY_VISION_PREVIEW = False
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -65,6 +65,15 @@ class TonyLatteDataset(Dataset):
         # --------------------------------------------
         imgpath = self.imgs[index]
         img = Image.open(imgpath).convert('RGB')
+
+        # 4. 雙邊濾波
+        open_cv_image = numpy.array(img)
+        # Convert RGB to BGR
+        open_cv_image = open_cv_image[:, :, ::-1].copy()
+        open_cv_image = cv2.bilateralFilter(open_cv_image, 20, 50, 100)
+        img = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(img)
+
         with open(self.lbls[index], 'r') as f:
             lbl = float(f.read())
         # lbl = int(self.lbls[index])
