@@ -5,6 +5,8 @@ import os
 import shutil
 import numpy as np
 
+# TODO 可以部份停用某些照片的label
+
 dirpath = r"./LabelTool/backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
     dirpath) if os.path.isfile(os.path.join(dirpath, f))]
@@ -27,28 +29,27 @@ print(data)
 
 print('---------------------')
 
-# 去離群值， +- 1 個標準差
-for i in range(len(data)):
-    for j in range(len(data.columns)):
-        if ((data[j][i] < -1) or (data[j][i] > 1)):
-            data[j][i] = math.nan
-            
-# 歸一化     
+# # 去離群值， +- 1 個標準差
+# for i in range(len(data)):
+#     for j in range(len(data.columns)):
+#         if ((data[j][i] < -1) or (data[j][i] > 1)):
+#             data[j][i] = math.nan
+
+# 歸一化
 col_max = data.max(axis=0)
 col_max = col_max.values.tolist()
 col_min = data.min(axis=0)
 col_min = col_min.values.tolist()
-            
+
 for i in range(len(data)):
     for j in range(len(data.columns)):
         if (math.isnan(data[j][i])):
             continue
         else:
-            data[j][i] = (((data[j][i] - col_min[j]) / \
-                (col_max[j] - col_min[j])) * 10).round(4)            
-            
+            data[j][i] = (((data[j][i] - col_min[j]) /
+                           (col_max[j] - col_min[j])) * 10).round(4)
 
-            
+
 print(data)
 
 data.to_csv('./LabelTool/Label.csv', index=False, header=False)
@@ -120,7 +121,7 @@ for m in train_index_shuffle:
     file_path = '.\\LabelTool\\train\\labels{}.txt'.format(fuck[0])
     content = average[m]
     with open(file_path, 'w+') as f:
-        if (not(math.isnan(content))):
+        if (not (math.isnan(content))):
             f.write(str(content))
 
 # index_temp = 02
@@ -133,6 +134,5 @@ for n in test_index_shuffle:
     content = average[n]
     # index_temp += 1
     with open(file_path, 'w+') as f:
-        if (not(math.isnan(content))):
+        if (not (math.isnan(content))):
             f.write(str(content))
-            

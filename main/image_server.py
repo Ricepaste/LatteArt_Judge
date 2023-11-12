@@ -10,7 +10,7 @@ def handle_client(client_socket, address):
     while True:
         ALL_Data = b''
         try:
-            data = client_socket.recv(262144)
+            data = client_socket.recv(1024)
         except:
             print("Error receiving data.")
             client_socket.close()
@@ -18,8 +18,8 @@ def handle_client(client_socket, address):
 
         ALL_Data += data
         print(len(data))
-        while len(data) == 262144:
-            data = client_socket.recv(262144)
+        while len(data) == 1024:
+            data = client_socket.recv(1024)
             ALL_Data += data
             print(len(data))
 
@@ -43,9 +43,9 @@ def handle_client(client_socket, address):
 
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    IP = socket.gethostbyname(socket.gethostname())
-    print(IP)
-    server.bind((IP, 8000))
+    IP = socket.gethostbyname_ex(socket.gethostname())
+    print(IP[2][2])
+    server.bind((IP[2][2], 8000))
     server.listen(5)
 
     print('Waiting for connections...')

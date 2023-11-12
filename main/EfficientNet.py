@@ -1,6 +1,8 @@
 import time
 import os
 import copy
+import numpy
+import cv2
 from PIL import Image
 import torch
 # from torchvision import datasets
@@ -11,20 +13,20 @@ from torchvision.models import EfficientNet_B1_Weights
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.utils.data.dataset import Dataset
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
-# TODO 對比度提高、label標準化、增加模型複雜度
+# TODO label標準化、不要每次都讀取資料集、損失函數重新設計
 
 WORKERS = 0
 LR = 0.01
 MOMENTUM = 0.87
 BATCH_SIZE = 16
 EPOCHS = 100
-LOAD_MODEL = False
-LOAD_MODEL_PATH = '.\\EFN_Model\\best_ja_bigsat.pt'
-MODE = 'train'  # train or test
+LOAD_MODEL = True
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_500.pt'
+MODE = 'test'  # train or test
 GRAY_VISION = True
-GRAY_VISION_PREVIEW = False
+GRAY_VISION_PREVIEW = True
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -145,11 +147,15 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_acc = float(running_corrects) / dataset_sizes[phase]
 
             if phase == 'train':
-                writer.add_scalar('training loss', epoch_loss, epoch)
-                writer.add_scalar('training accuracy', epoch_acc, epoch)
+                writer.add_scalar('training loss', epoch_loss,  # type: ignore
+                                  epoch)
+                writer.add_scalar('training accuracy',  # type: ignore
+                                  epoch_acc, epoch)
             elif phase == 'val':
-                writer.add_scalar('validation loss', epoch_loss, epoch)
-                writer.add_scalar('validation accuracy', epoch_acc, epoch)
+                writer.add_scalar('validation loss',  # type: ignore
+                                  epoch_loss, epoch)
+                writer.add_scalar('validation accuracy',  # type: ignore
+                                  epoch_acc, epoch)
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
@@ -171,6 +177,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     # 存最後權重
     files = os.listdir('.\\runs')
     i = 0
+    old_name = None
     name = "efficientnet_b1"
     while name in files:
         old_name = name
@@ -211,7 +218,8 @@ data_transforms = {
     'train': transforms.Compose([
         transforms.RandomResizedCrop(240, scale=(0.8, 1)),  # 資料增補 224
         transforms.Resize(255),
-        transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
+        transforms.ColorJitter(contrast=(0.5, 0.8),  # type: ignore
+                               saturation=(1.2, 1.5)),  # type: ignore
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225]),
@@ -250,7 +258,7 @@ image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
 # image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
 #                                       preprocess)
 #                   for x in ['train', 'val']}
-dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],
+dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],  # type: ignore
                                               batch_size=BATCH_SIZE,
                                               shuffle=True,
                                               num_workers=WORKERS)
@@ -311,8 +319,8 @@ if MODE == 'train':
     #     name = "best{}.pt".format(i)
     # torch.save(model.state_dict(), '.\\EFN_Model\\{}'.format(name))
 
-    writer.flush()
-    writer.close()
+    writer.flush()  # type: ignore
+    writer.close()  # type: ignore
 # ------------------------------train done--------------------------------
 
 if (LOAD_MODEL):
@@ -321,8 +329,8 @@ if (LOAD_MODEL):
 model.eval()
 
 gray = transforms.Compose([
-    transforms.Resize((255, 255)),
-    transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
+    transforms.Resize(255),
+    # transforms.ColorJitter(contrast=(0.9, 0.9), saturation=(1.2, 1.5)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225]),
@@ -332,7 +340,13 @@ gray = transforms.Compose([
 # Step 3: Apply inference preprocessing transforms
 if GRAY_VISION:
     img = Image.open(".\\main\\cropPhoto\\test.jpg").convert('RGB')
-    batch = gray(img).unsqueeze(0).to(device)
+    open_cv_image = numpy.array(img)
+    # Convert RGB to BGR
+    open_cv_image = open_cv_image[:, :, ::-1].copy()
+    open_cv_image = cv2.bilateralFilter(open_cv_image, 20, 50, 100)
+    img = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2RGB)
+    img = Image.fromarray(img)
+    batch = gray(img).unsqueeze(0).to(device)  # type: ignore
 else:
     img = read_image(".\\main\\cropPhoto\\test.jpg")
     batch = preprocess(img).unsqueeze(0).to(device)
