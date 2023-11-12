@@ -5,7 +5,7 @@ import os
 import shutil
 import numpy as np
 
-# TODO 可以部份停用某些照片的label
+# # TODO 可以部份停用某些照片的label
 
 dirpath = r"./LabelTool/backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
@@ -29,7 +29,7 @@ print(data)
 
 print('---------------------')
 
-# 去離群值， +- 1 個標準差
+# 去離群值， +- 2 個標準差
 for i in range(len(data)):
     for j in range(len(data.columns)):
         if ((data[j][i] < -2) or (data[j][i] > 2)):
@@ -152,7 +152,7 @@ for i in range(len(label_col_rounded)):
     if (label_col_rounded[i] in target_dict.keys()):
         target_dict[label_col_rounded[i]] += 1
 
-
+print(target_dict)
 # find min label
 min_label = 10000
 for i in range(len(target_dict)):
@@ -170,12 +170,11 @@ for i in range(len(label_col_rounded)):
 target = []
 
 # use format: min_label / target_dict[i]
-for i in range(len(label_col_rounded)):
-
-    if (math.isnan(label_col_rounded[i]) or target_dict[label_col_rounded[i]] == 0):
+for i in range(len(target_dict)):
+    try:
+        target.append(min_label / target_dict[i])
+    except:
         target.append(0)
-    else:
-        target.append(min_label / target_dict[label_col_rounded[i]])
 
 # save to csv
 target = np.array(target)
