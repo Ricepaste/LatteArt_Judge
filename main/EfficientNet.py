@@ -1,7 +1,9 @@
 import time
 import os
 import copy
-import numpy
+import numpy as np
+import pandas as pd
+import random
 import cv2
 from PIL import Image
 import torch
@@ -24,7 +26,7 @@ BATCH_SIZE = 16
 EPOCHS = 100
 LOAD_MODEL = False
 LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_500.pt'
-MODE = 'train'  # train or test
+MODE = 'test'  # train or test
 GRAY_VISION = True
 GRAY_VISION_PREVIEW = False
 
@@ -44,15 +46,54 @@ class TonyLatteDataset(Dataset):
         # Initialize paths, transforms, and so on
         # --------------------------------------------
         self.transform = transform
+        self.root = root
+
+        # 讀取每個label的抽樣機率
+        arr = pd.read_csv('./LabelTool/Pro.csv', header=None)
+        arr = np.array(arr.values).flatten().tolist()
 
         # Load image path and annotations
         files = os.listdir(root+"\\images")
         self.imgs = ['{}\\images\\{}'.format(
             root, filename) for filename in files]
+
+        files = os.listdir(root+"\\labels")
         for i in range(len(files)):
             files[i] = files[i].replace('jpg', 'txt')
         self.lbls = ['{}\\labels\\{}'.format(
             root, filename) for filename in files]
+
+        assert len(self.imgs) == len(
+            self.lbls), 'images & labels mismatched length!'
+
+        Sum_of_every_label = [0 for i in range(11)]
+        # 讀取label，並統計每個label的數量
+        for i in range(len(self.imgs)):
+            with open(self.lbls[i], 'r') as f:
+                # 對讀取的label進行四捨五入
+                lbl = int(np.round(float(f.read())))
+                Sum_of_every_label[lbl] += 1
+        print("Amount of every label:")
+        print(Sum_of_every_label)
+
+        stratify_imgs = []
+        stratify_lbls = []
+        Sum_of_every_label_stratified = [0 for i in range(11)]
+        # 讀取label，並依照抽樣機率進行抽樣
+        for i in range(len(self.imgs)):
+            with open(self.lbls[i], 'r') as f:
+                # 對讀取的label進行四捨五入
+                lbl = int(np.round(float(f.read())))
+                thd = random.random()
+                if (thd <= arr[lbl]):
+                    stratify_imgs.append(self.imgs[i])
+                    stratify_lbls.append(self.lbls[i])
+                    Sum_of_every_label_stratified[lbl] += 1
+        print("Amount of every label after stratified:")
+        print(Sum_of_every_label_stratified)
+
+        self.imgs = stratify_imgs
+        self.lbls = stratify_lbls
 
         assert len(self.imgs) == len(
             self.lbls), 'images & labels mismatched length!'
@@ -63,19 +104,24 @@ class TonyLatteDataset(Dataset):
         # 2. Preprocess the data (torchvision.Transform)
         # 3. Return the data (e.g. image and label)
         # --------------------------------------------
+
+        # # 定期重新抽樣資料庫
+        # if (index != 0 and index % 10 == 0):
+        #     self.restratify()
+
         imgpath = self.imgs[index]
         img = Image.open(imgpath).convert('RGB')
+        with open(self.lbls[index], 'r') as f:
+            lbl = float(f.read())
 
         # 4. 雙邊濾波
-        open_cv_image = numpy.array(img)
+        open_cv_image = np.array(img)
         # Convert RGB to BGR
         open_cv_image = open_cv_image[:, :, ::-1].copy()
         open_cv_image = cv2.bilateralFilter(open_cv_image, 20, 50, 100)
         img = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
 
-        with open(self.lbls[index], 'r') as f:
-            lbl = float(f.read())
         # lbl = int(self.lbls[index])
         if self.transform is not None:
             img = self.transform(img)
@@ -88,6 +134,58 @@ class TonyLatteDataset(Dataset):
         # Indicate the total size of the dataset
         # --------------------------------------------
         return len(self.imgs)
+
+    def restratify(self):
+        # 定期重新抽樣資料庫
+        # 讀取每個label的抽樣機率
+        arr = pd.read_csv('./LabelTool/Pro.csv', header=None)
+        arr = np.array(arr.values).flatten().tolist()
+
+        # Load image path and annotations
+        files = os.listdir(self.root+"\\images")
+        self.imgs = ['{}\\images\\{}'.format(
+            self.root, filename) for filename in files]
+
+        files = os.listdir(self.root+"\\labels")
+        for i in range(len(files)):
+            files[i] = files[i].replace('jpg', 'txt')
+        self.lbls = ['{}\\labels\\{}'.format(
+            self.root, filename) for filename in files]
+
+        assert len(self.imgs) == len(
+            self.lbls), 'images & labels mismatched length!'
+
+        Sum_of_every_label = [0 for i in range(11)]
+        # 讀取label，並統計每個label的數量
+        for i in range(len(self.imgs)):
+            with open(self.lbls[i], 'r') as f:
+                # 對讀取的label進行四捨五入
+                lbl = int(np.round(float(f.read())))
+                Sum_of_every_label[lbl] += 1
+        print("Amount of every label:")
+        print(Sum_of_every_label)
+
+        stratify_imgs = []
+        stratify_lbls = []
+        Sum_of_every_label_stratified = [0 for i in range(11)]
+        # 讀取label，並依照抽樣機率進行抽樣
+        for i in range(len(self.imgs)):
+            with open(self.lbls[i], 'r') as f:
+                # 對讀取的label進行四捨五入
+                lbl = int(np.round(float(f.read())))
+                thd = random.random()
+                if (thd <= arr[lbl]):
+                    stratify_imgs.append(self.imgs[i])
+                    stratify_lbls.append(self.lbls[i])
+                    Sum_of_every_label_stratified[lbl] += 1
+        print("Amount of every label after stratified:")
+        print(Sum_of_every_label_stratified)
+
+        self.imgs = stratify_imgs
+        self.lbls = stratify_lbls
+
+        assert len(self.imgs) == len(
+            self.lbls), 'images & labels mismatched length!'
 
 # 同時含訓練/評估
 
@@ -349,7 +447,7 @@ gray = transforms.Compose([
 # Step 3: Apply inference preprocessing transforms
 if GRAY_VISION:
     img = Image.open(".\\main\\cropPhoto\\test.jpg").convert('RGB')
-    open_cv_image = numpy.array(img)
+    open_cv_image = np.array(img)
     # Convert RGB to BGR
     open_cv_image = open_cv_image[:, :, ::-1].copy()
     open_cv_image = cv2.bilateralFilter(open_cv_image, 20, 50, 100)

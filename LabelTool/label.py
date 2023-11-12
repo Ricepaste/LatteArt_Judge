@@ -29,11 +29,11 @@ print(data)
 
 print('---------------------')
 
-# # 去離群值， +- 1 個標準差
-# for i in range(len(data)):
-#     for j in range(len(data.columns)):
-#         if ((data[j][i] < -1) or (data[j][i] > 1)):
-#             data[j][i] = math.nan
+# 去離群值， +- 1 個標準差
+for i in range(len(data)):
+    for j in range(len(data.columns)):
+        if ((data[j][i] < -2) or (data[j][i] > 2)):
+            data[j][i] = math.nan
 
 # 歸一化
 col_max = data.max(axis=0)
