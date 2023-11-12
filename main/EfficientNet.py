@@ -26,7 +26,7 @@ BATCH_SIZE = 16
 EPOCHS = 100
 LOAD_MODEL = False
 LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_500.pt'
-MODE = 'test'  # train or test
+MODE = 'train'  # train or test
 GRAY_VISION = True
 GRAY_VISION_PREVIEW = False
 
@@ -210,6 +210,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             running_loss = 0.0
             running_corrects = 0
+
+            if (epoch != 0 and epoch % 10 == 0):
+                dataloaders[phase].dataset.restratify()
 
             # 逐批訓練或驗證
             for inputs, labels in dataloaders[phase]:
@@ -410,6 +413,9 @@ model = model.to(device)
 # 每7個執行週期，學習率降 0.1
 exp_lr_scheduler = lr_scheduler.StepLR(
     optimizer, step_size=7, gamma=0.1)
+
+# exp_lr_scheduler = lr_scheduler.StepLR(
+#     optimizer, step_size=7, gamma=0.1, last_epoch=)
 
 if (LOAD_MODEL):
     model.load_state_dict(torch.load(LOAD_MODEL_PATH))
