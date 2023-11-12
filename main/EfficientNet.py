@@ -49,7 +49,7 @@ class TonyLatteDataset(Dataset):
         self.root = root
 
         # 讀取每個label的抽樣機率
-        arr = pd.read_csv('./LabelTool/Pro.csv', header=None)
+        arr = pd.read_csv('./LabelTool/label_probability.csv', header=None)
         arr = np.array(arr.values).flatten().tolist()
 
         # Load image path and annotations
@@ -138,7 +138,7 @@ class TonyLatteDataset(Dataset):
     def restratify(self):
         # 定期重新抽樣資料庫
         # 讀取每個label的抽樣機率
-        arr = pd.read_csv('./LabelTool/Pro.csv', header=None)
+        arr = pd.read_csv('./LabelTool/label_probability.csv', header=None)
         arr = np.array(arr.values).flatten().tolist()
 
         # Load image path and annotations
