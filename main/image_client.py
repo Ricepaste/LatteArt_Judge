@@ -3,6 +3,10 @@ from tkinter import filedialog
 import tkinter as tk
 from PIL import Image, ImageTk
 import select
+import os
+import time
+
+from pathy import ClientError
 
 WINDOW_HEIGHT = 500
 WINDOW_WIDTH = 500
@@ -51,7 +55,7 @@ def entry_button_clicked():
 
 
 def sent_clicked():
-    global filename, client
+    global filename, client, image_p, tk_image
 
     try:
         im = open(filename, mode='rb')
@@ -62,13 +66,58 @@ def sent_clicked():
         # Use select to check if the socket is ready for reading
         ready_to_read, _, _ = select.select([client], [], [], 0.1)
 
-        if ready_to_read:
-            rec_data = client.recv(1024)
-            print(b'from server receive:' + rec_data)
-        else:
-            print("No data received within the timeout.")
+        ALL_Data = b''
+        data = b''
+        try_times = 30
+        while (try_times > 0):
+            if ready_to_read:
+                data = client.recv(1024)
+                print(b'from server receive:' + data)
+                ALL_Data += data
+                break
+            else:
+                print("No data received within the timeout.")
+                time.sleep(1)
+                try_times -= 1
 
         im.close()
+
+        while True:
+            try:
+                data = client.recv(1024)
+                print(data)
+                break
+            except:
+                print("Error receiving data.")
+
+        ALL_Data += data
+        # print(len(data))
+        while len(data) == 1024:
+            data = client.recv(1024)
+            ALL_Data += data
+            print(len(data))
+
+        print(f"All data size: {len(ALL_Data)} bytes")
+
+        img_path = os.path.join(
+            os.getcwd(), "main\\TCP_client_photo\\received_image.jpg")
+        img = open(img_path, mode='wb+')
+        if data != b'' and data != b'quit':
+            img.write(ALL_Data)
+        img.close()
+
+        filename = ".\\main\\TCP_client_photo\\received_image.jpg"
+        image = Image.open(filename).convert('RGB')
+        long_side = max(image.size)
+        ratio = 300/long_side
+        image = image.resize(
+            (int(image.size[0]*ratio), int(image.size[1]*ratio)), Image.LANCZOS)
+        tk_image = ImageTk.PhotoImage(image)
+
+        image_p = tk.Label(window, image=tk_image)
+        image_p.place(x=10, y=LABEL_HEIGHT + ENTRY_HEIGHT +
+                      ENTRY_BUTTON_HEIGHT+BROWSE_BUTTON_HEIGHT+20, height=300, width=300)
+        window.update()
 
     except Exception as e:
         print(f"Error: {e}")
@@ -84,7 +133,8 @@ label = tk.Label(text="TCP connecting", font=("Arial", 14, "bold"),
                  padx=5, pady=5, fg="black")
 entry = tk.Entry(width=30, font=("Arial", 14, "bold"),
                  fg="black", state='normal')
-entry.insert(tk.END, string="192.168.137.1")
+# entry.insert(tk.END, string="192.168.137.1")
+entry.insert(tk.END, string="127.0.0.1")
 entry_button = tk.Button(text="confirmed", font=("Arial", 14, "bold"), padx=5,
                          pady=5, bg="gray", fg="black", command=entry_button_clicked)
 browse_button = tk.Button(text="Browse Picture", font=("Arial", 14, "bold"), padx=5,

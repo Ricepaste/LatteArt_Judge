@@ -2,6 +2,7 @@ import socket
 import os
 import select
 import threading
+import LatteArtCNN
 
 
 def handle_client(client_socket, address):
@@ -25,18 +26,27 @@ def handle_client(client_socket, address):
 
         print(f"All data size: {len(ALL_Data)} bytes")
 
+        img_path = os.path.join(
+            os.getcwd(), ".\\main\\TCP_photo\\received_image.jpg")
+        img = open(img_path, mode='wb+')
+        if data != b'' and data != b'quit':
+            img.write(ALL_Data)
+        img.close()
+
         if data == b'quit' or data == b'':
             print(b'The client has quit.')
             client_socket.close()
             break
         else:
-            client_socket.sendall(b'Your words have been received.')
+            # client_socket.sendall(b'Your words have been received.')
+            LatteArtCNN.transform('.\\main\\TCP_photo\\',
+                                  '.\\main\\TCP_server_photo\\')
+            im = open('.\\main\\TCP_server_photo\\cropPhoto.jpg', mode='rb')
+            im_byte = im.read()
 
-        img_path = os.path.join(os.getcwd(), "received_image.jpg")
-        img = open(img_path, mode='wb')
-        if data != b'' and data != b'quit':
-            img.write(ALL_Data)
-        img.close()
+            client_socket.sendall(im_byte)
+            print("ALL data size:", len(im_byte))
+            im.close()
 
     print(f'Connection from {address} closed.')
 
@@ -44,8 +54,9 @@ def handle_client(client_socket, address):
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     IP = socket.gethostbyname_ex(socket.gethostname())
-    print(IP[2][2])
-    server.bind((IP[2][2], 8000))
+    # print(IP)
+    # server.bind((IP[2][2], 8000))
+    server.bind(('127.0.0.1', 8000))
     server.listen(5)
 
     print('Waiting for connections...')

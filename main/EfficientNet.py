@@ -11,24 +11,25 @@ import torch
 from torchvision import transforms
 from torchvision.io import read_image
 import torchvision.models as models
-from torchvision.models import EfficientNet_B1_Weights
+from torchvision.models import EfficientNet_B0_Weights
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.utils.data.dataset import Dataset
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
-# TODO label標準化、不要每次都讀取資料集、損失函數重新設計
+# TODO label標準化、不要每次都讀取資料集、損失函數重新設計、照片排序比分、神經元增加、圖片先分類
 
 WORKERS = 0
-LR = 0.01
-MOMENTUM = 0.87
-BATCH_SIZE = 16
+LR = 0.001
+MOMENTUM = 0.1
+BATCH_SIZE = 8
 EPOCHS = 100
 LOAD_MODEL = False
-LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_500.pt'
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_600.pt'
 MODE = 'train'  # train or test
 GRAY_VISION = True
-GRAY_VISION_PREVIEW = False
+GRAY_VISION_PREVIEW = True
+TRAIN_EFN = False
 
 if MODE == 'train':
     files = os.listdir('.\\runs')
@@ -41,7 +42,7 @@ if MODE == 'train':
 
 
 class TonyLatteDataset(Dataset):
-    def __init__(self, root, transform):
+    def __init__(self, root, transform, x):
         # --------------------------------------------
         # Initialize paths, transforms, and so on
         # --------------------------------------------
@@ -63,37 +64,38 @@ class TonyLatteDataset(Dataset):
         self.lbls = ['{}\\labels\\{}'.format(
             root, filename) for filename in files]
 
-        assert len(self.imgs) == len(
-            self.lbls), 'images & labels mismatched length!'
+        if (x == 'train'):
+            assert len(self.imgs) == len(
+                self.lbls), 'images & labels mismatched length!'
 
-        Sum_of_every_label = [0 for i in range(11)]
-        # 讀取label，並統計每個label的數量
-        for i in range(len(self.imgs)):
-            with open(self.lbls[i], 'r') as f:
-                # 對讀取的label進行四捨五入
-                lbl = int(np.round(float(f.read())))
-                Sum_of_every_label[lbl] += 1
-        print("Amount of every label:")
-        print(Sum_of_every_label)
+            Sum_of_every_label = [0 for i in range(11)]
+            # 讀取label，並統計每個label的數量
+            for i in range(len(self.imgs)):
+                with open(self.lbls[i], 'r') as f:
+                    # 對讀取的label進行四捨五入
+                    lbl = int(np.round(float(f.read())))
+                    Sum_of_every_label[lbl] += 1
+            print("Amount of every label:")
+            print(Sum_of_every_label)
 
-        stratify_imgs = []
-        stratify_lbls = []
-        Sum_of_every_label_stratified = [0 for i in range(11)]
-        # 讀取label，並依照抽樣機率進行抽樣
-        for i in range(len(self.imgs)):
-            with open(self.lbls[i], 'r') as f:
-                # 對讀取的label進行四捨五入
-                lbl = int(np.round(float(f.read())))
-                thd = random.random()
-                if (thd <= arr[lbl]):
-                    stratify_imgs.append(self.imgs[i])
-                    stratify_lbls.append(self.lbls[i])
-                    Sum_of_every_label_stratified[lbl] += 1
-        print("Amount of every label after stratified:")
-        print(Sum_of_every_label_stratified)
+            stratify_imgs = []
+            stratify_lbls = []
+            Sum_of_every_label_stratified = [0 for i in range(11)]
+            # 讀取label，並依照抽樣機率進行抽樣
+            for i in range(len(self.imgs)):
+                with open(self.lbls[i], 'r') as f:
+                    # 對讀取的label進行四捨五入
+                    lbl = int(np.round(float(f.read())))
+                    thd = random.random()
+                    if (thd <= arr[lbl]):
+                        stratify_imgs.append(self.imgs[i])
+                        stratify_lbls.append(self.lbls[i])
+                        Sum_of_every_label_stratified[lbl] += 1
+            print("Amount of every label after stratified:")
+            print(Sum_of_every_label_stratified)
 
-        self.imgs = stratify_imgs
-        self.lbls = stratify_lbls
+            self.imgs = stratify_imgs
+            self.lbls = stratify_lbls
 
         assert len(self.imgs) == len(
             self.lbls), 'images & labels mismatched length!'
@@ -192,17 +194,27 @@ class TonyLatteDataset(Dataset):
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
+    writer.add_graph(model, torch.zeros(  # type: ignore
+        1, 3, 800, 800).to(device))
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+
+    # val_index = 0
     # best_loss = float('inf')
+
+    dataset_sizes = {phase: len(dataloaders[phase].dataset) for phase in [
+        'train', 'val']}
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
+        distribution = []
+        distribution_val = []
+
         # epoch 10 之後開始訓練原模型
-        if (epoch == 10):
+        if (epoch == 10 and TRAIN_EFN):
             for param in model.parameters():
                 param.requires_grad = True
 
@@ -216,8 +228,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             running_loss = 0.0
             running_corrects = 0
 
-            if (epoch != 0 and epoch % 10 == 0):
+            if (epoch != 0 and epoch % 10 == 0 and phase == 'train'):
                 dataloaders[phase].dataset.restratify()
+                dataset_sizes = {phase: len(dataloaders[phase].dataset) for phase in [
+                    'train', 'val']}
+                print(dataset_sizes['train'])
 
             # 逐批訓練或驗證
             for inputs, labels in dataloaders[phase]:
@@ -238,7 +253,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     loss = criterion(outputs, labels)
 
                     # print(outputs, labels)
-                    print('loss:\n', loss)
+                    # print('loss:\n', loss)
+                    if (loss.item() > 1000):
+                        print('loss:', loss)
+                    print(outputs)
+                    print(labels)
 
                     # 訓練時需要 backward + optimize
                     if phase == 'train':
@@ -247,14 +266,46 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # 統計損失
                 running_loss += loss.item() * inputs.size(0)
+                # print(loss, inputs.size(0))
                 # 統計正確率
                 edge_up = outputs <= (labels.data + 0.5)
                 edge_down = outputs > (labels.data - 0.5)
-                # print(edge_up)
+
+                # 輸出label的分布範圍，確認是否在猜測期望值
+                # for i in range(labels.data.shape[0]):
+
+                #     writer.add_scalar('training/output_labels', outputs[i],  # type: ignore
+                #                       val_index)
+                #     val_index += 1
+                # print(outputs.detach().cpu().numpy().astype(float))
+                if phase == 'train':
+                    distribution.append(
+                        outputs.detach().cpu().numpy().astype(float).tolist())
+                elif phase == 'val':
+                    distribution_val.append(
+                        outputs.detach().cpu().numpy().astype(float).tolist())
+
+                # print(labels.data)
                 # print(edge_down)
                 for i in range(len(edge_up)):
                     if edge_up[i] and edge_down[i]:
                         running_corrects += 1
+
+            if phase == 'train':
+                # print(distribution)
+
+                distribution = [y for x in distribution for y in x]
+                # print(distribution)
+                writer.add_histogram(  # type: ignore
+                    'training/output_distribution', np.array(distribution), epoch)
+            elif phase == 'val':
+                # print(distribution_val)
+
+                distribution_val = [y for x in distribution_val for y in x]
+                # print(distribution_val)
+                writer.add_histogram(  # type: ignore
+                    'validation/output_distribution', np.array(distribution_val), epoch)
+
             if phase == 'train':
                 scheduler.step()
 
@@ -262,14 +313,14 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_acc = float(running_corrects) / dataset_sizes[phase]
 
             if phase == 'train':
-                writer.add_scalar('training loss', epoch_loss,  # type: ignore
+                writer.add_scalar('training/loss', epoch_loss,  # type: ignore
                                   epoch)
-                writer.add_scalar('training accuracy',  # type: ignore
+                writer.add_scalar('training/accuracy',  # type: ignore
                                   epoch_acc, epoch)
             elif phase == 'val':
-                writer.add_scalar('validation loss',  # type: ignore
+                writer.add_scalar('validation/loss',  # type: ignore
                                   epoch_loss, epoch)
-                writer.add_scalar('validation accuracy',  # type: ignore
+                writer.add_scalar('validation/accuracy',  # type: ignore
                                   epoch_acc, epoch)
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
@@ -320,8 +371,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 # Step 1: Initialize model with the best available weights
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-weights = EfficientNet_B1_Weights.DEFAULT
-model = models.efficientnet_b1(weights=weights)
+weights = EfficientNet_B0_Weights.DEFAULT
+model = models.efficientnet_b0(weights=weights)
 
 # Step 2: Initialize the inference transforms
 # 資料強化還沒有做，需要研究原轉換函數內容
@@ -331,8 +382,8 @@ print(preprocess)
 # 訓練資料進行資料增補，驗證資料不需要
 data_transforms = {
     'train': transforms.Compose([
-        transforms.RandomResizedCrop(240, scale=(0.8, 1)),  # 資料增補 224
-        transforms.Resize(255),
+        transforms.RandomResizedCrop(800, scale=(0.8, 1)),  # 資料增補 224
+        transforms.Resize(900),
         transforms.ColorJitter(contrast=(0.5, 0.8),  # type: ignore
                                saturation=(1.2, 1.5)),  # type: ignore
         transforms.ToTensor(),
@@ -346,9 +397,9 @@ data_transforms = {
     ]),
     'val': transforms.Compose([
         # transforms.Resize((255, 255)),
-        transforms.Resize(255),
-        transforms.CenterCrop(240),
-        transforms.Resize(255),
+        transforms.Resize(900),
+        transforms.CenterCrop(800),
+        transforms.Resize(900),
         # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
@@ -368,7 +419,7 @@ data_dir = '.\\LabelTool'
 #                                           data_transforms[x])
 #                   for x in ['train', 'val']}
 image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
-                                      data_transforms[x])
+                                      data_transforms[x], x)
                   for x in ['train', 'val']}
 # image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
 #                                       preprocess)
@@ -393,14 +444,30 @@ for param in model.parameters():
 # print the model structure to see the last layer
 # print('old top layer:', model._modules['classifier'], sep='\n')
 
-# change the last layer of the model to fit our problem
+# # change the last layer of the b1 model to fit our problem
+# model._modules['classifier'] = torch.nn.Sequential(
+#     # torch.nn.FeatureAlphaDropout(p=0.2, inplace=False),
+#     torch.nn.Linear(1280, 400),
+#     # torch.nn.Sigmoid(),
+#     torch.nn.LeakyReLU(),
+#     torch.nn.Dropout(p=0.2, inplace=False),
+#     torch.nn.Linear(400, 1),
+#     # torch.nn.Linear(1280, 1),
+# )
+
+# change the last layer of the b3 model to fit our problem
 model._modules['classifier'] = torch.nn.Sequential(
     # torch.nn.FeatureAlphaDropout(p=0.2, inplace=False),
-    torch.nn.Linear(1280, 400),
-    # torch.nn.Sigmoid(),
+    torch.nn.Linear(1280, 1000),
+    torch.nn.Sigmoid(),
+    torch.nn.Dropout(p=0.2, inplace=False),
+    torch.nn.Linear(1000, 500),
     torch.nn.LeakyReLU(),
     torch.nn.Dropout(p=0.2, inplace=False),
-    torch.nn.Linear(400, 1),
+    torch.nn.Linear(500, 100),
+    torch.nn.LeakyReLU(),
+    torch.nn.Dropout(p=0.2, inplace=False),
+    torch.nn.Linear(100, 1),
     # torch.nn.Linear(1280, 1),
 )
 
@@ -447,7 +514,7 @@ if (LOAD_MODEL):
 model.eval()
 
 gray = transforms.Compose([
-    transforms.Resize(255),
+    transforms.Resize(900),
     # transforms.ColorJitter(contrast=(0.9, 0.9), saturation=(1.2, 1.5)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
