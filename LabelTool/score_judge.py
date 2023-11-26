@@ -15,7 +15,9 @@ USER_INPUT_BAR_SIZE = 10
 STOP = 0
 i = 0
 CHECK_FLAG = 0
+BACK_FLAG = 0
 temp_index = []
+img_path = []
 
 
 def import_image(path):
@@ -25,6 +27,10 @@ def import_image(path):
     tk_img = ImageTk.PhotoImage(resize_image)
     lab = tk.Label(window, image=tk_img)
     lab.image = tk_img  # 保留對圖像物件的引用以避免被垃圾回收
+    if (path in img_path):
+        pass
+    else:
+        img_path.append(path)
     return lab
 
 
@@ -95,7 +101,7 @@ def score_judge():
         min_value = min(temp_length)
         min_index = temp_length.index(min_value)
         # save the index of the image that has been scored
-        temp_index.append(min_index)
+    temp_index.append(min_index)
     STOP += 1
 
     try:
@@ -133,9 +139,10 @@ def send_score(event=None):
     curr_img.destroy()
     get_num_from_bar()
     if (not (score.isdigit()) or (int(score) < 0 or int(score) > 10)):
-        if (int(score) == -1):
-            write_score(min_index, ".")
-        else:
+        try:
+            if (int(score) == -1):
+                write_score(min_index, ".")
+        except:
             messagebox.showerror(title="錯誤輸入", message="媽的文盲")
             # i-=1
             STOP-=1
@@ -201,25 +208,91 @@ def write_score(index, score):
 
     df.to_csv('./LabelTool/' + name, index=False, header=False)
 
+
+"""
 def back_menu():
+    global img_path
     temp_window = tk.Tk()
     temp_window.title('Back Menu')
     temp_window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
     
-    frame = tk.Frame(temp_window, height = 10, width = 15)
+    frame = tk.Frame(temp_window, height = 50, width = 75)
     temp_scrollbar = tk.Scrollbar(frame)
     temp_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
-    text = tk.Text(frame, height = 10, width = 15, yscrollcommand = temp_scrollbar.set)
-    text.pack()
+    # put image on the frame
+    for i in range(len(img_path)):
+        temp_img = Image.open(img_path[i])
+        resize_image = temp_img.resize((IMAGE_SIZE, IMAGE_SIZE), Image.LANCZOS)
+        tk_img = ImageTk.PhotoImage(resize_image)
+        lab = tk.Label(frame, image=tk_img)
+        lab.image = tk_img
+        lab.pack()
+        print(img_path[i])
+        
+    # text = tk.Text(frame, height = 30, width = 60, yscrollcommand = temp_scrollbar.set)
+    # text.pack()
     
-    temp_scrollbar.config(command = text.yview)
+    # temp_scrollbar.config(command = text.yview)
+    frame.pack()
+    temp_window.mainloop()
+"""
+
+def back_menu():
+    global img_path, temp_index, temp_window
+    temp_window = tk.Toplevel()  # Use Toplevel instead of Tk
+    temp_window.title('Back Menu')
+    temp_window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
+    
+    frame = tk.Frame(temp_window,width=200, height=175)
     frame.pack()
     
-    temp_window.mainloop()
+    # text = tk.Text(frame, text="")
+    
+    # put image on the canvas
+    
+    canvas = tk.Canvas(frame, width=200, height=350, scrollregion=(0, 0, 200, 175*len(img_path)))
+    scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     
     
+    # temp_img_index = tk.Label(temp_window, text="Image index: ")
+    
+    
+    temp_entry_label = tk.Label(temp_window, text="Change score: ")
+    temp_entry_label.place(x=WINDOW_SIZE/2-100, y=WINDOW_SIZE/2+142.5)
+    temp_entry = tk.Entry(temp_window, width=15)
+    temp_entry.place(x=WINDOW_SIZE/2-10, y=WINDOW_SIZE/2+145)
+    
+    for i in range(len(img_path)):
+        temp_img = Image.open(img_path[i])
+        resize_image = temp_img.resize((200, 175), Image.LANCZOS)
+        tk_img = ImageTk.PhotoImage(resize_image)
+        # turn the image into a button and put it on the canvas
+        
 
+        button = tk.Button(canvas, image=tk_img, command=lambda img_path=img_path[i]: button_click(img_path))
+        button.image = tk_img
+        
+        canvas.create_window(0, i * 175, anchor='nw', window = button, width=200, height=175)
+        
+        
+        
+        print(img_path[i])
+
+    canvas.pack()
+    canvas.config(yscrollcommand=scrollbar.set)
+    
+    temp_window.mainloop()
+
+def button_click(image_path):
+    global BACK_FLAG
+    BACK_FLAG = 1
+    
+    temp_img_index = tk.Label(temp_window, text="Image index: {}".format(temp_index[img_path.index(image_path)]))
+    temp_img_index.place(x=WINDOW_SIZE/2-60, y=WINDOW_SIZE/2+115)
+    
+    print(f"Button clicked for image: {image_path}")
 
 dirpath = r"./LabelTool/backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
