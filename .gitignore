@@ -1,3 +1,7 @@
 .vscode/launch.json
 yolov5/train.py
 .vscode/settings.json
+LabelTool/train
+LabelTool/val
+LabelTool/Score.csv
+runs
