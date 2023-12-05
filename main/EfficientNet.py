@@ -14,15 +14,12 @@ LR = 0.001
 MOMENTUM = 0.1
 BATCH_SIZE = 8
 EPOCHS = 100
-LOAD_MODEL = False
-LOAD_MODEL_PATH = '.\\EFN_Model\\best_ann_600.pt'
-MODE = 'train'  # train or test
+LOAD_MODEL = True
+LOAD_MODEL_PATH = '.\\EFN_Model\\best_mini.pt'
+MODE = 'test'  # train or test
 GRAY_VISION = True
 GRAY_VISION_PREVIEW = True
 TRAIN_EFN = False
-
-
-# 同時含訓練/評估
 
 
 # -------------------------main---------------------------

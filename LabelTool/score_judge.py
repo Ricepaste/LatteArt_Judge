@@ -42,12 +42,12 @@ def score_judge():
     except pd.errors.EmptyDataError:
         print("Empty")
         arr = np.array([])
-        
+
     arr = arr.tolist()
-     
+
     min_value = 100
     min_index = 0
-    
+
     # temp_length = []
 
     # if (len(arr) != len(result)):
@@ -70,14 +70,13 @@ def score_judge():
     #             min_value = length
     #             min_index = i
     #         temp_length.append(length)
-                
+
     # min_value = min(temp_length)
     # min_index = temp_length.index(min_value)
     # STOP += 1
 
-    
     temp_length = []
-            
+
     if (len(arr) != len(result)):
         min_index = len(arr)
     else:
@@ -97,7 +96,7 @@ def score_judge():
                 else:
                     length += 1
             temp_length.append(length)
-                    
+
         min_value = min(temp_length)
         min_index = temp_length.index(min_value)
         # save the index of the image that has been scored
@@ -106,7 +105,8 @@ def score_judge():
 
     try:
         curr_img = import_image(result[min_index])
-        curr_image_index = tk.Label(window, text = "{}/{}".format(min_index, len(result)))
+        curr_image_index = tk.Label(
+            window, text="{}/{}".format(min_index, len(result)))
 
         curr_img.pack()
 
@@ -121,13 +121,14 @@ def score_judge():
 
         input_remind.place(x=WINDOW_SIZE/2-USER_INPUT_BAR_SIZE *
                            7/2-90, y=IMAGE_SIZE+80)
-        
+
         curr_image_index.place(x=WINDOW_SIZE - 50, y=0
                                )
         back_button.place(x=WINDOW_SIZE/2+USER_INPUT_BAR_SIZE *
-                     7/2+60, y=IMAGE_SIZE+45)
+                          7/2+60, y=IMAGE_SIZE+45)
     except:
         pass
+
 
 def window_close():
     window.destroy()
@@ -145,12 +146,13 @@ def send_score(event=None):
         except:
             messagebox.showerror(title="錯誤輸入", message="媽的文盲")
             # i-=1
-            STOP-=1
+            STOP -= 1
     else:
         write_score(min_index, score)
         # print("CHECK FLAG2: ", CHECK_FLAG)
     clearBar()
     score_judge()
+
 
 def get_num_from_bar():
     global score
@@ -180,7 +182,6 @@ def write_score(index, score):
                         break
                     else:
                         continue
-                
 
         arr[index] = temp_list
     except:
@@ -238,61 +239,63 @@ def back_menu():
     temp_window.mainloop()
 """
 
+
 def back_menu():
     global img_path, temp_index, temp_window
     temp_window = tk.Toplevel()  # Use Toplevel instead of Tk
     temp_window.title('Back Menu')
     temp_window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
-    
-    frame = tk.Frame(temp_window,width=200, height=175)
+
+    frame = tk.Frame(temp_window, width=200, height=175)
     frame.pack()
-    
+
     # text = tk.Text(frame, text="")
-    
+
     # put image on the canvas
-    
-    canvas = tk.Canvas(frame, width=200, height=350, scrollregion=(0, 0, 200, 175*len(img_path)))
+
+    canvas = tk.Canvas(frame, width=200, height=350,
+                       scrollregion=(0, 0, 200, 175*len(img_path)))
     scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
-    
+
     # temp_img_index = tk.Label(temp_window, text="Image index: ")
-    
-    
+
     temp_entry_label = tk.Label(temp_window, text="Change score: ")
     temp_entry_label.place(x=WINDOW_SIZE/2-100, y=WINDOW_SIZE/2+142.5)
     temp_entry = tk.Entry(temp_window, width=15)
     temp_entry.place(x=WINDOW_SIZE/2-10, y=WINDOW_SIZE/2+145)
-    
+
     for i in range(len(img_path)):
         temp_img = Image.open(img_path[i])
         resize_image = temp_img.resize((200, 175), Image.LANCZOS)
         tk_img = ImageTk.PhotoImage(resize_image)
         # turn the image into a button and put it on the canvas
-        
 
-        button = tk.Button(canvas, image=tk_img, command=lambda img_path=img_path[i]: button_click(img_path))
+        button = tk.Button(
+            canvas, image=tk_img, command=lambda img_path=img_path[i]: button_click(img_path))
         button.image = tk_img
-        
-        canvas.create_window(0, i * 175, anchor='nw', window = button, width=200, height=175)
-        
-        
-        
+
+        canvas.create_window(0, i * 175, anchor='nw',
+                             window=button, width=200, height=175)
+
         print(img_path[i])
 
     canvas.pack()
     canvas.config(yscrollcommand=scrollbar.set)
-    
+
     temp_window.mainloop()
+
 
 def button_click(image_path):
     global BACK_FLAG
     BACK_FLAG = 1
-    
-    temp_img_index = tk.Label(temp_window, text="Image index: {}".format(temp_index[img_path.index(image_path)]))
+
+    temp_img_index = tk.Label(temp_window, text="Image index: {}".format(
+        temp_index[img_path.index(image_path)]))
     temp_img_index.place(x=WINDOW_SIZE/2-60, y=WINDOW_SIZE/2+115)
-    
+
     print(f"Button clicked for image: {image_path}")
+
 
 dirpath = r"./LabelTool/backup27"
 result = [os.path.join(dirpath, f) for f in os.listdir(
@@ -305,20 +308,19 @@ path4 = "./LabelTool/train/labels"
 path5 = "./LabelTool/val/images"
 path6 = "./LabelTool/val/labels"
 
-if (not(os.path.exists(path1))):
+if (not (os.path.exists(path1))):
     os.mkdir(path1)
-if (not(os.path.exists(path2))):
+if (not (os.path.exists(path2))):
     os.mkdir(path2)
-if (not(os.path.exists(path3))):
+if (not (os.path.exists(path3))):
     os.mkdir(path3)
-if (not(os.path.exists(path4))):
+if (not (os.path.exists(path4))):
     os.mkdir(path4)
-if (not(os.path.exists(path5))):
+if (not (os.path.exists(path5))):
     os.mkdir(path5)
-if (not(os.path.exists(path6))):
-    os.mkdir(path6)    
-    
-        
+if (not (os.path.exists(path6))):
+    os.mkdir(path6)
+
 
 window = tk.Tk()
 window.title('Score')
@@ -327,8 +329,9 @@ window.geometry("{}x{}".format(WINDOW_SIZE, WINDOW_SIZE))
 button = tk.Button(window, text="Send", command=send_score)
 user_input = tk.Entry(window, width=USER_INPUT_BAR_SIZE)
 input_title = tk.Label(window, text="拉花評分: ", font=("Arial", 10))
-input_remind = tk.Label(window, text="(請輸入介於0~10分的整數，-1表示無效資料)", font=("Arial", 10))
-back_button = tk.Button(window, text="Back", command = back_menu)
+input_remind = tk.Label(
+    window, text="(請輸入介於0~10分的整數，-1表示無效資料)", font=("Arial", 10))
+back_button = tk.Button(window, text="Back", command=back_menu)
 
 
 score_judge()
@@ -351,8 +354,6 @@ for k in range(len(nan_data)):
     if (len(nan_data[k]) != lengthofdata):
         for p in range(lengthofdata-len(nan_data[k])):
             nan_data[k].append(math.nan)
-        
+
 df = pd.DataFrame(nan_data)
 df.to_csv('./LabelTool/Score.csv', index=False, header=False)
-
-
