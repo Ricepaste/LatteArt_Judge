@@ -5,4 +5,8 @@ LabelTool/train
 LabelTool/val
 LabelTool/Score.csv
 runs
+<<<<<<< HEAD
 EFN_Model
+=======
+EFN_Model
+>>>>>>> bb56e77 (Update .gitignore)
