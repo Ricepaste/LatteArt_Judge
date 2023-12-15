@@ -5,3 +5,4 @@ LabelTool/train
 LabelTool/val
 LabelTool/Score.csv
 runs
+EFN_Model
