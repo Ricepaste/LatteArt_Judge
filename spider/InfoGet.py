@@ -43,14 +43,14 @@ for i in range(len(Division)):
             link = tr.find('a')
             if link:
                 team_team_link.append(link['href'])
-        # print(len(team_team_link))
+        print(team_team_link)
     index += plus
     # ---------------------------------------------        
             
 
-    # for j in range(len(team_team_link)):
-    #     team_web = requests.get("http://covers.com"+team_team_link[j])
-    #     team_soup = bs(team_web.text, 'html.parser')
+    for j in range(len(team_team_link)):
+        team_web = requests.get("http://covers.com"+team_team_link[j])
+        team_soup = bs(team_web.text, 'html.parser')
         
     
     
