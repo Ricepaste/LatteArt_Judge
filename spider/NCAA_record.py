@@ -3,6 +3,7 @@ import os
 import requests
 import spider as sp
 
+
 def get_team_records(year=2023):
     '''
     Get the team records for a given year
@@ -24,18 +25,17 @@ def get_team_records(year=2023):
     record = bs(str(record.find_all('tr')), "lxml")
     record = record.find_all('td')
 
-
     eight = 0
     record_list = []
     temp = []
     same_frenq = 0
     for i in record:
         # print(i.text)
-        if(i.text == '1' and same_frenq <= 1):
+        if (i.text == '1' and same_frenq <= 1):
             same_frenq += 1
-            if(same_frenq == 2):
+            if (same_frenq == 2):
                 WIDTH = eight
-            
+
         if (eight >= WIDTH):
             eight = 0
             record_list.append(temp)
@@ -51,16 +51,24 @@ def get_team_records(year=2023):
     # TODO return the team record in list
     return record_list
 
+
 def main():
     for i in range(2003, 2023):
         records = get_team_records(i)
-        sp.save_to_csv(i, records, "Record")
+        sp.save_to_csv(i, records, "Record")  # type: ignore
+    for i in range(2003, 2023):
+        ranking = sp.get_year_A(i, "coaches-poll")  # type: ignore
+        sp.save_to_csv(i, ranking, "coaches-poll")  # type: ignore
+    for i in range(2003, 2023):
+        ranking = sp.get_year_B(i)  # type: ignore
+        sp.save_to_csv(i, ranking, "ap-poll")  # type: ignore
+
 
 def debug():
     records = get_team_records(2022)
     # print(records)
 
+
 if __name__ == '__main__':
     main()
     # debug()
-        
