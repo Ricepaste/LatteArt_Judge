@@ -87,15 +87,6 @@ def save_to_csv(year, ranking, poll):
     np.savetxt(filename, ranking, encoding='utf-8', delimiter=", ", fmt='%s')
 
 
-def main():
-    for i in range(2003, 2023):
-        ranking = get_year_A(i, "coaches-poll")
-        save_to_csv(i, ranking, "coaches-poll")
-    for i in range(2003, 2023):
-        ranking = get_year_B(i)
-        save_to_csv(i, ranking, "ap-poll")
-
-
 def debug():
     '''
     Only For Debug Users
@@ -103,8 +94,3 @@ def debug():
     ranking = get_year_B(2020)
     for _ in ranking:
         print(_)
-
-
-if __name__ == '__main__':
-    main()
-    # debug()
