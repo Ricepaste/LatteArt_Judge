@@ -264,6 +264,9 @@ def back_menu():
     temp_entry = tk.Entry(temp_window, width=15)
     temp_entry.place(x=WINDOW_SIZE/2-10, y=WINDOW_SIZE/2+145)
     
+    # temp_button = tk.Button(temp_window, text="Change", command=write_score(temp_index[img_path.index(image_path)], temp_entry.get()))
+    temp_button.place(x=WINDOW_SIZE/2+100, y=WINDOW_SIZE/2+162.5)
+    
     for i in range(len(img_path)):
         temp_img = Image.open(img_path[i])
         resize_image = temp_img.resize((200, 175), Image.LANCZOS)
@@ -286,8 +289,8 @@ def back_menu():
     temp_window.mainloop()
 
 def button_click(image_path):
-    global BACK_FLAG
-    BACK_FLAG = 1
+    # global BACK_FLAG
+    # BACK_FLAG = 1
     
     temp_img_index = tk.Label(temp_window, text="Image index: {}".format(temp_index[img_path.index(image_path)]))
     temp_img_index.place(x=WINDOW_SIZE/2-60, y=WINDOW_SIZE/2+115)
@@ -334,6 +337,7 @@ back_button = tk.Button(window, text="Back", command = back_menu)
 score_judge()
 
 window.bind('<Return>', send_score)
+# temp_window.bind('Return>', write_score)
 window.mainloop()
 
 
