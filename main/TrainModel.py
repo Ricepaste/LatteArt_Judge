@@ -12,8 +12,8 @@ def initialize(BATCH_SIZE, WORKERS):
 
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomResizedCrop(224, scale=(0.8, 1)),  # 資料增補 224
-            transforms.Resize(250),
+            transforms.RandomResizedCrop(800, scale=(0.8, 1)),  # 資料增補 224
+            transforms.Resize(900),
             transforms.ColorJitter(contrast=(0.5, 0.8),  # type: ignore
                                    saturation=(1.2, 1.5)),  # type: ignore
             transforms.ToTensor(),
@@ -27,9 +27,9 @@ def initialize(BATCH_SIZE, WORKERS):
         ]),
         'val': transforms.Compose([
             # transforms.Resize((255, 255)),
-            transforms.Resize(250),
-            transforms.CenterCrop(224),
-            transforms.Resize(250),
+            transforms.Resize(900),
+            transforms.CenterCrop(800),
+            transforms.Resize(900),
             # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406],
