@@ -55,7 +55,7 @@ def get_year_B(year):
 
     scl_name = name.select('span.hide-mobile a')
     scl_name = [_.text for _ in scl_name]
-    print(scl_name)
+    # print(scl_name)
 
     # rank = BeautifulSoup(str(rank), "lxml")
     # rank = rank.find_all('td')
