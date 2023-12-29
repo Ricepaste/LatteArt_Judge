@@ -84,7 +84,7 @@ def get_year_B(year):
 def save_to_csv(year, ranking, poll):
     file_path = "./spider/rank_data/"
     filename = file_path + f"{year}-{year+1}_{poll}.csv"
-    np.savetxt(filename, ranking, encoding='utf-8', delimiter=", ", fmt='%s')
+    np.savetxt(filename, ranking, encoding='utf-8', delimiter="\t", fmt='%s')
 
 
 def debug():
