@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from elosports.elo import Elo
 
 
 def data_load(year=2003, load='winner'):
@@ -47,19 +48,55 @@ def data_load(year=2003, load='winner'):
     return np.array(winner)
 
 
+def elo_calculate(result, elo_dict, K=32):
+    eloLeague = Elo(k=K, homefield=0)
+    school_join = set()
+    for w, l in result:
+        if not (w in school_join):
+            school_join.add(w)
+            eloLeague.addPlayer(w)
+        if not (l in school_join):
+            school_join.add(l)
+            eloLeague.addPlayer(l)
+        eloLeague.gameOver(winner=w, loser=l, winnerHome=False)
+    for key, value in sorted((eloLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
+        print(key, value)
+
+
 def main():
-    for i in range(2003, 2023):
-        winner = data_load(i, load='winner')
-        loser = data_load(i, load='loser')
-        for w, l in zip(winner, loser):
-            print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
+    for year in range(2003, 2023):
+        winner = data_load(year, load='winner')
+        loser = data_load(year, load='loser')
+        # for w, l in zip(winner, loser):
+        #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
+        elo_calculate(zip(winner, loser), {}, K=20)
 
 
 def debug():
-    x = data_load(2003, load='loser')
-    print(x)
+    year = 2022
+    winner = data_load(year, load='winner')
+    loser = data_load(year, load='loser')
+    # for w, l in zip(winner, loser):
+    #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
+    elo_calculate(zip(winner, loser), {}, K=20)
 
 
 if __name__ == '__main__':
-    main()
-    # debug()
+    # main()
+    debug()
+
+
+# '''
+# 計算每場比賽的elo值
+# 註:elo值的計算方式為:elo = elo + k*(result - expected_result)
+# 註:elo_dict為一個dict,裡面存放著每個球員的elo值
+
+# result: 參數為每場比賽的結果,1為勝,0為敗
+# elo_dict: 參數為每個球員的elo值
+# k: 參數為elo值的變化率
+# '''
+# expected_result = 1 / \
+#     (1 + 10**((elo_dict['loser'] - elo_dict['winner']) / 400))
+# elo_dict['winner'] = elo_dict['winner'] + k*(result - expected_result)
+# elo_dict['loser'] = elo_dict['loser'] + k*(expected_result - result)
+# return elo_dict
