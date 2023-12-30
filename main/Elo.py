@@ -1,20 +1,28 @@
-import os
 import pandas as pd
 import numpy as np
-import sys
 
 
-def data_load(year):
+def data_load(year=2003, load='winner'):
     '''
     從資料中讀取出每場的勝者
     註:資料中有些名字有空格,有些名字有括號,有些名字有空格、括號、\xa0
     註:從2013起,勝者出現在第4個column,之前是第3個column
-    TODO:
-    * 讀取每場的敗者
+
+    year: 參數為讀取的年份
+    load: 參數為'winner'時可用來讀取勝者，為'loser'時可用來讀取敗者
+
+    ### TODO: 
+        * 讀取每場的敗者
     '''
-    FMT = 3
-    if year >= 2013:
-        FMT = 4
+    FMT = None
+    if load == 'winner':
+        FMT = 3
+        if year >= 2013:
+            FMT = 4
+    elif load == 'loser':
+        FMT = 6
+        if year >= 2013:
+            FMT = 7
     # PATH
     path = f"./spider/rank_data/{year}-{year+1}_Record.csv"
     print(path)
@@ -47,9 +55,10 @@ def main():
 
 
 def debug():
-    pass
+    x = data_load(2003, load='loser')
+    print(x)
 
 
 if __name__ == '__main__':
     main()
-    # debug()
+    debug()
