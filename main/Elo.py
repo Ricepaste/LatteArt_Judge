@@ -49,8 +49,10 @@ def data_load(year=2003, load='winner'):
 
 
 def elo_calculate(result, elo_dict, K=32):
+    ranking = []
     eloLeague = Elo(k=K, homefield=0)
     school_join = set()
+
     for w, l in result:
         if not (w in school_join):
             school_join.add(w)
@@ -59,17 +61,26 @@ def elo_calculate(result, elo_dict, K=32):
             school_join.add(l)
             eloLeague.addPlayer(l)
         eloLeague.gameOver(winner=w, loser=l, winnerHome=False)
+
     for key, value in sorted((eloLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
-        print(f"{key:30s}\t{value:.1f}")
+        # print(f"{key:30s}\t{value:.1f}")
+        ranking.append([key, value])
+
+    return ranking
+
+
+def save_to_csv(year, ranking, poll):
+    file_path = "./spider/rank_data/"
+    filename = file_path + f"{year}-{year+1}_{poll}.csv"
+    np.savetxt(filename, ranking, encoding='utf-8', delimiter="\t", fmt='%s')
 
 
 def main():
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
-        # for w, l in zip(winner, loser):
-        #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
-        elo_calculate(zip(winner, loser), {}, K=20)
+        rank_data = elo_calculate(zip(winner, loser), {}, K=32)
+        save_to_csv(year, rank_data, 'elo')
 
 
 def debug():
@@ -78,12 +89,13 @@ def debug():
     loser = data_load(year, load='loser')
     # for w, l in zip(winner, loser):
     #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
-    elo_calculate(zip(winner, loser), {}, K=20)
+    rank_data = elo_calculate(zip(winner, loser), {}, K=32)
+    save_to_csv(year, rank_data, 'elo')
 
 
 if __name__ == '__main__':
-    # main()
-    debug()
+    main()
+    # debug()
 
 
 # '''
