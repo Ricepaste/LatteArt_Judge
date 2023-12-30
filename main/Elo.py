@@ -60,7 +60,7 @@ def elo_calculate(result, elo_dict, K=32):
             eloLeague.addPlayer(l)
         eloLeague.gameOver(winner=w, loser=l, winnerHome=False)
     for key, value in sorted((eloLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
-        print(key, value)
+        print(f"{key:30s}\t{value:.1f}")
 
 
 def main():
