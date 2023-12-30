@@ -49,9 +49,10 @@ def data_load(year=2003, load='winner'):
 
 def main():
     for i in range(2003, 2023):
-        x = data_load(i)
-        print(x)
-    pass
+        winner = data_load(i, load='winner')
+        loser = data_load(i, load='loser')
+        for w, l in zip(winner, loser):
+            print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
 
 
 def debug():
@@ -61,4 +62,4 @@ def debug():
 
 if __name__ == '__main__':
     main()
-    debug()
+    # debug()
