@@ -1,3 +1,4 @@
+from cgi import print_arguments
 import pandas as pd
 import numpy as np
 from elosports.elo import Elo
@@ -26,7 +27,7 @@ def data_load(year=2003, load='winner'):
             FMT = 7
     # PATH
     path = f"./spider/rank_data/{year}-{year+1}_Record.csv"
-    print(path)
+    # print(path)
     df = np.array(pd.read_csv(path, sep='\t'))
 
     winner = df[:, FMT]
@@ -48,19 +49,23 @@ def data_load(year=2003, load='winner'):
     return np.array(winner)
 
 
-def elo_calculate(result, elo_dict, K=32):
+def elo_calculate(winner, loser, K=32):
     ranking = []
     eloLeague = Elo(k=K, homefield=0)
     school_join = set()
 
-    for w, l in result:
-        if not (w in school_join):
-            school_join.add(w)
-            eloLeague.addPlayer(w)
-        if not (l in school_join):
-            school_join.add(l)
-            eloLeague.addPlayer(l)
-        eloLeague.gameOver(winner=w, loser=l, winnerHome=False)
+    for _ in range(100):
+        print(f"{_} times")
+        result = zip(winner, loser)
+        for w, l in result:
+            if not (w in school_join):
+                school_join.add(w)
+                eloLeague.addPlayer(w)
+            if not (l in school_join):
+                school_join.add(l)
+                eloLeague.addPlayer(l)
+            eloLeague.gameOver(winner=w, loser=l, winnerHome=False)
+            # print(w, l)
 
     for key, value in sorted((eloLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
         # print(f"{key:30s}\t{value:.1f}")
@@ -72,15 +77,18 @@ def elo_calculate(result, elo_dict, K=32):
 def save_to_csv(year, ranking, poll):
     file_path = "./spider/rank_data/"
     filename = file_path + f"{year}-{year+1}_{poll}.csv"
-    np.savetxt(filename, ranking, encoding='utf-8', delimiter="\t", fmt='%s')
+    print(filename)
+    np.savetxt(filename, ranking, encoding='utf-8',
+               delimiter="\t", fmt='%s')
 
 
 def main():
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
-        rank_data = elo_calculate(zip(winner, loser), {}, K=32)
-        save_to_csv(year, rank_data, 'elo')
+        rank_data = elo_calculate(winner, loser, K=32)
+        # print(rank_data)
+        save_to_csv(year, rank_data, 'elo100')
 
 
 def debug():
@@ -89,7 +97,7 @@ def debug():
     loser = data_load(year, load='loser')
     # for w, l in zip(winner, loser):
     #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
-    rank_data = elo_calculate(zip(winner, loser), {}, K=32)
+    rank_data = elo_calculate(winner, loser, K=32)
     save_to_csv(year, rank_data, 'elo')
 
 
