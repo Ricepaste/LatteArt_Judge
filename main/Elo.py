@@ -1,4 +1,3 @@
-from cgi import print_arguments
 import pandas as pd
 import numpy as np
 from elosports.elo import Elo
@@ -47,7 +46,7 @@ def data_load(year=2003, load='winner'):
     return np.array(winner)
 
 
-def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True):
+def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, league=None, schoolset=None):
     '''
     計算所有隊伍的elo值
     註:elo值的計算方式為:elo = elo + k*(result - expected_result)
@@ -57,10 +56,20 @@ def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True):
     K: 參數為elo值的變化率
     epochs: 參數為計算elo值的次數
     shuffle: 參數為是否打亂順序
+
     '''
     ranking = []
-    eloLeague = Elo(k=K, homefield=0)
-    school_join = set()
+    if league is None:
+        eloLeague = Elo(k=K, homefield=0)
+    else:
+        eloLeague = league
+    if schoolset is None:
+        school_join = set()
+    else:
+        school_join = schoolset
+        print("Inherit last record...")
+        print(school_join)
+        print("Processing Elo...")
 
     for _ in range(epochs):
         # print(f"{_} times")
@@ -94,7 +103,7 @@ def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True):
         # print(f"{key:30s}\t{value:.1f}")
         ranking.append([key, value])
 
-    return ranking
+    return ranking, eloLeague, school_join
 
 
 def save_to_csv(year, ranking, poll):
@@ -113,7 +122,7 @@ def main():
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
-        rank_data = elo_calculate(
+        rank_data, _, _ = elo_calculate(
             winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
         # print(rank_data)
         save_to_csv(year, rank_data,
@@ -123,16 +132,25 @@ def main():
 def debug():
     EPOCHS = 100
     K = 32
-    SHUFFLE = True
+    SHUFFLE = False
     STEPLR = False
+    INHERIT = True
+
+    league = None
+    school = None
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
-        rank_data = elo_calculate(
-            winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
-        # print(rank_data)
-        save_to_csv(year, rank_data,
-                    f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}')
+        if (INHERIT):
+            rank_data, league, school = elo_calculate(
+                winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE,
+                stepLR=STEPLR, league=league, schoolset=school)
+        else:
+            rank_data, _, _ = elo_calculate(
+                winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
+
+        save_to_csv(
+            year, rank_data, f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}_inherit{INHERIT}')
 
 
 if __name__ == '__main__':
