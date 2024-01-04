@@ -2,6 +2,7 @@ from cgi import print_arguments
 import pandas as pd
 import numpy as np
 from elosports.elo import Elo
+import random
 
 
 def data_load(year=2003, load='winner'):
@@ -46,7 +47,7 @@ def data_load(year=2003, load='winner'):
     return np.array(winner)
 
 
-def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False):
+def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True):
     '''
     計算所有隊伍的elo值
     註:elo值的計算方式為:elo = elo + k*(result - expected_result)
@@ -62,10 +63,18 @@ def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False):
     school_join = set()
 
     for _ in range(epochs):
-        print(f"{_} times")
-        # if shuffle:
-        #     index_random = np.arange(winner.size)
-        #     np.random.shuffle(index_random)
+        # print(f"{_} times")
+
+        # 打亂比賽紀錄訓練順序
+        if shuffle:
+            # print([(w, l) for w, l in zip(winner, loser)])
+            # print()
+            start_state = random.getstate()
+            random.shuffle(winner)
+            random.setstate(start_state)
+            random.shuffle(loser)
+            # print([(w, l) for w, l in zip(winner, loser)])
+
         result = zip(winner, loser)
         for w, l in result:
             if not (w in school_join):
@@ -76,6 +85,10 @@ def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False):
                 eloLeague.addPlayer(l)
             eloLeague.gameOver(winner=w, loser=l, winnerHome=False)
             # print(w, l)
+
+        # learning rate schduler
+        if (stepLR):
+            eloLeague.k = int(eloLeague.k * 0.9)
 
     for key, value in sorted((eloLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
         # print(f"{key:30s}\t{value:.1f}")
@@ -94,30 +107,37 @@ def save_to_csv(year, ranking, poll):
 
 def main():
     EPOCHS = 100
+    K = 32
+    SHUFFLE = True
+    STEPLR = True
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
         rank_data = elo_calculate(
-            winner, loser, K=32, epochs=EPOCHS, shuffle=False)
+            winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
         # print(rank_data)
-        save_to_csv(year, rank_data, f'elo{EPOCHS}')
+        save_to_csv(year, rank_data,
+                    f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}')
 
 
 def debug():
-    year = 2022
     EPOCHS = 100
-    winner = data_load(year, load='winner')
-    loser = data_load(year, load='loser')
-    # for w, l in zip(winner, loser):
-    #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
-    rank_data = elo_calculate(
-        winner, loser, K=32, epochs=EPOCHS, shuffle=False)
-    save_to_csv(year, rank_data, f'elo{EPOCHS}')
+    K = 32
+    SHUFFLE = True
+    STEPLR = False
+    for year in range(2003, 2023):
+        winner = data_load(year, load='winner')
+        loser = data_load(year, load='loser')
+        rank_data = elo_calculate(
+            winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
+        # print(rank_data)
+        save_to_csv(year, rank_data,
+                    f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}')
 
 
 if __name__ == '__main__':
-    main()
-    # debug()
+    # main()
+    debug()
 
 
 # '''
