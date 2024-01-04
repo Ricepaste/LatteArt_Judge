@@ -12,9 +12,6 @@ def data_load(year=2003, load='winner'):
 
     year: 參數為讀取的年份
     load: 參數為'winner'時可用來讀取勝者，為'loser'時可用來讀取敗者
-
-    ### TODO: 
-        * 讀取每場的敗者
     '''
     FMT = None
     if load == 'winner':
@@ -49,13 +46,26 @@ def data_load(year=2003, load='winner'):
     return np.array(winner)
 
 
-def elo_calculate(winner, loser, K=32):
+def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False):
+    '''
+    計算所有隊伍的elo值
+    註:elo值的計算方式為:elo = elo + k*(result - expected_result)
+
+    winner: 參數為每場比賽的勝者(list)
+    loser: 參數為每場比賽的敗者(list)
+    K: 參數為elo值的變化率
+    epochs: 參數為計算elo值的次數
+    shuffle: 參數為是否打亂順序
+    '''
     ranking = []
     eloLeague = Elo(k=K, homefield=0)
     school_join = set()
 
-    for _ in range(100):
+    for _ in range(epochs):
         print(f"{_} times")
+        # if shuffle:
+        #     index_random = np.arange(winner.size)
+        #     np.random.shuffle(index_random)
         result = zip(winner, loser)
         for w, l in result:
             if not (w in school_join):
@@ -83,22 +93,26 @@ def save_to_csv(year, ranking, poll):
 
 
 def main():
+    EPOCHS = 100
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
-        rank_data = elo_calculate(winner, loser, K=32)
+        rank_data = elo_calculate(
+            winner, loser, K=32, epochs=EPOCHS, shuffle=False)
         # print(rank_data)
-        save_to_csv(year, rank_data, 'elo100')
+        save_to_csv(year, rank_data, f'elo{EPOCHS}')
 
 
 def debug():
     year = 2022
+    EPOCHS = 100
     winner = data_load(year, load='winner')
     loser = data_load(year, load='loser')
     # for w, l in zip(winner, loser):
     #     print(f"<{w}> VS <{l}>  ====>  {w} WIN!!!")
-    rank_data = elo_calculate(winner, loser, K=32)
-    save_to_csv(year, rank_data, 'elo')
+    rank_data = elo_calculate(
+        winner, loser, K=32, epochs=EPOCHS, shuffle=False)
+    save_to_csv(year, rank_data, f'elo{EPOCHS}')
 
 
 if __name__ == '__main__':
