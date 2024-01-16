@@ -47,6 +47,7 @@ def Kendall_tau(elo_array, ap_array):
 CORR = []
 
 for year in range(2003, 2023):
+    print(f"{year}-{year+1} 年度")
     try:
         elo_rank = pd.read_csv(f'./spider/rank_data/{year}-{year+1}_elo100_K32_shuffleFalse_stepLRFalse_inheritTrue.csv', sep = '\t')
         ap_rank = pd.read_csv(f'./spider/rank_data/{year}-{year+1}_ap-poll.csv', sep = '\t')
