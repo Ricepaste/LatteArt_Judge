@@ -1,5 +1,29 @@
 import pandas as pd
 
+"""
+TCU = TexasChristian
+USC = SouthernCalifornia
+LSU = LouisianaState
+BYU = BrighamYoung
+UCF = CentralFlorida
+NCState = NorthCarolina State
+SanJoseState = SanJose State
+Hawai'i = Hawaii
+"""
+
+# build a dictionary to store the team name
+team_name = {
+    'TCU' : 'TexasChristian',
+    'USC' : 'SouthernCalifornia',
+    'LSU' : 'LouisianaState',
+    'BYU' : 'BrighamYoung',
+    'UCF' : 'CentralFlorida',
+    'NCState' : 'NorthCarolina State',
+    'SanJoseState' : 'SanJose State',
+    "Hawai'i" : "Hawaii",
+}
+
+
 def Kendall_tau(elo_array, ap_array):
     '''
     計算兩個排名的相似度
@@ -41,6 +65,8 @@ for year in range(2003, 2023):
             elo_array.append(elo_rank[i][0])
             if ' ' in ap_rank[i][1]:
                 ap_rank[i][1] = ap_rank[i][1].replace(' ', '')
+            if ap_rank[i][1] in team_name:
+                ap_rank[i][1] = team_name[ap_rank[i][1]]
             ap_array.append(ap_rank[i][1])
         print("已讀取檔案")
     except:
