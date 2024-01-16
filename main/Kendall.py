@@ -80,4 +80,7 @@ for year in range(2003, 2023):
     CORR.append(Kendall_tau(elo_array, ap_array))
     
     
-print("2003~2023 Kendall's tau 係數 : ", CORR)
+# print("2003~2023 Kendall's tau 係數 : ", CORR)
+
+for i in range(len(CORR)):
+    print(f"{2003+i}-{2004+i} 年度 : {CORR[i]}")
