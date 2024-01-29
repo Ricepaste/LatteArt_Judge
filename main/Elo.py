@@ -49,14 +49,16 @@ def data_load(year=2003, load='winner'):
 def elo_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, league=None, schoolset=None):
     '''
     計算所有隊伍的elo值
-    註:elo值的計算方式為:elo = elo + k*(result - expected_result)
+    註:elo值的計算方式為:elo = elo + k * (result - expected_result)
 
     winner: 參數為每場比賽的勝者(list)
     loser: 參數為每場比賽的敗者(list)
     K: 參數為elo值的變化率
     epochs: 參數為計算elo值的次數
     shuffle: 參數為是否打亂順序
-
+    stepLR: 參數為是否使用learning rate schduler
+    league: 參數為上一年的league
+    schoolset: 參數為上一年的schoolset
     '''
     ranking = []
     if league is None:
