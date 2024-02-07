@@ -134,8 +134,8 @@ def main():
 def debug():
     EPOCHS = 100
     K = 32
-    SHUFFLE = False
-    STEPLR = False
+    SHUFFLE = True
+    STEPLR = True
     INHERIT = True
 
     league = None
