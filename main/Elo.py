@@ -120,7 +120,7 @@ def main():
     EPOCHS = 100
     K = 32
     SHUFFLE = True
-    STEPLR = True
+    STEPLR = False
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
@@ -135,8 +135,8 @@ def debug():
     EPOCHS = 100
     K = 32
     SHUFFLE = True
-    STEPLR = True
-    INHERIT = True
+    STEPLR = False
+    INHERIT = False
 
     league = None
     school = None
