@@ -33,6 +33,8 @@ def Kendall_tau(elo_array, ap_array):
     P: 有相同排名的對數
     Q: 沒有相同排名的對數
     '''
+
+    # 現在計算係數的方法是比較字串大小(有誤)，非比較隊伍間的排序
     P = 0
     Q = 0
     for i in range(len(elo_array)):
@@ -65,6 +67,18 @@ for year in range(2003, 2023):
 
         elo_array = [elo_header]
         ap_array = [ap_header]
+
+        # elo_team_number 用來查表
+        elo_team_number = elo_array.copy()
+        # print(elo_team_number)
+        for i in range(len(elo_rank)):
+            elo_team_number.append(elo_rank[i][0])
+        # print(elo_team_number)
+
+        # 第一個隊名不會被處理到，所以先處理
+        if ap_array[0] in team_name:
+            ap_array[0] = team_name[ap_array[0]]
+
         for i in range(23):
             elo_array.append(elo_rank[i][0])
             if ' ' in ap_rank[i][1]:
@@ -72,6 +86,17 @@ for year in range(2003, 2023):
             if ap_rank[i][1] in team_name:
                 ap_rank[i][1] = team_name[ap_rank[i][1]]
             ap_array.append(ap_rank[i][1])
+
+        # copy 作為用來比較的陣列
+        copy = ap_array.copy()
+        for i in range(len(ap_array)):
+            ap_array[i] = i+1
+        for i in range(len(copy)):
+            if copy[i] in elo_team_number:
+                elo_array[i] = elo_team_number.index(copy[i])+1
+            else:
+                elo_array[i] = 1000
+
         print("已讀取檔案")
     except:
         print("沒讀到檔案")
