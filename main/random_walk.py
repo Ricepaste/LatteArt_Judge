@@ -69,20 +69,35 @@ for team in all_team_name:
     # add the new node to the node_array
     node_array.append(node)
 
-# node1.add_neighbor(node2, 0.5)
-# node1.add_neighbor(node3, 0.5)
-# node2.add_neighbor(node3, 0.7)
-# node2.add_neighbor(node4, 0.3)
-# node3.add_neighbor(node4, 0.9)
-
 # 增加鄰居節點及機率
 for node in node_array:
     # random choose the neighbor and add the probability
-    neighbor = random.choice(node_array)
-    probability = random.random()
-    node.add_neighbor(neighbor, probability)
+    # 創建array查找對手
+    # 創建一個win_array和lose_array，分別存放贏和輸的隊伍的index
+    win_array = []
+    lose_array = []
+    for i in range(len(win_team_name)):
+        if node.name == win_team_name[i]:
+            win_array.append(i)
+        elif node.name == lose_team_name[i]:
+            lose_array.append(i)
+    
+    
+    for i in range(len(win_array)):
+        for neighbor_node in node_array:
+            if neighbor_node.name == lose_team_name[win_array[i]]:
+                neighbor = neighbor_node
+                break
+        probability = random.random()
+        node.add_neighbor(neighbor, probability)
+    for i in range(len(lose_array)):
+        for neighbor_node in node_array:
+            if neighbor_node.name == win_team_name[lose_array[i]]:
+                neighbor = neighbor_node
+                break
+        probability = random.random()
+        node.add_neighbor(neighbor, probability)
 
-# random_walk = RandomWalk([node1, node2, node3, node4])
 random_walk = RandomWalk(node_array)
 
 random_walk.walk(20)
