@@ -1,4 +1,3 @@
-
 import random
 import pandas as pd
 
@@ -44,7 +43,6 @@ class RandomWalk:
         return next_node
 
 
-
 # get the col4 and col7 of the record and combine them into a list
 header = record.columns[4]
 win_team_name = record.iloc[:, 4]
@@ -71,7 +69,6 @@ for team in all_team_name:
     # add the new node to the node_array
     node_array.append(node)
 
-
 # node1.add_neighbor(node2, 0.5)
 # node1.add_neighbor(node3, 0.5)
 # node2.add_neighbor(node3, 0.7)
@@ -85,9 +82,7 @@ for node in node_array:
     probability = random.random()
     node.add_neighbor(neighbor, probability)
 
-
 # random_walk = RandomWalk([node1, node2, node3, node4])
 random_walk = RandomWalk(node_array)
 
 random_walk.walk(20)
-
