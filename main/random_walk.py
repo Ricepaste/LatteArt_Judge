@@ -58,6 +58,18 @@ lose_team_name = lose_team_name.tolist()
 lose_team_name.insert(0, header)
 deal_team_name(lose_team_name)
 
+# get the col5 and col8 of the record and combine them into a list
+header = record.columns[5]
+score_col5 = record.iloc[:, 5]
+score_col5 = score_col5.dropna()
+score_col5 = score_col5.tolist()
+score_col5.insert(0, int(header))
+header = record.columns[8]
+score_col8 = record.iloc[:, 8]
+score_col8 = score_col8.dropna()
+score_col8 = score_col8.tolist()
+score_col8.insert(0, int(header))
+
 node_array = []
 
 # 創建節點
@@ -69,9 +81,13 @@ for team in all_team_name:
     # add the new node to the node_array
     node_array.append(node)
 
+# 創建一個字典，存放每個隊伍的總失分
+total_lose_point = {}
+for node in node_array:
+    total_lose_point[node.name] = 0
+
 # 增加鄰居節點及機率
 for node in node_array:
-    # random choose the neighbor and add the probability
     # 創建array查找對手
     # 創建一個win_array和lose_array，分別存放贏和輸的隊伍的index
     win_array = []
@@ -82,6 +98,13 @@ for node in node_array:
         elif node.name == lose_team_name[i]:
             lose_array.append(i)
     
+    # 計算總失分
+    for i in range(len(lose_array)):
+        total_lose_point[node.name] += score_col5[lose_array[i]]
+    for i in range(len(win_array)):
+        total_lose_point[node.name] += score_col8[win_array[i]]    
+    
+    print(total_lose_point)
     
     for i in range(len(win_array)):
         for neighbor_node in node_array:
