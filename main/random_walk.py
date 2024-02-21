@@ -35,7 +35,7 @@ class RandomWalk:
         current_node = random.choice(self.nodes)
         print("Starting at node:", current_node.name)
         for _ in range(steps):
-            print("Current node:", current_node.name)
+            # print("Current node:", current_node.name)
             pass_time[current_node.name] += 1
             current_node = self.choose_next_node(current_node)
         print("Finished at node:", current_node.name)
@@ -145,4 +145,4 @@ for node in node_array:
 
 random_walk = RandomWalk(node_array)
 
-random_walk.walk(5)
+random_walk.walk(1000000)
