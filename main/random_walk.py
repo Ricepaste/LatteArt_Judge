@@ -31,12 +31,22 @@ class RandomWalk:
         self.nodes = nodes
 
     def walk(self, steps):
+        global pass_time
         current_node = random.choice(self.nodes)
         print("Starting at node:", current_node.name)
         for _ in range(steps):
             print("Current node:", current_node.name)
+            pass_time[current_node.name] += 1
             current_node = self.choose_next_node(current_node)
         print("Finished at node:", current_node.name)
+        pass_time[current_node.name] += 1
+        
+        # find 10 teams that have the highest pass time
+        pass_time = dict(sorted(pass_time.items(), key=lambda item: item[1], reverse=True))
+        for i in range(10):
+            print(f"第{i+1}名次 : ",list(pass_time.keys())[i], " 經過次數: ",list(pass_time.values())[i])
+            
+            
 
     def choose_next_node(self, current_node):
         next_node = random.choices(current_node.neighbors, weights=current_node.probabilities)[0]
@@ -83,8 +93,10 @@ for team in all_team_name:
 
 # 創建一個字典，存放每個隊伍的總失分
 total_lose_point = {}
+pass_time = {}
 for node in node_array:
     total_lose_point[node.name] = 0
+    pass_time[node.name] = 0
 
 # 增加鄰居節點及機率
 for node in node_array:
@@ -104,23 +116,33 @@ for node in node_array:
     for i in range(len(win_array)):
         total_lose_point[node.name] += score_col8[win_array[i]]    
     
-    print(total_lose_point)
+    # print(total_lose_point)
     
     for i in range(len(win_array)):
         for neighbor_node in node_array:
             if neighbor_node.name == lose_team_name[win_array[i]]:
                 neighbor = neighbor_node
-                break
-        probability = random.random()
-        node.add_neighbor(neighbor, probability)
+                probability = score_col8[win_array[i]] / total_lose_point[node.name]
+                node.add_neighbor(neighbor, probability)
+            elif neighbor_node.name == node.name:
+                continue
+            else:
+                neighbor = neighbor_node
+                probability = 0.001
+                node.add_neighbor(neighbor, probability)
     for i in range(len(lose_array)):
         for neighbor_node in node_array:
             if neighbor_node.name == win_team_name[lose_array[i]]:
                 neighbor = neighbor_node
-                break
-        probability = random.random()
-        node.add_neighbor(neighbor, probability)
+                probability = score_col5[lose_array[i]] / total_lose_point[node.name]
+                node.add_neighbor(neighbor, probability)
+            elif neighbor_node.name == node.name:
+                continue
+            else:
+                neighbor = neighbor_node
+                probability = 0.001
+                node.add_neighbor(neighbor, probability)
 
 random_walk = RandomWalk(node_array)
 
-random_walk.walk(20)
+random_walk.walk(5)
