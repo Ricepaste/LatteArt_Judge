@@ -32,14 +32,15 @@ class RandomWalk:
 
     def walk(self, steps):
         global pass_time, year
-        current_node = random.choice(self.nodes)
-        print("Starting at node:", current_node.name)
-        for _ in range(steps):
-            # print("Current node:", current_node.name)
+        for times in range(300):
+            current_node = random.choice(self.nodes)
+            # print("Starting at node:", current_node.name)
+            for _ in range(steps):
+                # print("Current node:", current_node.name)
+                pass_time[current_node.name] += 1
+                current_node = self.choose_next_node(current_node)
+            # print("Finished at node:", current_node.name)
             pass_time[current_node.name] += 1
-            current_node = self.choose_next_node(current_node)
-        print("Finished at node:", current_node.name)
-        pass_time[current_node.name] += 1
         
         # find 10 teams that have the highest pass time
         pass_time = dict(sorted(pass_time.items(), key=lambda item: item[1], reverse=True))
@@ -55,7 +56,7 @@ class RandomWalk:
 
 ### 例外狀況 有比賽被取消，比分先暫定0:0 (手動加上比分)
 ### 3	Sep 14, 2013	2:00 PM	Sat	Fresno State		@	Colorado		Game Cancelled
-###1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
+### 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
 
 for year in range(2003, 2023):
     
