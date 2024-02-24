@@ -1,7 +1,10 @@
 import random
 import pandas as pd
+import csv
 
-
+# STEP為隨機遊走的步數 RW_TIMES為隨機遊走的次數
+STEP = 10000
+RW_TIMES = 300
 
 def deal_team_name(team_name):
     for i in range(len(team_name)):
@@ -32,7 +35,7 @@ class RandomWalk:
 
     def walk(self, steps):
         global pass_time, year
-        for times in range(300):
+        for times in range(RW_TIMES):
             current_node = random.choice(self.nodes)
             # print("Starting at node:", current_node.name)
             for _ in range(steps):
@@ -48,6 +51,14 @@ class RandomWalk:
         for i in range(10):
             print(f"第{i+1}名次 : ",list(pass_time.keys())[i], " 經過次數: ",list(pass_time.values())[i])
         print("=====================================")
+        
+        # 將結果寫入csv
+        with open(f'./spider/rank_data/{year}-{year+1}_RandomWalk_STEP{STEP}_RWTIMES{RW_TIMES}.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
+            for key, value in pass_time.items():
+                writer.writerow([key, value])
+
+
             
 
     def choose_next_node(self, current_node):
@@ -171,4 +182,4 @@ for year in range(2003, 2023):
 
     random_walk = RandomWalk(node_array)
 
-    random_walk.walk(1000)
+    random_walk.walk(STEP)
