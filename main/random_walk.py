@@ -6,6 +6,7 @@ import csv
 STEP = 10000
 RW_TIMES = 300
 
+
 def deal_team_name(team_name):
     for i in range(len(team_name)):
         if '\xa0' in team_name[i]:
@@ -15,6 +16,8 @@ def deal_team_name(team_name):
                 start = team_name[i].find('(')
                 end = team_name[i].find(')')
                 team_name[i] = team_name[i][:start] + team_name[i][end+1:]
+    return team_name
+
 
 class Node:
     def __init__(self, name):
@@ -28,6 +31,7 @@ class Node:
             self.probabilities.append(probability)
             neighbor.neighbors.append(self)
             neighbor.probabilities.append(probability)
+
 
 class RandomWalk:
     def __init__(self, nodes):
@@ -44,35 +48,37 @@ class RandomWalk:
                 current_node = self.choose_next_node(current_node)
             # print("Finished at node:", current_node.name)
             pass_time[current_node.name] += 1
-        
+
         # find 10 teams that have the highest pass time
-        pass_time = dict(sorted(pass_time.items(), key=lambda item: item[1], reverse=True))
+        pass_time = dict(
+            sorted(pass_time.items(), key=lambda item: item[1], reverse=True))
         print(f"第{year}年度Ranking: ")
         for i in range(10):
-            print(f"第{i+1}名次 : ",list(pass_time.keys())[i], " 經過次數: ",list(pass_time.values())[i])
+            print(f"第{i+1}名次 : ", list(pass_time.keys())
+                  [i], " 經過次數: ", list(pass_time.values())[i])
         print("=====================================")
-        
+
         # 將結果寫入csv
         with open(f'./spider/rank_data/{year}-{year+1}_RandomWalk_STEP{STEP}_RWTIMES{RW_TIMES}.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             for key, value in pass_time.items():
                 writer.writerow([key, value])
 
-
-            
-
     def choose_next_node(self, current_node):
-        next_node = random.choices(current_node.neighbors, weights=current_node.probabilities)[0]
+        next_node = random.choices(
+            current_node.neighbors, weights=current_node.probabilities)[0]
         return next_node
 
-### 例外狀況 有比賽被取消，比分先暫定0:0 (手動加上比分)
-### 3	Sep 14, 2013	2:00 PM	Sat	Fresno State		@	Colorado		Game Cancelled
-### 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
+# 例外狀況 有比賽被取消，比分先暫定0:0 (手動加上比分)
+# 3	Sep 14, 2013	2:00 PM	Sat	Fresno State		@	Colorado		Game Cancelled
+# 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
+
 
 for year in range(2003, 2023):
-    
-    record = pd.read_csv(f'./spider/rank_data/{year}-{year+1}_Record.csv', sep = "\t")
-    
+
+    record = pd.read_csv(
+        f'./spider/rank_data/{year}-{year+1}_Record.csv', sep="\t", header=None)
+
     if year < 2013:
         team_index = 3
         score_index = 4
@@ -83,31 +89,29 @@ for year in range(2003, 2023):
     # team name
     # get the col4 and col7 of the record and combine them into a list
     header = record.columns[team_index]
-    win_team_name = record.iloc[:, team_index]
+    win_team_name = record[team_index]
     win_team_name = win_team_name.dropna()
     win_team_name = win_team_name.tolist()
-    win_team_name.insert(0, header)
-    deal_team_name(win_team_name)
+    win_team_name = deal_team_name(win_team_name)
 
     header = record.columns[team_index+3]
-    lose_team_name = record.iloc[:, team_index+3]
+    lose_team_name = record[team_index+3]
     lose_team_name = lose_team_name.dropna()
     lose_team_name = lose_team_name.tolist()
-    lose_team_name.insert(0, header)
-    deal_team_name(lose_team_name)
+    lose_team_name = deal_team_name(lose_team_name)
 
     # score
     # get the col5 and col8 of the record and combine them into a list
+    # TODO bookmark
     header = record.columns[score_index]
-    score_col5 = record.iloc[:, score_index]
-    score_col5 = score_col5.dropna()
-    score_col5 = score_col5.tolist()
-    score_col5.insert(0, int(header))
+    score_winner = record[score_index]
+    score_winner = score_winner.dropna()
+    score_winner = score_winner.tolist()
+
     header = record.columns[score_index+3]
-    score_col8 = record.iloc[:, score_index+3]
-    score_col8 = score_col8.dropna()
-    score_col8 = score_col8.tolist()
-    score_col8.insert(0, int(header))
+    score_loser = record[score_index+3]
+    score_loser = score_loser.dropna()
+    score_loser = score_loser.tolist()
 
     node_array = []
 
@@ -138,23 +142,24 @@ for year in range(2003, 2023):
                 win_array.append(i)
             elif node.name == lose_team_name[i]:
                 lose_array.append(i)
-        
+
         # 計算總失分
         for i in range(len(lose_array)):
-            total_lose_point[node.name] += score_col5[lose_array[i]]
+            total_lose_point[node.name] += score_winner[lose_array[i]]
         for i in range(len(win_array)):
-            total_lose_point[node.name] += score_col8[win_array[i]]    
-        
+            total_lose_point[node.name] += score_loser[win_array[i]]
+
         # print(total_lose_point)
-        
+
         for i in range(len(win_array)):
             for neighbor_node in node_array:
                 if neighbor_node.name == lose_team_name[win_array[i]]:
                     neighbor = neighbor_node
-                    
+
                     # 加上try except是因為有些隊伍沒有失分，會導致除以0的問題
                     try:
-                        probability = score_col8[win_array[i]] / total_lose_point[node.name]
+                        probability = score_loser[win_array[i]
+                                                  ] / total_lose_point[node.name]
                     except:
                         probability = 0
                     node.add_neighbor(neighbor, probability)
@@ -169,7 +174,8 @@ for year in range(2003, 2023):
                 if neighbor_node.name == win_team_name[lose_array[i]]:
                     neighbor = neighbor_node
                     try:
-                        probability = score_col5[lose_array[i]] / total_lose_point[node.name]
+                        probability = score_winner[lose_array[i]
+                                                   ] / total_lose_point[node.name]
                     except:
                         probability = 0
                     node.add_neighbor(neighbor, probability)
