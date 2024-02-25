@@ -3,8 +3,10 @@ import pandas as pd
 import csv
 
 # STEP為隨機遊走的步數 RW_TIMES為隨機遊走的次數
-STEP = 10000
+STEP = 100
 RW_TIMES = 300
+RANDOM_SEEDS = 42
+WRITE = 0
 
 def deal_team_name(team_name):
     for i in range(len(team_name)):
@@ -15,6 +17,7 @@ def deal_team_name(team_name):
                 start = team_name[i].find('(')
                 end = team_name[i].find(')')
                 team_name[i] = team_name[i][:start] + team_name[i][end+1:]
+    return team_name
 
 class Node:
     def __init__(self, name):
@@ -28,6 +31,11 @@ class Node:
             self.probabilities.append(probability)
             neighbor.neighbors.append(self)
             neighbor.probabilities.append(probability)
+        else:
+            index = self.neighbors.index(neighbor)
+            self.probabilities[index] = probability
+            # index = neighbor.neighbors.index(self)
+            # neighbor.probabilities[index] += probability
 
 class RandomWalk:
     def __init__(self, nodes):
@@ -36,6 +44,8 @@ class RandomWalk:
     def walk(self, steps):
         global pass_time, year
         for times in range(RW_TIMES):
+            # fixed random seeds
+            random.seed(RANDOM_SEEDS)
             current_node = random.choice(self.nodes)
             # print("Starting at node:", current_node.name)
             for _ in range(steps):
@@ -53,12 +63,11 @@ class RandomWalk:
         print("=====================================")
         
         # 將結果寫入csv
-        with open(f'./spider/rank_data/{year}-{year+1}_RandomWalk_STEP{STEP}_RWTIMES{RW_TIMES}.csv', 'w', newline='') as file:
-            writer = csv.writer(file)
-            for key, value in pass_time.items():
-                writer.writerow([key, value])
-
-
+        if WRITE:
+            with open(f'./spider/rank_data/{year}-{year+1}_RandomWalk_STEP{STEP}_RWTIMES{RW_TIMES}.csv', 'w', newline='') as file:
+                writer = csv.writer(file)
+                for key, value in pass_time.items():
+                    writer.writerow([key, value])
             
 
     def choose_next_node(self, current_node):
@@ -87,27 +96,29 @@ for year in range(2003, 2023):
     win_team_name = win_team_name.dropna()
     win_team_name = win_team_name.tolist()
     win_team_name.insert(0, header)
-    deal_team_name(win_team_name)
+    win_team_name = deal_team_name(win_team_name)
 
     header = record.columns[team_index+3]
     lose_team_name = record.iloc[:, team_index+3]
     lose_team_name = lose_team_name.dropna()
     lose_team_name = lose_team_name.tolist()
     lose_team_name.insert(0, header)
-    deal_team_name(lose_team_name)
+    lose_team_name = deal_team_name(lose_team_name)
 
     # score
     # get the col5 and col8 of the record and combine them into a list
-    header = record.columns[score_index]
-    score_col5 = record.iloc[:, score_index]
-    score_col5 = score_col5.dropna()
-    score_col5 = score_col5.tolist()
-    score_col5.insert(0, int(header))
-    header = record.columns[score_index+3]
-    score_col8 = record.iloc[:, score_index+3]
-    score_col8 = score_col8.dropna()
-    score_col8 = score_col8.tolist()
-    score_col8.insert(0, int(header))
+    # header = record.columns[score_index]
+    # score_col5 = record.iloc[:, score_index]
+    # score_col5 = score_col5.dropna()
+    # score_col5 = score_col5.tolist()
+    # score_col5.insert(0, int(header))
+    # header = record.columns[score_index+3]
+    # score_col8 = record.iloc[:, score_index+3]
+    # score_col8 = score_col8.dropna()
+    # score_col8 = score_col8.tolist()
+    # score_col8.insert(0, int(header))
+    
+    
 
     node_array = []
 
@@ -121,10 +132,10 @@ for year in range(2003, 2023):
         node_array.append(node)
 
     # 創建一個字典，存放每個隊伍的總失分
-    total_lose_point = {}
+    total_lose_times = {}
     pass_time = {}
     for node in node_array:
-        total_lose_point[node.name] = 0
+        total_lose_times[node.name] = 0
         pass_time[node.name] = 0
 
     # 增加鄰居節點及機率
@@ -138,38 +149,35 @@ for year in range(2003, 2023):
                 win_array.append(i)
             elif node.name == lose_team_name[i]:
                 lose_array.append(i)
+                total_lose_times[node.name] += 1
         
         # 計算總失分
-        for i in range(len(lose_array)):
-            total_lose_point[node.name] += score_col5[lose_array[i]]
-        for i in range(len(win_array)):
-            total_lose_point[node.name] += score_col8[win_array[i]]    
+        # for i in range(len(lose_array)):
+        #     total_lose_point[node.name] += score_col5[lose_array[i]]
+        # for i in range(len(win_array)):
+        #     total_lose_point[node.name] += score_col8[win_array[i]]    
         
         # print(total_lose_point)
         
         for i in range(len(win_array)):
             for neighbor_node in node_array:
-                if neighbor_node.name == lose_team_name[win_array[i]]:
-                    neighbor = neighbor_node
-                    
-                    # 加上try except是因為有些隊伍沒有失分，會導致除以0的問題
-                    try:
-                        probability = score_col8[win_array[i]] / total_lose_point[node.name]
-                    except:
-                        probability = 0
-                    node.add_neighbor(neighbor, probability)
-                elif neighbor_node.name == node.name:
-                    continue
-                else:
-                    neighbor = neighbor_node
-                    probability = 0.001
-                    node.add_neighbor(neighbor, probability)
+                # if neighbor_node.name == lose_team_name[win_array[i]]:
+                #     neighbor = neighbor_node
+                #     # 加上try except是因為有些隊伍沒有失分，會導致除以0的問題
+                #     probability = 0.001
+                #     node.add_neighbor(neighbor, probability)
+                # elif neighbor_node.name == node.name:
+                #     continue
+                # else:
+                neighbor = neighbor_node
+                probability = 0.001
+                node.add_neighbor(neighbor, probability)
         for i in range(len(lose_array)):
             for neighbor_node in node_array:
                 if neighbor_node.name == win_team_name[lose_array[i]]:
                     neighbor = neighbor_node
                     try:
-                        probability = score_col5[lose_array[i]] / total_lose_point[node.name]
+                        probability = 1 / total_lose_times[node.name]
                     except:
                         probability = 0
                     node.add_neighbor(neighbor, probability)
