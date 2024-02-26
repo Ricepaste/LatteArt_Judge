@@ -5,8 +5,9 @@ import csv
 # STEP為隨機遊走的步數 RW_TIMES為隨機遊走的次數
 STEP = 100
 RW_TIMES = 300
-RANDOM_SEEDS = 42
+RANDOM_SEEDS = 50
 WRITE = 0
+random.seed(RANDOM_SEEDS)
 
 
 def deal_team_name(team_name):
@@ -45,12 +46,10 @@ class RandomWalk:
         self.nodes = nodes
 
     def walk(self, steps):
-        # TODO 加上移動前判定這次是否會閃現的功能，機率0.001
 
         global pass_time, year
-        for times in range(RW_TIMES):
+        for _1 in range(RW_TIMES):
             # fixed random seeds
-            random.seed(RANDOM_SEEDS)
             current_node = random.choice(self.nodes)
             # print("Starting at node:", current_node.name)
             for _ in range(steps):
@@ -77,8 +76,18 @@ class RandomWalk:
                     writer.writerow([key, value])
 
     def choose_next_node(self, current_node):
-        next_node = random.choices(
-            current_node.neighbors, weights=current_node.probabilities)[0]
+        # TODO 加上移動前判定這次是否會閃現的功能，機率0.001
+        if random.random() <= 0.001:
+            next_node = random.choice(self.nodes)
+            # print("jump")
+        else:
+            # print("move")
+            next_node = random.choices(
+                current_node.neighbors, weights=current_node.probabilities, k=1)[0]
+        # for i in current_node.neighbors:
+        #     print(i.name)
+        # print(current_node.probabilities)
+        # print(next_node.name)
         return next_node
 
 # 例外狀況 有比賽被取消，比分先暫定0:0 (手動加上比分)
@@ -151,6 +160,8 @@ for year in range(2003, 2023):
         lose_array = []
         for i in range(len(win_team_name)):
             if node.name == win_team_name[i]:
+                if node.name == 'Oklahoma':
+                    print(lose_team_name[i])
                 win_array.append(i)
             elif node.name == lose_team_name[i]:
                 lose_array.append(i)
