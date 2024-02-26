@@ -35,7 +35,7 @@ class Node:
             neighbor.probabilities.append(probability)
         else:
             index = self.neighbors.index(neighbor)
-            self.probabilities[index] = probability
+            self.probabilities[index] += probability
             # index = neighbor.neighbors.index(self)
             # neighbor.probabilities[index] += probability
 
@@ -45,6 +45,8 @@ class RandomWalk:
         self.nodes = nodes
 
     def walk(self, steps):
+        # TODO 加上移動前判定這次是否會閃現的功能，機率0.001
+
         global pass_time, year
         for times in range(RW_TIMES):
             # fixed random seeds
@@ -112,7 +114,6 @@ for year in range(2003, 2023):
 
     # score
     # get the col5 and col8 of the record and combine them into a list
-    # # TODO bookmark
     # header = record.columns[score_index]
     # score_winner = record[score_index]
     # score_winner = score_winner.dropna()
@@ -142,6 +143,7 @@ for year in range(2003, 2023):
         pass_time[node.name] = 0
 
     # 增加鄰居節點及機率
+    # TODO 查找node效率有點低，可能可以改成字典
     for node in node_array:
         # 創建array查找對手
         # 創建一個win_array和lose_array，分別存放贏和輸的隊伍的index
@@ -162,35 +164,19 @@ for year in range(2003, 2023):
 
         # print(total_lose_point)
 
-        for i in range(len(win_array)):
-            for neighbor_node in node_array:
-                # if neighbor_node.name == lose_team_name[win_array[i]]:
-                #     neighbor = neighbor_node
-                #     # 加上try except是因為有些隊伍沒有失分，會導致除以0的問題
-                #     probability = 0.001
-                #     node.add_neighbor(neighbor, probability)
-                # elif neighbor_node.name == node.name:
-                #     continue
-                # else:
-                neighbor = neighbor_node
-                probability = 0.001
-                node.add_neighbor(neighbor, probability)
         for i in range(len(lose_array)):
+            # TODO 查詢效率低
             for neighbor_node in node_array:
                 if neighbor_node.name == win_team_name[lose_array[i]]:
                     neighbor = neighbor_node
                     try:
                         probability = 1 / total_lose_times[node.name]
                     except:
-                        probability = 0
-                    node.add_neighbor(neighbor, probability)
-                elif neighbor_node.name == node.name:
-                    continue
-                else:
-                    neighbor = neighbor_node
-                    probability = 0.001
+                        assert False, "total_lose_times[node.name] = 0"
+                        # probability = 0
                     node.add_neighbor(neighbor, probability)
 
+# TODO bookmark
     random_walk = RandomWalk(node_array)
 
     random_walk.walk(STEP)
