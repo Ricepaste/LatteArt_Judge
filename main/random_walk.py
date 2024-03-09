@@ -3,10 +3,10 @@ import pandas as pd
 import csv
 
 # STEP為隨機遊走的步數 RW_TIMES為隨機遊走的次數
-STEP = 100
+STEP = 1000
 RW_TIMES = 300
 RANDOM_SEEDS = 50
-WRITE = 0
+WRITE = 1
 random.seed(RANDOM_SEEDS)
 
 

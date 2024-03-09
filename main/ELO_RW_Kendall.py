@@ -26,9 +26,9 @@ def Kendall_tau(elo_array, ap_array):
 for year in range(2003, 2023):
     # 做為比較的兩個排名是用elo_100和random walk的排名，因為用已經繼承的檔案會有多的隊伍出現
     elo_rank = pd.read_csv(
-        f'./spider/rank_data/{year}-{year+1}_elo100.csv', sep='\t')
+        f'./spider/rank_data/{year}-{year+1}_elo100_K32_shuffleTrue_stepLRFalse_inheritFalse.csv', sep='\t')
     random_walk_rank = pd.read_csv(
-        f'./spider/rank_data/{year}-{year+1}_RandomWalk_STEP10000_RWTIMES300.csv', sep='\t')
+        f'./spider/rank_data/{year}-{year+1}_RandomWalk_STEP1000_RWTIMES300.csv', sep='\t')
 
     # turn the first column in the dataframe into a list
     elo_temp = elo_rank.values.tolist()
