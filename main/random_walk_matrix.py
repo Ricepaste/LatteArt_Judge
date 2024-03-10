@@ -1,7 +1,8 @@
-import random
 import pandas as pd
+import numpy as np
 import csv
 
+FLASH = 0.0001
 
 def deal_team_name(team_name):
     for i in range(len(team_name)):
@@ -21,7 +22,7 @@ def deal_team_name(team_name):
 # 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
 
 
-for year in range(2003, 2004):
+for year in range(2003, 2023):
 
     record = pd.read_csv(
         f'./spider/rank_data/{year}-{year+1}_Record.csv', sep="\t", header=None)
@@ -48,7 +49,6 @@ for year in range(2003, 2004):
     lose_team_name = deal_team_name(lose_team_name)
     # print(len(set(lose_team_name)))
 
-    # all_team_name = set(win_team_name + lose_team_name)
     # use list to store the team name and delete the duplicate team name
     all_team_name = list(set(win_team_name + lose_team_name))
     # print(all_team_name)
@@ -76,11 +76,51 @@ for year in range(2003, 2004):
         else:
             matrix[lose_index][win_index] = probability
     
+    # 每個元素加上閃現機率
+    for i in range(len(matrix)):
+        for j in range(len(matrix)):
+            matrix[i][j] += FLASH
+            
+    # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
+    for i in range(len(matrix)):
+        row_sum = sum(matrix[i])
+        matrix[i] = [x / row_sum for x in matrix[i]]
+
+    # turn matrix to numpy array
+    matrix = np.array(matrix)
+    # print(matrix)
+
+    # 給定初始狀態，求穩定態
+    state = np.array([1/len(all_team_name) for i in range(len(all_team_name))])
+    state = state.dot(matrix)
+    while (np.linalg.norm(state - state.dot(matrix)) > 0.0001):
+        state = state.dot(matrix)
+    # print(state)
+    
+    # 印出對應隊伍，前十名
+    state = state.tolist()
+    state = list(zip(all_team_name, state))
+    state.sort(key=lambda x: x[1], reverse=True)
+    
+    # 印出state和all_team_name
+    # for i in range(len(state)):
+    #     print(state[i])
+    
+    # save to csv
+    with open(f'./spider/rank_data/{year}-{year+1}_random_walk_matrix.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # writer.writerow(['team', 'state'])
+        for i in range(len(state)):
+            writer.writerow([state[i][0], state[i][1]])
+    
+
+    
+       
     # 檢查矩陣列和是否接近1
-    for i in range(len(all_team_name)):
-        sum = 0
-        for j in range(len(all_team_name)):
-            sum += matrix[i][j]
-        print(all_team_name[i], sum)
+    # for i in range(len(all_team_name)):
+    #     sum = 0
+    #     for j in range(len(all_team_name)):
+    #         sum += matrix[i][j]
+    #     print(all_team_name[i], sum)
         # if (sum < 0.9):
         #     print(all_team_name[i], sum)
