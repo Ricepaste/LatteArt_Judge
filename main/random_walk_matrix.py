@@ -4,8 +4,10 @@ import csv
 
 FLASH = 0.0001
 
+
 def deal_team_name(team_name):
     for i in range(len(team_name)):
+        # 去除隊名中的空白和括號中的內容(含括號)
         if '\xa0' in team_name[i]:
             team_name[i] = team_name[i].replace('\xa0', '')
         if '(' in team_name[i]:
@@ -22,6 +24,7 @@ def deal_team_name(team_name):
 
 
 for year in range(2003, 2023):
+    # for year in range(2023, 2024):
 
     record = pd.read_csv(
         f'./spider/rank_data/{year}-{year+1}_Record.csv', sep="\t", header=None)
@@ -49,11 +52,11 @@ for year in range(2003, 2023):
     # print(len(set(lose_team_name)))
 
     # use list to store the team name and delete the duplicate team name
-    all_team_name = list(set(win_team_name + lose_team_name))
+    all_team_name = sorted(list(set(win_team_name + lose_team_name)))
     # print(all_team_name)
 
     # build a 2D list to store the lose-win matrix
-    matrix = [[0.001 for i in range(len(all_team_name))]
+    matrix = [[0.0 for i in range(len(all_team_name))]
               for j in range(len(all_team_name))]
 
     # 計算單支隊伍敗場數
@@ -64,27 +67,51 @@ for year in range(2003, 2023):
         else:
             lose_count[lose_team_name[i]] += 1
 
-    # 對於輸過的隊伍，計算走到該隊伍的機率
-    for i in range(len(win_team_name)):
-        win_index = all_team_name.index(win_team_name[i])
-        lose_index = all_team_name.index(lose_team_name[i])
-        probability = (1-0.001*(len(all_team_name) -
-                       lose_count[lose_team_name[i]]))/lose_count[lose_team_name[i]]
+    # # 對於輸過的隊伍，計算走到該隊伍的機率
+    # for i in range(len(win_team_name)):
+    #     win_index = all_team_name.index(win_team_name[i])
+    #     lose_index = all_team_name.index(lose_team_name[i])
+    #     probability = (1-0.001*(len(all_team_name) -
+    #                    lose_count[lose_team_name[i]]))/lose_count[lose_team_name[i]]
 
-        if (matrix[lose_index][win_index] != 0.001):
-            matrix[lose_index][win_index] += probability
-        else:
-            matrix[lose_index][win_index] = probability
-    
-    # 每個元素加上閃現機率
-    for i in range(len(matrix)):
-        for j in range(len(matrix)):
-            matrix[i][j] += FLASH
-            
+    #     if (matrix[lose_index][win_index] != 0.001):
+    #         matrix[lose_index][win_index] += probability
+    #     else:
+    #         matrix[lose_index][win_index] = probability
+    for i in range(len(win_team_name)):
+        matrix[all_team_name.index(lose_team_name[i])
+               ][all_team_name.index(win_team_name[i])] += 1
+
     # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
     for i in range(len(matrix)):
         row_sum = sum(matrix[i])
         matrix[i] = [x / row_sum for x in matrix[i]]
+
+    # 每個元素加上閃現機率
+    for i in range(len(matrix)):
+        for j in range(len(matrix)):
+            matrix[i][j] += FLASH
+
+    # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
+    for i in range(len(matrix)):
+        row_sum = sum(matrix[i])
+        matrix[i] = [x / row_sum for x in matrix[i]]
+
+    # ----------------------------------------------
+    '''
+    TAG: print matrix
+    '''
+    print("\t", end='')
+    for i in range(len(all_team_name)):
+        print(all_team_name[i], end='\t')
+    print()
+
+    for i in range(len(all_team_name)):
+        print(all_team_name[i], end='\t')
+        for j in range(len(all_team_name)):
+            print(f"{matrix[i][j]:.5f}", end='\t')
+        print()
+    # ----------------------------------------------
 
     # turn matrix to numpy array
     matrix = np.array(matrix)
@@ -96,26 +123,23 @@ for year in range(2003, 2023):
     while (np.linalg.norm(state - state.dot(matrix)) > 0.0001):
         state = state.dot(matrix)
     # print(state)
-    
+
     # 印出對應隊伍，前十名
     state = state.tolist()
     state = list(zip(all_team_name, state))
     state.sort(key=lambda x: x[1], reverse=True)
-    
+
     # 印出state和all_team_name
     # for i in range(len(state)):
     #     print(state[i])
-    
+
     # save to csv
     with open(f'./spider/rank_data/{year}-{year+1}_random_walk_matrix.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # writer.writerow(['team', 'state'])
         for i in range(len(state)):
             writer.writerow([state[i][0], state[i][1]])
-    
 
-    
-       
     # 檢查矩陣列和是否接近1
     # for i in range(len(all_team_name)):
     #     sum = 0
