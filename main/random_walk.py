@@ -95,6 +95,7 @@ class RandomWalk:
 # 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
 
 
+# for year in range(2023, 2024):
 for year in range(2003, 2023):
 
     record = pd.read_csv(

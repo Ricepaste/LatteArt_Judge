@@ -1,4 +1,6 @@
 import pandas as pd
+import random as rd
+
 
 def Kendall_tau(elo_array, ap_array):
     '''
@@ -48,7 +50,8 @@ for year in range(2003, 2023):
     random_walk_temp = random_walk_rank.values.tolist()
     random_walk_temp_header = random_walk_rank.columns.values.tolist()
     if ' ' in random_walk_temp_header[0]:
-        random_walk_temp_header[0] = random_walk_temp_header[0].replace(' ', '')
+        random_walk_temp_header[0] = random_walk_temp_header[0].replace(
+            ' ', '')
     random_walk_array = [random_walk_temp_header[0].split(',')[0].rstrip(' ')]
 
     for i in range(len(random_walk_temp)):
@@ -56,13 +59,17 @@ for year in range(2003, 2023):
         if ' ' in RW_temp:
             RW_temp = RW_temp.replace(' ', '')
         random_walk_array.append(RW_temp)
-        
-    # print(elo_array)    
+
+    # print(elo_array)
 
     for i in range(len(elo_array)):
-        random_walk_array[i] = elo_array.index(random_walk_array[i])+1
+        try:
+            random_walk_array[i] = elo_array.index(random_walk_array[i])+1
+        except:
+            random_walk_array[i] = rd.randint(0, 1000)
+            pass
 
     for i in range(len(elo_array)):
         elo_array[i] = i+1
 
-    print(f"第{year}-{year+1}年度: ",Kendall_tau(elo_array, random_walk_array))
+    print(f"第{year}-{year+1}年度: ", Kendall_tau(elo_array, random_walk_array))
