@@ -82,40 +82,49 @@ for year in range(2003, 2023):
         matrix[all_team_name.index(lose_team_name[i])
                ][all_team_name.index(win_team_name[i])] += 1
 
-    # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
+    # 對矩陣每一列做MinMaxScaler
+    for i in range(len(matrix)):
+        row_max = max(matrix[i])
+        row_min = min(matrix[i])
+        for j in range(len(matrix)):
+            try:
+                matrix[i][j] = (matrix[i][j] - row_min) / (row_max - row_min)
+            except:
+                continue
+            
+    # 使矩陣每列總和為1
     for i in range(len(matrix)):
         row_sum = sum(matrix[i])
-        matrix[i] = [x / row_sum for x in matrix[i]]
-
+        try:
+            matrix[i] = [x / row_sum for x in matrix[i]]
+        except:
+            continue
+        
     # 每個元素加上閃現機率
     for i in range(len(matrix)):
         for j in range(len(matrix)):
             matrix[i][j] += FLASH
 
-    # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
-    for i in range(len(matrix)):
-        row_sum = sum(matrix[i])
-        matrix[i] = [x / row_sum for x in matrix[i]]
 
     # ----------------------------------------------
     '''
     TAG: print matrix
     '''
-    print("\t", end='')
-    for i in range(len(all_team_name)):
-        print(all_team_name[i], end='\t')
-    print()
+    # print("\t", end='')
+    # for i in range(len(all_team_name)):
+    #     print(all_team_name[i], end='\t')
+    # print()
 
-    for i in range(len(all_team_name)):
-        print(all_team_name[i], end='\t')
-        for j in range(len(all_team_name)):
-            print(f"{matrix[i][j]:.5f}", end='\t')
-        print()
+    # for i in range(len(all_team_name)):
+    #     print(all_team_name[i], end='\t')
+    #     for j in range(len(all_team_name)):
+    #         print(f"{matrix[i][j]:.5f}", end='\t')
+    #     print()
     # ----------------------------------------------
 
     # turn matrix to numpy array
     matrix = np.array(matrix)
-    # print(matrix)
+    print(matrix)
 
     # 給定初始狀態，求穩定態
     state = np.array([1/len(all_team_name) for i in range(len(all_team_name))])
