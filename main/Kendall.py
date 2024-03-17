@@ -53,26 +53,32 @@ for year in range(2003, 2023):
     print(f"{year}-{year+1} 年度")
     try:
         elo_rank = pd.read_csv(
-            f'./spider/rank_data/{year}-{year+1}_elo100_K32_shuffleTrue_stepLRFalse_inheritTrue.csv', sep='\t')
+        f'./spider/rank_data/{year}-{year+1}_random_walk_matrix.csv', sep='\t')
         ap_rank = pd.read_csv(
             f'./spider/rank_data/{year}-{year+1}_ap-poll.csv', sep='\t')
         # get the header of the dataframe
         elo_header = elo_rank.columns.values.tolist()[0]
         elo_rank = elo_rank.values.tolist()
+        
+        for i in range(len(elo_rank)):
+            elo_rank[i][0] = elo_rank[i][0].split(',')[0].rstrip('')
+            # replace the space
+            if ' ' in elo_rank[i][0]:
+                elo_rank[i][0] = elo_rank[i][0].replace(' ', '')
 
         ap_header = ap_rank.columns.values.tolist()[1]
         ap_rank = ap_rank.values.tolist()
         # print(header)
         # print(elo_rank)
 
-        elo_array = [elo_header]
+        elo_array = [elo_header.split(',')[0].rstrip('')]
         ap_array = [ap_header]
 
         # elo_team_number 用來查表
         elo_team_number = elo_array.copy()
         # print(elo_team_number)
         for i in range(len(elo_rank)):
-            elo_team_number.append(elo_rank[i][0])
+            elo_team_number.append(elo_rank[i][0].split(',')[0].rstrip(''))
         # print(elo_team_number)
 
         # 第一個隊名不會被處理到，所以先處理
