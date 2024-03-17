@@ -25,14 +25,14 @@ def Kendall_tau(elo_array, ap_array):
 
 
 # TODO: 隊名問題: 有些隊伍名稱有空格，有些沒有，所以要先處理一下
-for year in range(2003, 2004):
+for year in range(2003, 2023):
     # 做為比較的兩個排名是用elo_100和random walk的排名，因為用已經繼承的檔案會有多的隊伍出現
     elo_rank = pd.read_csv(
-        f'./spider/rank_data/{year}-{year+1}_Elo_temp.csv', sep='\t')
+        f'./spider/rank_data/{year}-{year+1}_elo100.csv', sep='\t')
     # elo_rank = pd.read_csv(
     #     f'./spider/rank_data/{year}-{year+1}_elo100_K32_shuffleTrue_stepLRFalse_inheritFalse.csv', sep='\t')
     random_walk_rank = pd.read_csv(
-        f'./spider/rank_data/{year}-{year+1}_RW_temp.csv', sep='\t')
+        f'./spider/rank_data/{year}-{year+1}_random_walk_matrix.csv', sep='\t')
 
     # turn the first column in the dataframe into a list
     elo_temp = elo_rank.values.tolist()

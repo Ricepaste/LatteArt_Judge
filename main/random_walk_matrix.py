@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import csv
 
-FLASH = 0.0001
+FLASH = 0.001
 
 
 def deal_team_name(team_name):
@@ -149,7 +149,7 @@ for year in range(2003, 2023):
     # 給定初始狀態，求穩定態
     state = np.array([1/len(all_team_name) for i in range(len(all_team_name))])
     state = state.dot(matrix)
-    while (np.linalg.norm(state - state.dot(matrix)) > 0.0001):
+    while (np.linalg.norm(state - state.dot(matrix)) > 0.00001):
         state = state.dot(matrix)
     # print(state)
 
