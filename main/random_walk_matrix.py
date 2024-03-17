@@ -82,35 +82,64 @@ for year in range(2023, 2024):
         matrix[all_team_name.index(lose_team_name[i])
                ][all_team_name.index(win_team_name[i])] += 1
 
-    # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
+    # 對矩陣每一列做MinMaxScaler
     for i in range(len(matrix)):
-        row_sum = sum(matrix[i])
-        matrix[i] = [x / row_sum for x in matrix[i]]
+        row_max = max(matrix[i])
+        row_min = min(matrix[i])
+        for j in range(len(matrix)):
+            try:
+                matrix[i][j] = (matrix[i][j] - row_min) / (row_max - row_min)
+            except:
+                continue
+
+    # 使矩陣每列總和為1
+    try:
+        for i in range(len(matrix)):
+            row_sum = sum(matrix[i])
+            try:
+                matrix[i] = [x / row_sum for x in matrix[i]]
+            except:
+                continue
+    except Exception as e:
+        print(matrix[i])
+        print(e)
+        
 
     # 每個元素加上閃現機率
     for i in range(len(matrix)):
         for j in range(len(matrix)):
             matrix[i][j] += FLASH
 
-    # 對矩陣每一列縮放至0~1，且總和為1 (可能有問題)
+    # 使矩陣每列總和為1
     for i in range(len(matrix)):
         row_sum = sum(matrix[i])
-        matrix[i] = [x / row_sum for x in matrix[i]]
+        try:
+            matrix[i] = [x / row_sum for x in matrix[i]]
+        except:
+            continue
 
     # ----------------------------------------------
     '''
     TAG: print matrix
     '''
-    print("\t", end='')
-    for i in range(len(all_team_name)):
-        print(all_team_name[i], end='\t')
-    print()
+    # print("\t", end='')
+    # for i in range(len(all_team_name)):
+    #     print(all_team_name[i], end='\t')
+    # print()
 
-    for i in range(len(all_team_name)):
-        print(all_team_name[i], end='\t')
-        for j in range(len(all_team_name)):
-            print(f"{matrix[i][j]:.5f}", end='\t')
-        print()
+    # for i in range(len(all_team_name)):
+    #     print(all_team_name[i], end='\t')
+    #     for j in range(len(all_team_name)):
+    #         print(f"{matrix[i][j]:.5f}", end='\t')
+    #     print()
+    # 檢查矩陣列和是否接近1
+    # for i in range(len(all_team_name)):
+    #     sum = 0
+    #     for j in range(len(all_team_name)):
+    #         sum += matrix[i][j]
+    #     print(all_team_name[i], sum)
+        # if (sum < 0.9):
+        #     print(all_team_name[i], sum)
     # ----------------------------------------------
 
     # turn matrix to numpy array
@@ -139,12 +168,3 @@ for year in range(2023, 2024):
         # writer.writerow(['team', 'state'])
         for i in range(len(state)):
             writer.writerow([state[i][0], state[i][1]])
-
-    # 檢查矩陣列和是否接近1
-    # for i in range(len(all_team_name)):
-    #     sum = 0
-    #     for j in range(len(all_team_name)):
-    #         sum += matrix[i][j]
-    #     print(all_team_name[i], sum)
-        # if (sum < 0.9):
-        #     print(all_team_name[i], sum)
