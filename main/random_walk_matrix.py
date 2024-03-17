@@ -23,8 +23,8 @@ def deal_team_name(team_name):
 # 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
 
 
-for year in range(2003, 2023):
-    # for year in range(2023, 2024):
+# for year in range(2003, 2023):
+for year in range(2023, 2024):
 
     record = pd.read_csv(
         f'./spider/rank_data/{year}-{year+1}_Record.csv', sep="\t", header=None)
