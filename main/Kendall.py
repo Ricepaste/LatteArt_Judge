@@ -116,5 +116,6 @@ for year in range(2003, 2023):
 
 # print("2003~2023 Kendall's tau 係數 : ", CORR)
 
-for i in range(len(CORR)):
-    print(f"{2003+i}-{2004+i} 年度 : {CORR[i]}")
+# for i in range(len(CORR)):
+#     print(f"{2003+i}-{2004+i} 年度 : {CORR[i]}")
+print("平均值 : ", sum(CORR)/len(CORR))

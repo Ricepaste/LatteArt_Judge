@@ -74,4 +74,7 @@ for year in range(2003, 2023):
     for i in range(len(elo_array)):
         elo_array[i] = i+1
 
-    print(f"第{year}-{year+1}年度: ", Kendall_tau(elo_array, random_walk_array))
+    # print(f"第{year}-{year+1}年度: ", Kendall_tau(elo_array, random_walk_array))
+    CORR = []
+    CORR.append(Kendall_tau(elo_array, random_walk_array))
+print("平均值: " , sum(CORR)/len(CORR))
