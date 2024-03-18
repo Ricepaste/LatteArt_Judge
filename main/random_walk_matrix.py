@@ -2,7 +2,11 @@ import pandas as pd
 import numpy as np
 import csv
 
-FLASH = 0.001
+
+
+FLASH = 1
+CONVERGENCE = 0.1
+
 
 
 def deal_team_name(team_name):
@@ -23,8 +27,8 @@ def deal_team_name(team_name):
 # 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
 
 
-# for year in range(2003, 2023):
-for year in range(2023, 2024):
+for year in range(2003, 2023):
+# for year in range(2023, 2024):
 
     record = pd.read_csv(
         f'./spider/rank_data/{year}-{year+1}_Record.csv', sep="\t", header=None)
@@ -108,7 +112,9 @@ for year in range(2023, 2024):
     # 每個元素加上閃現機率
     for i in range(len(matrix)):
         for j in range(len(matrix)):
-            matrix[i][j] += FLASH
+            if matrix[i][j] == 0 and i != j:
+                matrix[i][j] += FLASH
+                
 
     # 使矩陣每列總和為1
     for i in range(len(matrix)):
@@ -149,7 +155,7 @@ for year in range(2023, 2024):
     # 給定初始狀態，求穩定態
     state = np.array([1/len(all_team_name) for i in range(len(all_team_name))])
     state = state.dot(matrix)
-    while (np.linalg.norm(state - state.dot(matrix)) > 0.00001):
+    while (np.linalg.norm(state - state.dot(matrix)) > CONVERGENCE):
         state = state.dot(matrix)
     # print(state)
 
@@ -168,3 +174,4 @@ for year in range(2023, 2024):
         # writer.writerow(['team', 'state'])
         for i in range(len(state)):
             writer.writerow([state[i][0], state[i][1]])
+
