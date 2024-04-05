@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 import csv
 
-FLASH = 0.0001
+
+FLASH = 1
+CONVERGENCE = 0.1
 
 
 def deal_team_name(team_name):
@@ -107,7 +109,8 @@ for year in range(2003, 2023):
     # 每個元素加上閃現機率
     for i in range(len(matrix)):
         for j in range(len(matrix)):
-            matrix[i][j] += FLASH
+            if matrix[i][j] == 0 and i != j:
+                matrix[i][j] += FLASH
 
     # 使矩陣每列總和為1
     for i in range(len(matrix)):
@@ -148,7 +151,7 @@ for year in range(2003, 2023):
     # 給定初始狀態，求穩定態
     state = np.array([1/len(all_team_name) for i in range(len(all_team_name))])
     state = state.dot(matrix)
-    while (np.linalg.norm(state - state.dot(matrix)) > 0.0001):
+    while (np.linalg.norm(state - state.dot(matrix)) > CONVERGENCE):
         state = state.dot(matrix)
     # print(state)
 
