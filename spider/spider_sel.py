@@ -4,8 +4,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from time import sleep
 
 # driver = webdriver.(executable_path=".\\spider\\msedgedriver.exe")
-service = webdriver.EdgeService(executable_path='.\\spider\\msedgedriver.exe')
-driver = webdriver.Edge(service=service)
+Service = webdriver.EdgeService(executable_path='.\\spider\\msedgedriver.exe')
+driver = webdriver.Edge(service=Service)
 
 driver.get(
     "https://sportsdata.usatoday.com/football/ncaaf/coaches-poll/2020-2021/2021-01-12")

@@ -116,25 +116,29 @@ def save_to_csv(year, ranking, poll):
                delimiter="\t", fmt='%s')
 
 
-def main():
-    EPOCHS = 100
-    K = 32
-    SHUFFLE = True
-    STEPLR = False
+def main(EPOCHS=100, K=32, SHUFFLE=False, STEPLR=False, INHERIT=False):
+
+    league = None
+    school = None
     for year in range(2003, 2023):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
-        rank_data, _, _ = elo_calculate(
-            winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
-        # print(rank_data)
-        save_to_csv(year, rank_data,
-                    f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}')
+        if (INHERIT):
+            rank_data, league, school = elo_calculate(
+                winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE,
+                stepLR=STEPLR, league=league, schoolset=school)
+        else:
+            rank_data, _, _ = elo_calculate(
+                winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
+
+        save_to_csv(
+            year, rank_data, f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}_inherit{INHERIT}')
 
 
 def debug():
     EPOCHS = 100
     K = 32
-    SHUFFLE = True
+    SHUFFLE = False
     STEPLR = False
     INHERIT = False
 
@@ -156,8 +160,13 @@ def debug():
 
 
 if __name__ == '__main__':
-    # main()
-    debug()
+    for epoch in [1, 10, 100, 1000]:
+        for k in [16, 24, 32]:
+            for inherit in [True, False]:
+                for steplr in [True, False]:
+                    main(EPOCHS=epoch, K=k, SHUFFLE=False,
+                         STEPLR=steplr, INHERIT=inherit)
+    # debug()
 
 
 # '''
