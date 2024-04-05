@@ -23,8 +23,8 @@ def deal_team_name(team_name):
 # 1	Sep 5, 2015	7:30 PM	Sat	McNeese State		@	(14) Louisiana State		Cancelled due to weather
 
 
-# for year in range(2003, 2023):
-for year in range(2023, 2024):
+for year in range(2003, 2023):
+    # for year in range(2023, 2024):
 
     record = pd.read_csv(
         f'./spider/rank_data/{year}-{year+1}_Record.csv', sep="\t", header=None)
@@ -103,7 +103,6 @@ for year in range(2023, 2024):
     except Exception as e:
         print(matrix[i])
         print(e)
-        
 
     # 每個元素加上閃現機率
     for i in range(len(matrix)):
@@ -138,8 +137,8 @@ for year in range(2023, 2024):
     #     for j in range(len(all_team_name)):
     #         sum += matrix[i][j]
     #     print(all_team_name[i], sum)
-        # if (sum < 0.9):
-        #     print(all_team_name[i], sum)
+    # if (sum < 0.9):
+    #     print(all_team_name[i], sum)
     # ----------------------------------------------
 
     # turn matrix to numpy array
