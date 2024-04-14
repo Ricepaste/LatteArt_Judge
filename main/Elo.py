@@ -25,7 +25,7 @@ def data_load(year=2003, load='winner'):
     # PATH
     path = f"./spider/rank_data/{year}-{year+1}_Record.csv"
     # print(path)
-    df = np.array(pd.read_csv(path, sep='\t'))
+    df = np.array(pd.read_csv(path, sep='\t', header=None))
 
     winner = df[:, FMT]
     for i in range(winner.size):
