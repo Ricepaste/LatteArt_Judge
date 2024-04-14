@@ -10,33 +10,92 @@ class TTmodel():
         self.mu = None  # shoud be n*1 array
         self.var = 0.5
         self.n = teams_amount
-        self.A = np.array([])  # shoud be C_(n,2) * n array
+        self.games_amount = 0
+        self.ystar = [[] for i in range(self.n*(self.n-1) // 2)]
+
+        combination = []
+        for i in range(self.n):
+            for j in range(i+1, self.n):
+                temp = [0 for k in range(self.n)]
+                temp[i] = 1
+                temp[j] = -1
+                combination.append(temp)
+
+        self.A = np.array(combination)  # shoud be C_(n,2) * n array
+        print(self.A)
 
     def addPlayer(self, player):
         self.player_list.append(player)
 
     def gameOver(self, winner, loser):
         if winner not in self.mu_calculations:
-            self.mu_calculations[winner] = [1, 1]
+            self.mu_calculations[winner] = 1
         else:
-            self.mu_calculations[winner][0] += 1
-            self.mu_calculations[winner][1] += 1
+            self.mu_calculations[winner] += 1
 
         if loser not in self.mu_calculations:
-            self.mu_calculations[loser] = [0, 1]
+            self.mu_calculations[loser] = -1
         else:
-            self.mu_calculations[loser][1] += 1
+            self.mu_calculations[loser] -= 1
+
+        first = self.player_list.index(winner)
+        second = self.player_list.index(loser)
+        for i in range(len(self.A)):
+            if first < second:
+                if self.A[i][first] == 1 and self.A[i][second] == -1:
+                    self.ystar[i].append('1')
+                    break
+            else:
+                if self.A[i][first] == -1 and self.A[i][second] == 1:
+                    self.ystar[i].append('0')
+                    break
+
+        self.games_amount += 1
 
     def fit(self):
+        print(self.games_amount)
         self.mu = []
+        self.A = np.array(self.A)
 
         for name in self.player_list:
-            self.mu.append(
-                self.mu_calculations[name][0] / self.mu_calculations[name][1])
+            self.mu.append(self.mu_calculations[name] / self.games_amount)
 
         self.mu = np.array(self.mu)
         self.mu = self.mu / ((1 + 2 * self.var)**0.5)
+        self.mu = self.mu.reshape((self.mu.shape[0], 1))
         self.var = self.var / (1 + 2 * self.var)
+        # print(self.mu)
+
+        maxx = 0
+        for i in range(len(self.ystar)):
+            if (len(self.ystar[i]) > maxx):
+                maxx = len(self.ystar[i])
+
+        for i in range(len(self.ystar)):
+            while len(self.ystar[i]) < maxx:
+                self.ystar[i].append('-')
+
+        for i in range(len(self.ystar)):
+            temp = self.ystar[i].copy()
+            for j in range(10):
+                self.ystar[i] += temp
+
+        for i in range(len(self.ystar)):
+            for j in range(len(self.ystar[i])):
+                if self.ystar[i][j] == '-':
+                    self.ystar[i][j] = str(random.randint(0, 1))
+
+        self.ystar = np.array(self.ystar).T
+        print(self.ystar)
+        save_to_csv('test', self.ystar)
+
+
+def save_to_csv(name, ranking):
+    file_path = "./spider/thurstone/"
+    filename = file_path + f"{name}.csv"
+    print(filename)
+    np.savetxt(filename, ranking, encoding='utf-8',
+               delimiter=" ", fmt='%s')
 
 
 def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, league=None, schoolset=None):
@@ -91,10 +150,19 @@ def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, leag
                 school_join.add(l)
                 TTLeague.addPlayer(l)
             TTLeague.gameOver(winner=w, loser=l)
+        TTLeague.fit()
 
-        for key, value in TTLeague.mu_calculations.items():
-            print(key, value)
-        # print(w, l)
+        MU = list(TTLeague.mu)
+        biggest = max(MU)
+        # while biggest in MU:
+        for _ in range(10):
+            biggest = max(MU)
+            index = MU.index(biggest)
+            MU.pop(index)
+            name = TTLeague.player_list.pop(index)
+            print(biggest)
+            print(name)
+            print(TTLeague.mu_calculations[name])
 
         # learning rate schduler
         if (stepLR):

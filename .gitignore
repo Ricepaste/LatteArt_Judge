@@ -6,4 +6,4 @@ LabelTool/val
 LabelTool/Score.csv
 runs
 spider/rank_data
-main/test_randomwalk.py
+main/test_thurstone.py
