@@ -1,0 +1,1137 @@
+Mplus VERSION 8.3
+MUTHEN & MUTHEN
+04/13/2024   3:42 PM
+
+INPUT INSTRUCTIONS
+
+  Title: cars pc data: Unrestricted model
+  DATA:
+  	FILE IS '\Users\sharpaste\Documents\program\
+  	testing\Mplus\MET_Maydeu-Olivares_web\cars_pc.dat';
+  ! the data file contains 294 observations in free format
+
+  VARIABLE:
+  	NAMES ARE pc12 pc13 pc14 pc15 pc16 pc17 pc23 pc24 pc25
+  	pc26 pc27 pc34 pc35 pc36 pc37 pc45 pc46 pc47 pc56 pc57 pc67 ;
+  ! the names reflect the comparisons	performed
+
+  	CATEGORICAL = pc12 pc13 pc14 pc15 pc16 pc17 pc23 pc24 pc25
+  	pc26 pc27 pc34 pc35 pc36 pc37 pc45 pc46 pc47 pc56 pc57 pc67 ;
+  ! the data is treated as categorical
+
+  ANALYSIS:
+  	TYPE = MEANSTRUCTURE;
+  ! both thresholds and tetrachoric correlations will be modeled
+  		
+  	ESTIMATOR=WLSM;
+  ! DWLS estimation with mean corrected S-B statistic
+  ! for mean and variance corrected S-B use WLSMV instead
+  	
+  	PARAMETERIZATION = THETA;
+  ! the program uses a model-based diagonal matrix D to enforce
+  ! the variance standardization
+
+  MODEL:
+  	f1 BY pc12-pc17@1;
+  	f2 by pc23-pc27@1;
+  	f3 by pc34-pc37@1;
+  	f4 by pc45-pc47@1;
+  	f5 BY pc56-pc57@1;
+  	f6 by      pc67@1;
+  	f2 by pc12@-1;
+  	f3 by pc13@-1 pc23@-1;
+  	f4 by pc14@-1 pc24@-1 pc34@-1;
+  	f5 by pc15@-1 pc25@-1 pc35@-1 pc45@-1;
+  	f6 by pc16@-1 pc26@-1 pc36@-1 pc46@-1 pc56@-1;
+  	f7 by pc17@-1 pc27@-1 pc37@-1 pc47@-1 pc57@-1 pc67@-1;
+  ! this is matrix A, fixed factor loadings
+
+  ! the factors are
+  !		f1 = Citroen AX
+  !		f2 = Fiat Punto
+  !		f3 = Nissan Micra
+  !		f4 = Opel Corsa
+  !		f5 = Peugeot 106
+  !		f6 = Seat Ibiza
+  !		f7 = Volkswagen Polo
+
+  	[pc12$1-pc67$1@0];
+  ! intercepts fixed at zero
+
+  	[f1-f6* f7@0];
+  ! the means of first n-1 factors are free, the last mean is fixed at 0
+
+  	pc12-pc67*.1;
+  ! pair specific error specific variances are free (starting value =.1)
+  ! if these variances are to be set all equal use instead
+  ! 	pc12-pc67(1);
+
+  ! UNRESTRICTED MODEL SPECIFICATION
+        f1@1;
+        f7@1;
+  ! factor variances for the first and last factors are fixed at 1
+  ! all other factor variances are free parameters
+        f2 with f1*;
+        f3 with f1-f2*;
+        f4 with f1-f3*;
+        f5 with f1-f4*;
+        f6 with f1-f5*;
+  ! factor covariances free except those involving the last object
+        f7 with f1-f6@0;
+  ! which are fixed at 0
+
+  ! CASE 3 MODEL SPECIFICATION
+  !	f1-f6*;
+  !	f7@1;
+  ! factor variances are free except for the last one, fixed at 1
+  !	f2 with f1@0;
+  !	f3 with f1-f2@0;
+  !	f4 with f1-f3@0;
+  !	f5 with f1-f4@0;
+  !	f6 with f1-f5@0;
+  !	f7 with f1-f6@0;
+  ! factor covariances fixed at 0
+
+  ! CASE 5 MODEL SPECIFICATION
+  !	f1-f7@1;
+  ! factor variances are fixed at 1
+  !	f2 with f1@0;
+  !	f3 with f1-f2@0;
+  !	f4 with f1-f3@0;
+  !	f5 with f1-f4@0;
+  !	f6 with f1-f5@0;
+  !	f7 with f1-f6@0;
+  ! factor covariances fixed at 0
+
+  OUTPUT: TECH1; TECH5;
+  ! use TECH1 to verify that the A matrix is properly specified
+  ! use TECH5 to obtain the function minimum (needed for S-B nested tests)
+
+
+
+
+*** WARNING in ANALYSIS command
+  Starting with Version 5, TYPE=MEANSTRUCTURE is the default for all
+  analyses.  To remove means from the model, use
+  MODEL=NOMEANSTRUCTURE in the ANALYSIS command.
+   1 WARNING(S) FOUND IN THE INPUT INSTRUCTIONS
+
+
+
+cars pc data: Unrestricted model
+
+SUMMARY OF ANALYSIS
+
+Number of groups                                                 1
+Number of observations                                         294
+
+Number of dependent variables                                   21
+Number of independent variables                                  0
+Number of continuous latent variables                            7
+
+Observed dependent variables
+
+  Binary and ordered categorical (ordinal)
+   PC12        PC13        PC14        PC15        PC16        PC17
+   PC23        PC24        PC25        PC26        PC27        PC34
+   PC35        PC36        PC37        PC45        PC46        PC47
+   PC56        PC57        PC67
+
+Continuous latent variables
+   F1          F2          F3          F4          F5          F6
+   F7
+
+
+Estimator                                                     WLSM
+Maximum number of iterations                                  1000
+Convergence criterion                                    0.500D-04
+Maximum number of steepest descent iterations                   20
+Parameterization                                             THETA
+Link                                                        PROBIT
+
+Input data file(s)
+  \Users\sharpaste\Documents\program\testing\Mplus\MET_Maydeu-Olivares_web\cars_
+
+Input data format  FREE
+
+
+UNIVARIATE PROPORTIONS AND COUNTS FOR CATEGORICAL VARIABLES
+
+    PC12
+      Category 1    0.718          211.000
+      Category 2    0.282           83.000
+    PC13
+      Category 1    0.650          191.000
+      Category 2    0.350          103.000
+    PC14
+      Category 1    0.830          244.000
+      Category 2    0.170           50.000
+    PC15
+      Category 1    0.840          247.000
+      Category 2    0.160           47.000
+    PC16
+      Category 1    0.799          235.000
+      Category 2    0.201           59.000
+    PC17
+      Category 1    0.840          247.000
+      Category 2    0.160           47.000
+    PC23
+      Category 1    0.425          125.000
+      Category 2    0.575          169.000
+    PC24
+      Category 1    0.571          168.000
+      Category 2    0.429          126.000
+    PC25
+      Category 1    0.619          182.000
+      Category 2    0.381          112.000
+    PC26
+      Category 1    0.707          208.000
+      Category 2    0.293           86.000
+    PC27
+      Category 1    0.680          200.000
+      Category 2    0.320           94.000
+    PC34
+      Category 1    0.609          179.000
+      Category 2    0.391          115.000
+    PC35
+      Category 1    0.636          187.000
+      Category 2    0.364          107.000
+    PC36
+      Category 1    0.677          199.000
+      Category 2    0.323           95.000
+    PC37
+      Category 1    0.670          197.000
+      Category 2    0.330           97.000
+    PC45
+      Category 1    0.554          163.000
+      Category 2    0.446          131.000
+    PC46
+      Category 1    0.629          185.000
+      Category 2    0.371          109.000
+    PC47
+      Category 1    0.568          167.000
+      Category 2    0.432          127.000
+    PC56
+      Category 1    0.595          175.000
+      Category 2    0.405          119.000
+    PC57
+      Category 1    0.551          162.000
+      Category 2    0.449          132.000
+    PC67
+      Category 1    0.422          124.000
+      Category 2    0.578          170.000
+
+
+
+THE MODEL ESTIMATION TERMINATED NORMALLY
+
+
+
+MODEL FIT INFORMATION
+
+Number of Free Parameters                       47
+
+Chi-Square Test of Model Fit
+
+          Value                            168.278*
+          Degrees of Freedom                   184
+          P-Value                           0.7908
+          Scaling Correction Factor         0.5880
+            for WLSM
+
+*   The chi-square value for MLM, MLMV, MLR, ULSMV, WLSM and WLSMV cannot be used
+    for chi-square difference testing in the regular way.  MLM, MLR and WLSM
+    chi-square difference testing is described on the Mplus website.  MLMV, WLSMV,
+    and ULSMV difference testing is done using the DIFFTEST option.
+
+RMSEA (Root Mean Square Error Of Approximation)
+
+          Estimate                           0.000
+          90 Percent C.I.                    0.000  0.018
+          Probability RMSEA <= .05           1.000
+
+CFI/TLI
+
+          CFI                                1.000
+          TLI                                1.005
+
+Chi-Square Test of Model Fit for the Baseline Model
+
+          Value                           3710.275
+          Degrees of Freedom                   210
+          P-Value                           0.0000
+
+SRMR (Standardized Root Mean Square Residual)
+
+          Value                              0.057
+
+Optimum Function Value for Weighted Least-Squares Estimator
+
+          Value                     0.16828027D+00
+
+
+
+MODEL RESULTS
+
+                                                    Two-Tailed
+                    Estimate       S.E.  Est./S.E.    P-Value
+
+ F1       BY
+    PC12               1.000      0.000    999.000    999.000
+    PC13               1.000      0.000    999.000    999.000
+    PC14               1.000      0.000    999.000    999.000
+    PC15               1.000      0.000    999.000    999.000
+    PC16               1.000      0.000    999.000    999.000
+    PC17               1.000      0.000    999.000    999.000
+
+ F2       BY
+    PC23               1.000      0.000    999.000    999.000
+    PC24               1.000      0.000    999.000    999.000
+    PC25               1.000      0.000    999.000    999.000
+    PC26               1.000      0.000    999.000    999.000
+    PC27               1.000      0.000    999.000    999.000
+    PC12              -1.000      0.000    999.000    999.000
+
+ F3       BY
+    PC34               1.000      0.000    999.000    999.000
+    PC35               1.000      0.000    999.000    999.000
+    PC36               1.000      0.000    999.000    999.000
+    PC37               1.000      0.000    999.000    999.000
+    PC13              -1.000      0.000    999.000    999.000
+    PC23              -1.000      0.000    999.000    999.000
+
+ F4       BY
+    PC45               1.000      0.000    999.000    999.000
+    PC46               1.000      0.000    999.000    999.000
+    PC47               1.000      0.000    999.000    999.000
+    PC14              -1.000      0.000    999.000    999.000
+    PC24              -1.000      0.000    999.000    999.000
+    PC34              -1.000      0.000    999.000    999.000
+
+ F5       BY
+    PC56               1.000      0.000    999.000    999.000
+    PC57               1.000      0.000    999.000    999.000
+    PC15              -1.000      0.000    999.000    999.000
+    PC25              -1.000      0.000    999.000    999.000
+    PC35              -1.000      0.000    999.000    999.000
+    PC45              -1.000      0.000    999.000    999.000
+
+ F6       BY
+    PC67               1.000      0.000    999.000    999.000
+    PC16              -1.000      0.000    999.000    999.000
+    PC26              -1.000      0.000    999.000    999.000
+    PC36              -1.000      0.000    999.000    999.000
+    PC46              -1.000      0.000    999.000    999.000
+    PC56              -1.000      0.000    999.000    999.000
+
+ F7       BY
+    PC17              -1.000      0.000    999.000    999.000
+    PC27              -1.000      0.000    999.000    999.000
+    PC37              -1.000      0.000    999.000    999.000
+    PC47              -1.000      0.000    999.000    999.000
+    PC57              -1.000      0.000    999.000    999.000
+    PC67              -1.000      0.000    999.000    999.000
+
+ F2       WITH
+    F1                -0.026      0.144     -0.183      0.855
+    F3                 0.073      0.197      0.372      0.710
+    F4                -0.134      0.150     -0.890      0.373
+    F5                -0.114      0.166     -0.686      0.493
+    F6                 0.098      0.208      0.471      0.638
+    F7                 0.000      0.000    999.000    999.000
+
+ F3       WITH
+    F1                 0.293      0.178      1.643      0.100
+    F4                -0.063      0.165     -0.384      0.701
+    F5                 0.104      0.187      0.556      0.578
+    F6                -0.401      0.192     -2.085      0.037
+    F7                 0.000      0.000    999.000    999.000
+
+ F4       WITH
+    F1                 0.137      0.125      1.099      0.272
+    F5                -0.014      0.153     -0.094      0.925
+    F6                -0.113      0.182     -0.622      0.534
+    F7                 0.000      0.000    999.000    999.000
+
+ F5       WITH
+    F1                 0.234      0.129      1.817      0.069
+    F6                -0.060      0.187     -0.319      0.750
+    F7                 0.000      0.000    999.000    999.000
+
+ F6       WITH
+    F1                -0.349      0.175     -2.000      0.045
+    F7                 0.000      0.000    999.000    999.000
+
+ F7       WITH
+    F1                 0.000      0.000    999.000    999.000
+
+ Means
+    F1                -1.442      0.114    -12.687      0.000
+    F2                -0.602      0.096     -6.288      0.000
+    F3                -0.782      0.108     -7.229      0.000
+    F4                -0.308      0.084     -3.659      0.000
+    F5                -0.157      0.093     -1.689      0.091
+    F6                 0.219      0.107      2.048      0.041
+    F7                 0.000      0.000    999.000    999.000
+
+ Thresholds
+    PC12$1             0.000      0.000    999.000    999.000
+    PC13$1             0.000      0.000    999.000    999.000
+    PC14$1             0.000      0.000    999.000    999.000
+    PC15$1             0.000      0.000    999.000    999.000
+    PC16$1             0.000      0.000    999.000    999.000
+    PC17$1             0.000      0.000    999.000    999.000
+    PC23$1             0.000      0.000    999.000    999.000
+    PC24$1             0.000      0.000    999.000    999.000
+    PC25$1             0.000      0.000    999.000    999.000
+    PC26$1             0.000      0.000    999.000    999.000
+    PC27$1             0.000      0.000    999.000    999.000
+    PC34$1             0.000      0.000    999.000    999.000
+    PC35$1             0.000      0.000    999.000    999.000
+    PC36$1             0.000      0.000    999.000    999.000
+    PC37$1             0.000      0.000    999.000    999.000
+    PC45$1             0.000      0.000    999.000    999.000
+    PC46$1             0.000      0.000    999.000    999.000
+    PC47$1             0.000      0.000    999.000    999.000
+    PC56$1             0.000      0.000    999.000    999.000
+    PC57$1             0.000      0.000    999.000    999.000
+    PC67$1             0.000      0.000    999.000    999.000
+
+ Variances
+    F1                 1.000      0.000    999.000    999.000
+    F2                 0.880      0.262      3.359      0.001
+    F3                 1.543      0.338      4.562      0.000
+    F4                 0.477      0.198      2.413      0.016
+    F5                 0.921      0.259      3.550      0.000
+    F6                 1.280      0.361      3.542      0.000
+    F7                 1.000      0.000    999.000    999.000
+
+ Residual Variances
+    PC12               0.315      0.211      1.494      0.135
+    PC13               0.272      0.233      1.169      0.242
+    PC14               0.157      0.169      0.927      0.354
+    PC15               0.408      0.174      2.346      0.019
+    PC16               0.418      0.268      1.563      0.118
+    PC17               0.502      0.255      1.967      0.049
+    PC23               0.105      0.173      0.607      0.544
+    PC24               0.436      0.219      1.994      0.046
+    PC25               0.126      0.152      0.829      0.407
+    PC26               0.875      0.358      2.446      0.014
+    PC27               0.353      0.215      1.642      0.101
+    PC34               0.175      0.173      1.011      0.312
+    PC35               0.238      0.165      1.445      0.148
+    PC36               0.362      0.202      1.790      0.074
+    PC37               0.336      0.206      1.629      0.103
+    PC45               0.276      0.181      1.519      0.129
+    PC46               0.100      0.175      0.572      0.567
+    PC47               0.337      0.166      2.026      0.043
+    PC56               0.149      0.184      0.812      0.417
+    PC57               0.174      0.171      1.019      0.308
+    PC67               0.266      0.218      1.218      0.223
+
+
+QUALITY OF NUMERICAL RESULTS
+
+     Condition Number for the Information Matrix              0.495E-02
+       (ratio of smallest to largest eigenvalue)
+
+
+TECHNICAL 1 OUTPUT
+
+
+     PARAMETER SPECIFICATION
+
+
+           TAU
+              PC12$1        PC13$1        PC14$1        PC15$1        PC16$1
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           TAU
+              PC17$1        PC23$1        PC24$1        PC25$1        PC26$1
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           TAU
+              PC27$1        PC34$1        PC35$1        PC36$1        PC37$1
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           TAU
+              PC45$1        PC46$1        PC47$1        PC56$1        PC57$1
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           TAU
+              PC67$1
+              ________
+                  0
+
+
+           NU
+              PC12          PC13          PC14          PC15          PC16
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           NU
+              PC17          PC23          PC24          PC25          PC26
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           NU
+              PC27          PC34          PC35          PC36          PC37
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           NU
+              PC45          PC46          PC47          PC56          PC57
+              ________      ________      ________      ________      ________
+                  0             0             0             0             0
+
+
+           NU
+              PC67
+              ________
+                  0
+
+
+           LAMBDA
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+ PC12               0             0             0             0             0
+ PC13               0             0             0             0             0
+ PC14               0             0             0             0             0
+ PC15               0             0             0             0             0
+ PC16               0             0             0             0             0
+ PC17               0             0             0             0             0
+ PC23               0             0             0             0             0
+ PC24               0             0             0             0             0
+ PC25               0             0             0             0             0
+ PC26               0             0             0             0             0
+ PC27               0             0             0             0             0
+ PC34               0             0             0             0             0
+ PC35               0             0             0             0             0
+ PC36               0             0             0             0             0
+ PC37               0             0             0             0             0
+ PC45               0             0             0             0             0
+ PC46               0             0             0             0             0
+ PC47               0             0             0             0             0
+ PC56               0             0             0             0             0
+ PC57               0             0             0             0             0
+ PC67               0             0             0             0             0
+
+
+           LAMBDA
+              F6            F7
+              ________      ________
+ PC12               0             0
+ PC13               0             0
+ PC14               0             0
+ PC15               0             0
+ PC16               0             0
+ PC17               0             0
+ PC23               0             0
+ PC24               0             0
+ PC25               0             0
+ PC26               0             0
+ PC27               0             0
+ PC34               0             0
+ PC35               0             0
+ PC36               0             0
+ PC37               0             0
+ PC45               0             0
+ PC46               0             0
+ PC47               0             0
+ PC56               0             0
+ PC57               0             0
+ PC67               0             0
+
+
+           THETA
+              PC12          PC13          PC14          PC15          PC16
+              ________      ________      ________      ________      ________
+ PC12               1
+ PC13               0             2
+ PC14               0             0             3
+ PC15               0             0             0             4
+ PC16               0             0             0             0             5
+ PC17               0             0             0             0             0
+ PC23               0             0             0             0             0
+ PC24               0             0             0             0             0
+ PC25               0             0             0             0             0
+ PC26               0             0             0             0             0
+ PC27               0             0             0             0             0
+ PC34               0             0             0             0             0
+ PC35               0             0             0             0             0
+ PC36               0             0             0             0             0
+ PC37               0             0             0             0             0
+ PC45               0             0             0             0             0
+ PC46               0             0             0             0             0
+ PC47               0             0             0             0             0
+ PC56               0             0             0             0             0
+ PC57               0             0             0             0             0
+ PC67               0             0             0             0             0
+
+
+           THETA
+              PC17          PC23          PC24          PC25          PC26
+              ________      ________      ________      ________      ________
+ PC17               6
+ PC23               0             7
+ PC24               0             0             8
+ PC25               0             0             0             9
+ PC26               0             0             0             0            10
+ PC27               0             0             0             0             0
+ PC34               0             0             0             0             0
+ PC35               0             0             0             0             0
+ PC36               0             0             0             0             0
+ PC37               0             0             0             0             0
+ PC45               0             0             0             0             0
+ PC46               0             0             0             0             0
+ PC47               0             0             0             0             0
+ PC56               0             0             0             0             0
+ PC57               0             0             0             0             0
+ PC67               0             0             0             0             0
+
+
+           THETA
+              PC27          PC34          PC35          PC36          PC37
+              ________      ________      ________      ________      ________
+ PC27              11
+ PC34               0            12
+ PC35               0             0            13
+ PC36               0             0             0            14
+ PC37               0             0             0             0            15
+ PC45               0             0             0             0             0
+ PC46               0             0             0             0             0
+ PC47               0             0             0             0             0
+ PC56               0             0             0             0             0
+ PC57               0             0             0             0             0
+ PC67               0             0             0             0             0
+
+
+           THETA
+              PC45          PC46          PC47          PC56          PC57
+              ________      ________      ________      ________      ________
+ PC45              16
+ PC46               0            17
+ PC47               0             0            18
+ PC56               0             0             0            19
+ PC57               0             0             0             0            20
+ PC67               0             0             0             0             0
+
+
+           THETA
+              PC67
+              ________
+ PC67              21
+
+
+           ALPHA
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+                 22            23            24            25            26
+
+
+           ALPHA
+              F6            F7
+              ________      ________
+                 27             0
+
+
+           BETA
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+ F1                 0             0             0             0             0
+ F2                 0             0             0             0             0
+ F3                 0             0             0             0             0
+ F4                 0             0             0             0             0
+ F5                 0             0             0             0             0
+ F6                 0             0             0             0             0
+ F7                 0             0             0             0             0
+
+
+           BETA
+              F6            F7
+              ________      ________
+ F1                 0             0
+ F2                 0             0
+ F3                 0             0
+ F4                 0             0
+ F5                 0             0
+ F6                 0             0
+ F7                 0             0
+
+
+           PSI
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+ F1                 0
+ F2                28            29
+ F3                30            31            32
+ F4                33            34            35            36
+ F5                37            38            39            40            41
+ F6                42            43            44            45            46
+ F7                 0             0             0             0             0
+
+
+           PSI
+              F6            F7
+              ________      ________
+ F6                47
+ F7                 0             0
+
+
+     STARTING VALUES
+
+
+           TAU
+              PC12$1        PC13$1        PC14$1        PC15$1        PC16$1
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           TAU
+              PC17$1        PC23$1        PC24$1        PC25$1        PC26$1
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           TAU
+              PC27$1        PC34$1        PC35$1        PC36$1        PC37$1
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           TAU
+              PC45$1        PC46$1        PC47$1        PC56$1        PC57$1
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           TAU
+              PC67$1
+              ________
+                0.000
+
+
+           NU
+              PC12          PC13          PC14          PC15          PC16
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           NU
+              PC17          PC23          PC24          PC25          PC26
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           NU
+              PC27          PC34          PC35          PC36          PC37
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           NU
+              PC45          PC46          PC47          PC56          PC57
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           NU
+              PC67
+              ________
+                0.000
+
+
+           LAMBDA
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+ PC12           1.000        -1.000         0.000         0.000         0.000
+ PC13           1.000         0.000        -1.000         0.000         0.000
+ PC14           1.000         0.000         0.000        -1.000         0.000
+ PC15           1.000         0.000         0.000         0.000        -1.000
+ PC16           1.000         0.000         0.000         0.000         0.000
+ PC17           1.000         0.000         0.000         0.000         0.000
+ PC23           0.000         1.000        -1.000         0.000         0.000
+ PC24           0.000         1.000         0.000        -1.000         0.000
+ PC25           0.000         1.000         0.000         0.000        -1.000
+ PC26           0.000         1.000         0.000         0.000         0.000
+ PC27           0.000         1.000         0.000         0.000         0.000
+ PC34           0.000         0.000         1.000        -1.000         0.000
+ PC35           0.000         0.000         1.000         0.000        -1.000
+ PC36           0.000         0.000         1.000         0.000         0.000
+ PC37           0.000         0.000         1.000         0.000         0.000
+ PC45           0.000         0.000         0.000         1.000        -1.000
+ PC46           0.000         0.000         0.000         1.000         0.000
+ PC47           0.000         0.000         0.000         1.000         0.000
+ PC56           0.000         0.000         0.000         0.000         1.000
+ PC57           0.000         0.000         0.000         0.000         1.000
+ PC67           0.000         0.000         0.000         0.000         0.000
+
+
+           LAMBDA
+              F6            F7
+              ________      ________
+ PC12           0.000         0.000
+ PC13           0.000         0.000
+ PC14           0.000         0.000
+ PC15           0.000         0.000
+ PC16          -1.000         0.000
+ PC17           0.000        -1.000
+ PC23           0.000         0.000
+ PC24           0.000         0.000
+ PC25           0.000         0.000
+ PC26          -1.000         0.000
+ PC27           0.000        -1.000
+ PC34           0.000         0.000
+ PC35           0.000         0.000
+ PC36          -1.000         0.000
+ PC37           0.000        -1.000
+ PC45           0.000         0.000
+ PC46          -1.000         0.000
+ PC47           0.000        -1.000
+ PC56          -1.000         0.000
+ PC57           0.000        -1.000
+ PC67           1.000        -1.000
+
+
+           THETA
+              PC12          PC13          PC14          PC15          PC16
+              ________      ________      ________      ________      ________
+ PC12           0.100
+ PC13           0.000         0.100
+ PC14           0.000         0.000         0.100
+ PC15           0.000         0.000         0.000         0.100
+ PC16           0.000         0.000         0.000         0.000         0.100
+ PC17           0.000         0.000         0.000         0.000         0.000
+ PC23           0.000         0.000         0.000         0.000         0.000
+ PC24           0.000         0.000         0.000         0.000         0.000
+ PC25           0.000         0.000         0.000         0.000         0.000
+ PC26           0.000         0.000         0.000         0.000         0.000
+ PC27           0.000         0.000         0.000         0.000         0.000
+ PC34           0.000         0.000         0.000         0.000         0.000
+ PC35           0.000         0.000         0.000         0.000         0.000
+ PC36           0.000         0.000         0.000         0.000         0.000
+ PC37           0.000         0.000         0.000         0.000         0.000
+ PC45           0.000         0.000         0.000         0.000         0.000
+ PC46           0.000         0.000         0.000         0.000         0.000
+ PC47           0.000         0.000         0.000         0.000         0.000
+ PC56           0.000         0.000         0.000         0.000         0.000
+ PC57           0.000         0.000         0.000         0.000         0.000
+ PC67           0.000         0.000         0.000         0.000         0.000
+
+
+           THETA
+              PC17          PC23          PC24          PC25          PC26
+              ________      ________      ________      ________      ________
+ PC17           0.100
+ PC23           0.000         0.100
+ PC24           0.000         0.000         0.100
+ PC25           0.000         0.000         0.000         0.100
+ PC26           0.000         0.000         0.000         0.000         0.100
+ PC27           0.000         0.000         0.000         0.000         0.000
+ PC34           0.000         0.000         0.000         0.000         0.000
+ PC35           0.000         0.000         0.000         0.000         0.000
+ PC36           0.000         0.000         0.000         0.000         0.000
+ PC37           0.000         0.000         0.000         0.000         0.000
+ PC45           0.000         0.000         0.000         0.000         0.000
+ PC46           0.000         0.000         0.000         0.000         0.000
+ PC47           0.000         0.000         0.000         0.000         0.000
+ PC56           0.000         0.000         0.000         0.000         0.000
+ PC57           0.000         0.000         0.000         0.000         0.000
+ PC67           0.000         0.000         0.000         0.000         0.000
+
+
+           THETA
+              PC27          PC34          PC35          PC36          PC37
+              ________      ________      ________      ________      ________
+ PC27           0.100
+ PC34           0.000         0.100
+ PC35           0.000         0.000         0.100
+ PC36           0.000         0.000         0.000         0.100
+ PC37           0.000         0.000         0.000         0.000         0.100
+ PC45           0.000         0.000         0.000         0.000         0.000
+ PC46           0.000         0.000         0.000         0.000         0.000
+ PC47           0.000         0.000         0.000         0.000         0.000
+ PC56           0.000         0.000         0.000         0.000         0.000
+ PC57           0.000         0.000         0.000         0.000         0.000
+ PC67           0.000         0.000         0.000         0.000         0.000
+
+
+           THETA
+              PC45          PC46          PC47          PC56          PC57
+              ________      ________      ________      ________      ________
+ PC45           0.100
+ PC46           0.000         0.100
+ PC47           0.000         0.000         0.100
+ PC56           0.000         0.000         0.000         0.100
+ PC57           0.000         0.000         0.000         0.000         0.100
+ PC67           0.000         0.000         0.000         0.000         0.000
+
+
+           THETA
+              PC67
+              ________
+ PC67           0.100
+
+
+           ALPHA
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+                0.000         0.000         0.000         0.000         0.000
+
+
+           ALPHA
+              F6            F7
+              ________      ________
+                0.000         0.000
+
+
+           BETA
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+ F1             0.000         0.000         0.000         0.000         0.000
+ F2             0.000         0.000         0.000         0.000         0.000
+ F3             0.000         0.000         0.000         0.000         0.000
+ F4             0.000         0.000         0.000         0.000         0.000
+ F5             0.000         0.000         0.000         0.000         0.000
+ F6             0.000         0.000         0.000         0.000         0.000
+ F7             0.000         0.000         0.000         0.000         0.000
+
+
+           BETA
+              F6            F7
+              ________      ________
+ F1             0.000         0.000
+ F2             0.000         0.000
+ F3             0.000         0.000
+ F4             0.000         0.000
+ F5             0.000         0.000
+ F6             0.000         0.000
+ F7             0.000         0.000
+
+
+           PSI
+              F1            F2            F3            F4            F5
+              ________      ________      ________      ________      ________
+ F1             1.000
+ F2             0.000         0.050
+ F3             0.000         0.000         0.050
+ F4             0.000         0.000         0.000         0.050
+ F5             0.000         0.000         0.000         0.000         0.050
+ F6             0.000         0.000         0.000         0.000         0.000
+ F7             0.000         0.000         0.000         0.000         0.000
+
+
+           PSI
+              F6            F7
+              ________      ________
+ F6             0.050
+ F7             0.000         1.000
+
+
+TECHNICAL 5/6 OUTPUT
+
+   TECHNICAL OUTPUT FROM QUASI-NEWTON ITERATIONS
+
+
+   ITERATIONS USING GRADIENT
+
+
+   ITER STEP   FUNCTION     ABS CHANGE   REL CHANGE   STEP LENGTH   DERIVATIVE
+
+      1   0 0.53184428D+01                           0.000000D+00 -.215798D+02
+          1 0.40183529D+01   -1.3000898   -0.2444493 0.100000D+00 -.767279D+01
+          2 0.36800863D+01   -0.3382666   -0.0841804 0.155172D+00 -.484465D+01
+          3 0.33581626D+01   -0.3219237   -0.0874772 0.249683D+00 -.228072D+01
+          4 0.32217561D+01   -0.1364065   -0.0406194 0.333754D+00 -.106988D+01
+      2   0 0.32217561D+01                           0.000000D+00 -.113325D+02
+          1 0.25268378D+01   -0.6949183   -0.2156955 0.333754D+00 0.128263D+01
+          2 0.24487973D+01   -0.0780405   -0.0308846 0.184309D+00 -.551275D+00
+      3   0 0.24487973D+01                           0.000000D+00 -.441686D+01
+          1 0.19078293D+01   -0.5409681   -0.2209117 0.184309D+00 -.169991D+01
+          2 0.17801646D+01   -0.1276647   -0.0669162 0.299625D+00 -.564950D+00
+          3 0.17607365D+01   -0.0194281   -0.0109137 0.373159D+00 0.216126D-01
+      4   0 0.17607365D+01                           0.000000D+00 -.514298D+01
+          1 0.14009504D+01   -0.3597861   -0.2043384 0.373159D+00 0.120323D+01
+          2 0.13039477D+01   -0.0970027   -0.0692407 0.215894D+00 -.126558D+00
+      5   0 0.13039477D+01                           0.000000D+00 -.217456D+01
+          1 0.98747989D+00   -0.3164678   -0.2426998 0.215894D+00 -.802733D+00
+          2 0.92941524D+00   -0.0580647   -0.0588008 0.368107D+00 0.235416D-01
+      6   0 0.92941524D+00                           0.000000D+00 -.261039D+01
+          1 0.85564392D+00   -0.0737713   -0.0793739 0.368107D+00 0.130300D+01
+          2 0.72169467D+00   -0.1339492   -0.1565479 0.181597D+00 -.798796D-02
+      7   0 0.72169467D+00                           0.000000D+00 -.109868D+01
+          1 0.59732779D+00   -0.1243669   -0.1723262 0.181597D+00 -.290166D+00
+          2 0.58702406D+00   -0.0103037   -0.0172497 0.253958D+00 0.296656D-02
+      8   0 0.58702406D+00                           0.000000D+00 -.130094D+01
+          1 0.56297300D+00   -0.0240511   -0.0409712 0.253958D+00 0.830324D+00
+          2 0.50851255D+00   -0.0544604   -0.0967372 0.129900D+00 -.213452D-02
+      9   0 0.50851255D+00                           0.000000D+00 -.635497D+00
+          1 0.45532347D+00   -0.0531891   -0.1045974 0.129900D+00 -.193336D+00
+          2 0.44933784D+00   -0.0059856   -0.0131459 0.193004D+00 0.169055D-02
+     10   0 0.44933784D+00                           0.000000D+00 -.856418D+00
+          1 0.42884499D+00   -0.0204929   -0.0456068 0.193004D+00 0.528268D+00
+          2 0.40552054D+00   -0.0233244   -0.0543890 0.107422D+00 -.145621D-02
+     11   0 0.40552054D+00                           0.000000D+00 -.451282D+00
+          1 0.37348591D+00   -0.0320346   -0.0789963 0.107422D+00 -.150699D+00
+          2 0.36911806D+00   -0.0043679   -0.0116948 0.166334D+00 0.998470D-03
+     12   0 0.36911806D+00                           0.000000D+00 -.645156D+00
+          1 0.35494739D+00   -0.0141707   -0.0383906 0.166334D+00 0.411050D+00
+          2 0.33978710D+00   -0.0151603   -0.0427114 0.942076D-01 -.704746D-03
+     13   0 0.33978710D+00                           0.000000D+00 -.344183D+00
+          1 0.31824737D+00   -0.0215397   -0.0633918 0.942076D-01 -.116406D+00
+          2 0.31527802D+00   -0.0029694   -0.0093303 0.145833D+00 0.509270D-03
+     14   0 0.31527802D+00                           0.000000D+00 -.501450D+00
+          1 0.30622828D+00   -0.0090497   -0.0287040 0.145833D+00 0.338841D+00
+          2 0.29523776D+00   -0.0109905   -0.0358900 0.820955D-01 -.331614D-03
+     15   0 0.29523776D+00                           0.000000D+00 -.269242D+00
+          1 0.28051616D+00   -0.0147216   -0.0498635 0.820955D-01 -.914635D-01
+          2 0.27849310D+00   -0.0020231   -0.0072119 0.126726D+00 0.265398D-03
+     16   0 0.27849310D+00                           0.000000D+00 -.396757D+00
+          1 0.27260458D+00   -0.0058885   -0.0211442 0.126726D+00 0.279906D+00
+          2 0.26469499D+00   -0.0079096   -0.0290149 0.709944D-01 -.162774D-03
+     17   0 0.26469499D+00                           0.000000D+00 -.214226D+00
+          1 0.25454446D+00   -0.0101505   -0.0383480 0.709944D-01 -.730594D-01
+          2 0.25315058D+00   -0.0013939   -0.0054760 0.109414D+00 0.144111D-03
+
+   ITERATIONS USING QUASI-NEWTON
+
+
+   ITER STEP   FUNCTION     ABS CHANGE   REL CHANGE   STEP LENGTH   DERIVATIVE
+
+      1   0 0.25315058D+00                           0.000000D+00 -.318486D+00
+          1 0.24723529D+00   -0.0059153   -0.0233667 0.100000D+00 0.187272D+00
+          2 0.24356581D+00   -0.0036695   -0.0148420 0.611531D-01 -.113798D-03
+      2   0 0.24356581D+00                           0.000000D+00 -.152018D+00
+          1 0.23477160D+00   -0.0087942   -0.0361061 0.611531D-01 -.135695D+00
+          2 0.19568350D+00   -0.0390881   -0.1664941 0.707503D+00 0.650742D-02
+      3   0 0.19568350D+00                           0.000000D+00 -.758928D-01
+          1 0.28861036D+00    0.0929269    0.4748835 0.707503D+00 0.336648D+00
+          2 0.19082223D+00   -0.0977881   -0.3388241 0.128674D+00 0.208587D-03
+      4   0 0.19082223D+00                           0.000000D+00 -.668933D-01
+          1 0.18443675D+00   -0.0063855   -0.0334630 0.128674D+00 -.326798D-01
+          2 0.18233250D+00   -0.0021042   -0.0114090 0.259008D+00 0.869828D-04
+      5   0 0.18233250D+00                           0.000000D+00 -.452673D-01
+          1 0.17600400D+00   -0.0063285   -0.0347086 0.259008D+00 -.444665D-02
+      6   0 0.17600400D+00                           0.000000D+00 -.241333D-01
+          1 0.17355829D+00   -0.0024457   -0.0138957 0.259008D+00 0.436341D-02
+          2 0.17346421D+00   -0.0000941   -0.0005421 0.216009D+00 -.958032D-05
+      7   0 0.17346421D+00                           0.000000D+00 -.213199D-01
+          1 0.17218451D+00   -0.0012797   -0.0073773 0.216009D+00 0.853099D-02
+          2 0.17190030D+00   -0.0002842   -0.0016506 0.149943D+00 -.855797D-05
+      8   0 0.17190030D+00                           0.000000D+00 -.242473D-01
+          1 0.17332940D+00    0.0014291    0.0083136 0.149943D+00 0.421965D-01
+          2 0.17126179D+00   -0.0020676   -0.0119288 0.529968D-01 0.539002D-05
+      9   0 0.17126179D+00                           0.000000D+00 -.220697D-01
+          1 0.17059505D+00   -0.0006667   -0.0038931 0.529968D-01 -.316226D-02
+          2 0.17058086D+00   -0.0000142   -0.0000832 0.619781D-01 0.505611D-06
+     10   0 0.17058086D+00                           0.000000D+00 -.171208D-01
+          1 0.17001930D+00   -0.0005616   -0.0032921 0.619781D-01 -.101754D-02
+     11   0 0.17001930D+00                           0.000000D+00 -.124579D-01
+          1 0.16948585D+00   -0.0005334   -0.0031376 0.619781D-01 -.476001D-02
+          2 0.16939445D+00   -0.0000914   -0.0005393 0.100397D+00 0.756965D-06
+     12   0 0.16939445D+00                           0.000000D+00 -.139307D-01
+          1 0.16982583D+00    0.0004314    0.0025466 0.100397D+00 0.228307D-01
+          2 0.16912454D+00   -0.0007013   -0.0041295 0.386400D-01 0.199646D-05
+     13   0 0.16912454D+00                           0.000000D+00 -.158951D-01
+          1 0.16900249D+00   -0.0001220   -0.0007216 0.386400D-01 0.967777D-02
+          2 0.16893235D+00   -0.0000701   -0.0004150 0.241229D-01 -.151182D-06
+     14   0 0.16893235D+00                           0.000000D+00 -.109862D-01
+          1 0.16876961D+00   -0.0001627   -0.0009634 0.241229D-01 -.248818D-02
+          2 0.16876089D+00   -0.0000087   -0.0000517 0.311275D-01 0.146484D-06
+     15   0 0.16876089D+00                           0.000000D+00 -.682408D-02
+          1 0.16863474D+00   -0.0001262   -0.0007475 0.311275D-01 -.127234D-02
+          2 0.16863023D+00   -0.0000045   -0.0000268 0.382188D-01 0.789126D-07
+     16   0 0.16863023D+00                           0.000000D+00 -.551510D-02
+          1 0.16858087D+00   -0.0000494   -0.0002927 0.382188D-01 0.295433D-02
+          2 0.16856130D+00   -0.0000196   -0.0001161 0.249542D-01 -.357027D-07
+     17   0 0.16856130D+00                           0.000000D+00 -.536797D-02
+          1 0.16848848D+00   -0.0000728   -0.0004320 0.249542D-01 -.470136D-03
+     18   0 0.16848848D+00                           0.000000D+00 -.362117D-02
+          1 0.16842378D+00   -0.0000647   -0.0003840 0.249542D-01 -.156656D-02
+          2 0.16840879D+00   -0.0000150   -0.0000890 0.439808D-01 -.108782D-04
+     19   0 0.16840879D+00                           0.000000D+00 -.531180D-02
+          1 0.16842863D+00    0.0000198    0.0001178 0.439808D-01 0.618313D-02
+          2 0.16835512D+00   -0.0000735   -0.0004365 0.202354D-01 0.129932D-07
+     20   0 0.16835512D+00                           0.000000D+00 -.665865D-02
+          1 0.16835184D+00   -0.0000033   -0.0000195 0.202354D-01 0.629732D-02
+          2 0.16832069D+00   -0.0000312   -0.0001850 0.103560D-01 -.281102D-08
+     21   0 0.16832069D+00                           0.000000D+00 -.311495D-02
+          1 0.16831913D+00   -0.0000016   -0.0000093 0.103560D-01 0.280611D-02
+          2 0.16831222D+00   -0.0000069   -0.0000410 0.543820D-02 -.508102D-09
+     22   0 0.16831222D+00                           0.000000D+00 -.153848D-02
+          1 0.16830577D+00   -0.0000065   -0.0000383 0.543820D-02 -.835368D-03
+          2 0.16830306D+00   -0.0000027   -0.0000161 0.118994D-01 -.402725D-05
+     23   0 0.16830306D+00                           0.000000D+00 -.145375D-02
+          1 0.16830141D+00   -0.0000016   -0.0000098 0.118994D-01 0.117448D-02
+          2 0.16829828D+00   -0.0000031   -0.0000186 0.658188D-02 0.167906D-05
+     24   0 0.16829828D+00                           0.000000D+00 -.150134D-02
+          1 0.16829309D+00   -0.0000052   -0.0000309 0.658188D-02 -.771342D-04
+     25   0 0.16829309D+00                           0.000000D+00 -.864941D-03
+          1 0.16828987D+00   -0.0000032   -0.0000191 0.658188D-02 -.112848D-03
+          2 0.16828982D+00   -0.0000001   -0.0000003 0.756946D-02 0.228065D-06
+     26   0 0.16828982D+00                           0.000000D+00 -.999099D-03
+          1 0.16828529D+00   -0.0000045   -0.0000269 0.756946D-02 -.195914D-03
+          2 0.16828511D+00   -0.0000002   -0.0000011 0.941582D-02 0.118918D-06
+     27   0 0.16828511D+00                           0.000000D+00 -.987593D-03
+          1 0.16828213D+00   -0.0000030   -0.0000177 0.941582D-02 0.352686D-03
+          2 0.16828169D+00   -0.0000004   -0.0000026 0.693810D-02 0.578433D-06
+     28   0 0.16828169D+00                           0.000000D+00 -.220133D-03
+          1 0.16828179D+00    0.0000001    0.0000006 0.693810D-02 0.248779D-03
+          2 0.16828133D+00   -0.0000005   -0.0000027 0.325713D-02 0.237203D-06
+     29   0 0.16828133D+00                           0.000000D+00 -.284221D-03
+          1 0.16828155D+00    0.0000002    0.0000013 0.325713D-02 0.419150D-03
+          2 0.16828114D+00   -0.0000004   -0.0000024 0.131615D-02 0.828300D-07
+     30   0 0.16828114D+00                           0.000000D+00 -.265965D-03
+          1 0.16828087D+00   -0.0000003   -0.0000016 0.131615D-02 -.145407D-03
+          2 0.16828076D+00   -0.0000001   -0.0000007 0.290358D-02 0.406746D-07
+     31   0 0.16828076D+00                           0.000000D+00 -.237436D-03
+          1 0.16828064D+00   -0.0000001   -0.0000007 0.290358D-02 0.159451D-03
+          2 0.16828055D+00   -0.0000001   -0.0000006 0.173705D-02 -.288721D-07
+     32   0 0.16828055D+00                           0.000000D+00 -.189522D-03
+          1 0.16828042D+00   -0.0000001   -0.0000008 0.173705D-02 0.395187D-04
+          2 0.16828042D+00    0.0000000    0.0000000 0.143734D-02 -.469352D-08
+     33   0 0.16828042D+00                           0.000000D+00 -.154151D-03
+          1 0.16828037D+00    0.0000000   -0.0000003 0.143734D-02 0.860561D-04
+          2 0.16828034D+00    0.0000000   -0.0000001 0.922403D-03 -.105307D-08
+     34   0 0.16828034D+00                           0.000000D+00 -.107844D-03
+          1 0.16828029D+00   -0.0000001   -0.0000003 0.922403D-03 -.169281D-05
+     35   0 0.16828029D+00                           0.000000D+00 -.542401D-04
+          1 0.16828027D+00    0.0000000   -0.0000001 0.922403D-03 0.119154D-04
+          2 0.16828027D+00    0.0000000    0.0000000 0.756267D-03 0.290659D-08
+
+
+DIAGRAM INFORMATION
+
+  Use View Diagram under the Diagram menu in the Mplus Editor to view the diagram.
+  If running Mplus from the Mplus Diagrammer, the diagram opens automatically.
+
+  Diagram output
+    C:\Users\sharpaste\Documents\program\testing\Mplus\MET_Maydeu-Olivares_web\pc1.dgm
+
+     Beginning Time:  15:42:36
+        Ending Time:  15:42:36
+       Elapsed Time:  00:00:00
+
+
+
+MUTHEN & MUTHEN
+3463 Stoner Ave.
+Los Angeles, CA  90066
+
+Tel: (310) 391-9971
+Fax: (310) 391-8971
+Web: www.StatModel.com
+Support: Support@StatModel.com
+
+Copyright (c) 1998-2019 Muthen & Muthen

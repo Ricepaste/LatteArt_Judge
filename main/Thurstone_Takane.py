@@ -86,19 +86,26 @@ class TTmodel():
                     self.ystar[i][j] = str(random.randint(0, 1))
 
         self.ystar = np.array(self.ystar).T
+
+        for j in range(len(self.ystar[len(self.ystar)-1])):
+            if self.ystar[len(self.ystar)-1][j] == '0':
+                self.ystar[len(self.ystar)-1][j] = '1'
+            else:
+                self.ystar[len(self.ystar)-1][j] = '0'
+
         print(self.ystar)
         save_to_csv('test', self.ystar)
 
 
 def save_to_csv(name, ranking):
     file_path = "./spider/thurstone/"
-    filename = file_path + f"{name}.csv"
+    filename = file_path + f"{name}.dat"
     print(filename)
     np.savetxt(filename, ranking, encoding='utf-8',
                delimiter=" ", fmt='%s')
 
 
-def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, league=None, schoolset=None):
+def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, league=None, schoolset=None, top10=None):
     '''
     計算所有隊伍的elo值
     註:elo值的計算方式為:elo = elo + k * (result - expected_result)
@@ -112,8 +119,25 @@ def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, leag
     league: 參數為上一年的league
     schoolset: 參數為上一年的schoolset
     '''
-    all_team = set(winner)
-    all_team.update(set(loser))
+
+    top10 = ['LouisianaState', 'Oklahoma', 'Miami', 'SouthernCalifornia', 'Michigan', 'OhioState', 'Texas', 'FloridaState', 'BoiseState',
+             'Tennessee', 'TexasChristian', 'KansasState', 'BowlingGreen', 'Georgia', 'Iowa', 'Utah', 'Florida', 'Purdue', 'OklahomaState', 'Maryland']
+    top_winner = []
+    top_loser = []
+    for w, l in zip(winner, loser):
+        if (w in top10) and (l in top10):
+            top_winner.append(w)
+            top_loser.append(l)
+
+    if top10 is None:
+        all_team = set(winner)
+        all_team.update(set(loser))
+    else:
+        all_team = set(top_winner)
+        all_team.update(set(top_loser))
+        winner = top_winner
+        loser = top_loser
+
     n = len(all_team)
     ranking = []
     if league is None:
