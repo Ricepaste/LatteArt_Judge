@@ -1,0 +1,103 @@
+Title: cars pc data: Unrestricted model
+DATA: 
+	FILE IS '\Users\sharpaste\Documents\program\
+	testing\Mplus\MET_Maydeu-Olivares_web\cars_pc.dat';
+! the data file contains 294 observations in free format
+
+VARIABLE: 
+	NAMES ARE pc12 pc13 pc14 pc15 pc16 pc17 pc23 pc24 pc25 
+	pc26 pc27 pc34 pc35 pc36 pc37 pc45 pc46 pc47 pc56 pc57 pc67 ;
+! the names reflect the comparisons	performed
+
+	CATEGORICAL = pc12 pc13 pc14 pc15 pc16 pc17 pc23 pc24 pc25 
+	pc26 pc27 pc34 pc35 pc36 pc37 pc45 pc46 pc47 pc56 pc57 pc67 ;
+! the data is treated as categorical
+
+ANALYSIS:
+	TYPE = MEANSTRUCTURE;
+! both thresholds and tetrachoric correlations will be modeled
+		
+	ESTIMATOR=WLSM;
+! DWLS estimation with mean corrected S-B statistic
+! for mean and variance corrected S-B use WLSMV instead
+	
+	PARAMETERIZATION = THETA;
+! the program uses a model-based diagonal matrix D to enforce
+! the variance standardization
+
+MODEL:
+	f1 BY pc12-pc17@1;
+	f2 by pc23-pc27@1;
+	f3 by pc34-pc37@1;
+	f4 by pc45-pc47@1;
+	f5 BY pc56-pc57@1;
+	f6 by      pc67@1;
+	f2 by pc12@-1;
+	f3 by pc13@-1 pc23@-1;
+	f4 by pc14@-1 pc24@-1 pc34@-1;
+	f5 by pc15@-1 pc25@-1 pc35@-1 pc45@-1;
+	f6 by pc16@-1 pc26@-1 pc36@-1 pc46@-1 pc56@-1;
+	f7 by pc17@-1 pc27@-1 pc37@-1 pc47@-1 pc57@-1 pc67@-1;
+! this is matrix A, fixed factor loadings
+
+! the factors are 
+!		f1 = Citroen AX
+!		f2 = Fiat Punto
+!		f3 = Nissan Micra
+!		f4 = Opel Corsa
+!		f5 = Peugeot 106
+!		f6 = Seat Ibiza
+!		f7 = Volkswagen Polo
+
+	[pc12$1-pc67$1@0];
+! intercepts fixed at zero
+
+	[f1-f6* f7@0];
+! the means of first n-1 factors are free, the last mean is fixed at 0
+
+	pc12-pc67*.1;
+! pair specific error specific variances are free (starting value =.1)
+! if these variances are to be set all equal use instead
+! 	pc12-pc67(1);
+
+! UNRESTRICTED MODEL SPECIFICATION
+      f1@1;
+      f7@1;
+! factor variances for the first and last factors are fixed at 1
+! all other factor variances are free parameters
+      f2 with f1*;
+      f3 with f1-f2*;
+      f4 with f1-f3*;
+      f5 with f1-f4*;
+      f6 with f1-f5*;
+! factor covariances free except those involving the last object
+      f7 with f1-f6@0;
+! which are fixed at 0
+
+! CASE 3 MODEL SPECIFICATION
+!	f1-f6*;
+!	f7@1;
+! factor variances are free except for the last one, fixed at 1
+!	f2 with f1@0;
+!	f3 with f1-f2@0;
+!	f4 with f1-f3@0;
+!	f5 with f1-f4@0;
+!	f6 with f1-f5@0;
+!	f7 with f1-f6@0;
+! factor covariances fixed at 0
+
+! CASE 5 MODEL SPECIFICATION
+!	f1-f7@1;
+! factor variances are fixed at 1
+!	f2 with f1@0;
+!	f3 with f1-f2@0;
+!	f4 with f1-f3@0;
+!	f5 with f1-f4@0;
+!	f6 with f1-f5@0;
+!	f7 with f1-f6@0;
+! factor covariances fixed at 0
+
+OUTPUT: TECH1; TECH5;
+! use TECH1 to verify that the A matrix is properly specified
+! use TECH5 to obtain the function minimum (needed for S-B nested tests)
+
