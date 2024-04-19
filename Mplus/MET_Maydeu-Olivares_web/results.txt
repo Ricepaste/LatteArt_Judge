@@ -5,21 +5,23 @@ DATA:
 ! the data file contains 294 observations in free format
 
 VARIABLE: 
-	NAMES ARE pc1_2-pc1_16 pc2_3-pc2_16 
-	pc3_4-pc3_16 pc4_5-pc4_16 pc5_6-pc5_16 
-	pc6_7-pc6_16 pc7_8-pc7_16 pc8_9-pc8_16 
-	pc9_10-pc9_16 pc10_11-pc10_16 pc11_12-pc11_16 
-	pc12_13-pc12_16 pc13_14-pc13_16 pc14_15-pc14_16 
-	pc15_16;
+	NAMES ARE pc1_2-pc1_19 pc2_3-pc2_19 
+	pc3_4-pc3_19 pc4_5-pc4_19 pc5_6-pc5_19 
+	pc6_7-pc6_19 pc7_8-pc7_19 pc8_9-pc8_19 
+	pc9_10-pc9_19 pc10_11-pc10_19 pc11_12-pc11_19 
+	pc12_13-pc12_19 pc13_14-pc13_19 pc14_15-pc14_19 
+	pc15_16-pc15_19 pc16_17-pc16_19 pc17_18-pc17_19 
+	pc18_19;
 
 ! the names reflect the comparisons performed
 
-	CATEGORICAL = pc1_2-pc1_16 pc2_3-pc2_16 
-	pc3_4-pc3_16 pc4_5-pc4_16 pc5_6-pc5_16 
-	pc6_7-pc6_16 pc7_8-pc7_16 pc8_9-pc8_16 
-	pc9_10-pc9_16 pc10_11-pc10_16 pc11_12-pc11_16 
-	pc12_13-pc12_16 pc13_14-pc13_16 pc14_15-pc14_16 
-	pc15_16;
+	CATEGORICAL = pc1_2-pc1_19 pc2_3-pc2_19 
+	pc3_4-pc3_19 pc4_5-pc4_19 pc5_6-pc5_19 
+	pc6_7-pc6_19 pc7_8-pc7_19 pc8_9-pc8_19 
+	pc9_10-pc9_19 pc10_11-pc10_19 pc11_12-pc11_19 
+	pc12_13-pc12_19 pc13_14-pc13_19 pc14_15-pc14_19 
+	pc15_16-pc15_19 pc16_17-pc16_19 pc17_18-pc17_19 
+	pc18_19;
 
 ! the data is treated as categorical
 
@@ -36,21 +38,24 @@ ANALYSIS:
 ! the variance standardization
 
 MODEL:
-	f1 BY pc1_2-pc1_16@1;
-	f2 BY pc2_3-pc2_16@1;
-	f3 BY pc3_4-pc3_16@1;
-	f4 BY pc4_5-pc4_16@1;
-	f5 BY pc5_6-pc5_16@1;
-	f6 BY pc6_7-pc6_16@1;
-	f7 BY pc7_8-pc7_16@1;
-	f8 BY pc8_9-pc8_16@1;
-	f9 BY pc9_10-pc9_16@1;
-	f10 BY pc10_11-pc10_16@1;
-	f11 BY pc11_12-pc11_16@1;
-	f12 BY pc12_13-pc12_16@1;
-	f13 BY pc13_14-pc13_16@1;
-	f14 BY pc14_15-pc14_16@1;
-	f15 BY pc15_16@1;
+	f1 BY pc1_2-pc1_19@1;
+	f2 BY pc2_3-pc2_19@1;
+	f3 BY pc3_4-pc3_19@1;
+	f4 BY pc4_5-pc4_19@1;
+	f5 BY pc5_6-pc5_19@1;
+	f6 BY pc6_7-pc6_19@1;
+	f7 BY pc7_8-pc7_19@1;
+	f8 BY pc8_9-pc8_19@1;
+	f9 BY pc9_10-pc9_19@1;
+	f10 BY pc10_11-pc10_19@1;
+	f11 BY pc11_12-pc11_19@1;
+	f12 BY pc12_13-pc12_19@1;
+	f13 BY pc13_14-pc13_19@1;
+	f14 BY pc14_15-pc14_19@1;
+	f15 BY pc15_16-pc15_19@1;
+	f16 BY pc16_17-pc16_19@1;
+	f17 BY pc17_18-pc17_19@1;
+	f18 BY pc18_19@1;
 	f2 BY pc1_2@-1 ;
 	f3 BY pc1_3@-1 pc2_3@-1 ;
 	f4 BY pc1_4@-1 pc2_4@-1 
@@ -101,6 +106,25 @@ MODEL:
 		pc9_16@-1 pc10_16@-1 pc11_16@-1 
 		pc12_16@-1 pc13_16@-1 pc14_16@-1 
 		pc15_16@-1 ;
+	f17 BY pc1_17@-1 pc2_17@-1 
+		pc3_17@-1 pc4_17@-1 pc5_17@-1 
+		pc6_17@-1 pc7_17@-1 pc8_17@-1 
+		pc9_17@-1 pc10_17@-1 pc11_17@-1 
+		pc12_17@-1 pc13_17@-1 pc14_17@-1 
+		pc15_17@-1 pc16_17@-1 ;
+	f18 BY pc1_18@-1 pc2_18@-1 
+		pc3_18@-1 pc4_18@-1 pc5_18@-1 
+		pc6_18@-1 pc7_18@-1 pc8_18@-1 
+		pc9_18@-1 pc10_18@-1 pc11_18@-1 
+		pc12_18@-1 pc13_18@-1 pc14_18@-1 
+		pc15_18@-1 pc16_18@-1 pc17_18@-1 ;
+	f19 BY pc1_19@-1 pc2_19@-1 
+		pc3_19@-1 pc4_19@-1 pc5_19@-1 
+		pc6_19@-1 pc7_19@-1 pc8_19@-1 
+		pc9_19@-1 pc10_19@-1 pc11_19@-1 
+		pc12_19@-1 pc13_19@-1 pc14_19@-1 
+		pc15_19@-1 pc16_19@-1 pc17_19@-1 
+		pc18_19@-1 ;
 	
 
 ! this is matrix A, fixed factor loadings
@@ -114,15 +138,15 @@ MODEL:
 !		f6 = Seat Ibiza
 !		f7 = Volkswagen Polo
 
-	[pc1_2$1-pc15_16$1@0];
+	[pc1_2$1-pc18_19$1@0];
 
 ! intercepts fixed at zero
 
-	[f1-f15* f16@0];
+	[f1-f18* f19@0];
 
 ! the means of first n-1 factors are free, the last mean is fixed at 0
 
-	pc1_2-pc15_16*.1;
+	pc1_2-pc18_19*.1;
 
 ! pair specific error specific variances are free (starting value =.1)
 ! if these variances are to be set all equal use instead
@@ -130,7 +154,7 @@ MODEL:
 
 ! UNRESTRICTED MODEL SPECIFICATION
 	f1@1;
-	f16@1;
+	f19@1;
 ! factor variances for the first and last factors are fixed at 1
 ! all other factor variances are free parameters
 	f2 with f1*;
@@ -147,9 +171,12 @@ MODEL:
 	f13 with f1-f12*;
 	f14 with f1-f13*;
 	f15 with f1-f14*;
+	f16 with f1-f15*;
+	f17 with f1-f16*;
+	f18 with f1-f17*;
 	
 ! factor covariances free except those involving the last object
-	f16 with f1-f15@0;
+	f19 with f1-f18@0;
 
 ! which are fixed at 0
 

@@ -73,16 +73,20 @@ class TTmodel():
 
         for i in range(len(self.ystar)):
             while len(self.ystar[i]) < maxx:
-                self.ystar[i].append('-')
+                self.ystar[i].append('.')
 
         for i in range(len(self.ystar)):
             temp = self.ystar[i].copy()
             for j in range(10):
                 self.ystar[i] += temp
 
+        # for i in range(len(self.ystar)):
+        #     temp = [0, 1]
+        #     self.ystar[i] += temp
+
         for i in range(len(self.ystar)):
             for j in range(len(self.ystar[i])):
-                if self.ystar[i][j] == '-':
+                if self.ystar[i][j] == '.':
                     self.ystar[i][j] = str(random.randint(0, 1))
 
         self.ystar = np.array(self.ystar).T
@@ -94,6 +98,7 @@ class TTmodel():
                 self.ystar[len(self.ystar)-1][j] = '0'
 
         print(self.ystar)
+        print(self.n)
         save_to_csv('test', self.ystar)
 
 
@@ -103,6 +108,16 @@ def save_to_csv(name, ranking):
     print(filename)
     np.savetxt(filename, ranking, encoding='utf-8',
                delimiter=" ", fmt='%s')
+
+
+def load_elo_top_N(year, N):
+    filename = ".\\spider\\rank_data\\"
+    filename += f'{year}-{year+1}_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv'
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+    lines = lines[0:N]
+    lines = [line.split()[0] for line in lines]
+    return lines
 
 
 def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, league=None, schoolset=None, top10=None):
@@ -120,8 +135,6 @@ def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, leag
     schoolset: 參數為上一年的schoolset
     '''
 
-    top10 = ['LouisianaState', 'Oklahoma', 'Miami', 'SouthernCalifornia', 'Michigan', 'OhioState', 'Texas', 'FloridaState', 'BoiseState',
-             'Tennessee', 'TexasChristian', 'KansasState', 'BowlingGreen', 'Georgia', 'Iowa', 'Utah', 'Florida', 'Purdue', 'OklahomaState', 'Maryland']
     top_winner = []
     top_loser = []
     for w, l in zip(winner, loser):
@@ -175,48 +188,54 @@ def TT_calculate(winner, loser, K=32, epochs=1, shuffle=False, stepLR=True, leag
                 TTLeague.addPlayer(l)
             TTLeague.gameOver(winner=w, loser=l)
         TTLeague.fit()
+        print(TTLeague.player_list)
 
-        MU = list(TTLeague.mu)
-        biggest = max(MU)
-        # while biggest in MU:
-        for _ in range(10):
-            biggest = max(MU)
-            index = MU.index(biggest)
-            MU.pop(index)
-            name = TTLeague.player_list.pop(index)
-            print(biggest)
-            print(name)
-            print(TTLeague.mu_calculations[name])
+        # MU = list(TTLeague.mu)
+        # biggest = max(MU)
+        # # while biggest in MU:
+        # for _ in range(10):
+        #     biggest = max(MU)
+        #     index = MU.index(biggest)
+        #     MU.pop(index)
+        #     name = TTLeague.player_list.pop(index)
+        #     print(biggest)
+        #     print(name)
+        #     print(TTLeague.mu_calculations[name])
 
-        # learning rate schduler
-        if (stepLR):
-            TTLeague.k = int(TTLeague.k * 0.9)
+    #     # learning rate schduler
+    #     if (stepLR):
+    #         TTLeague.k = int(TTLeague.k * 0.9)
+    print()
 
-    for key, value in sorted((TTLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
-        # print(f"{key:30s}\t{value:.1f}")
-        ranking.append([key, value])
+    # for key, value in sorted((TTLeague.ratingDict).items(), key=lambda x: x[1], reverse=True):
+    #     # print(f"{key:30s}\t{value:.1f}")
+    #     ranking.append([key, value])
 
-    return ranking, TTLeague, school_join
+    # return ranking, TTLeague, school_join
 
 
 def main(EPOCHS=100, K=32, SHUFFLE=False, STEPLR=False, INHERIT=False):
 
     league = None
     school = None
-    for year in range(2003, 2023):
+    for year in range(2018, 2023):
         winner = Elo.data_load(year, load='winner')
         loser = Elo.data_load(year, load='loser')
 
         if (INHERIT):
-            rank_data, league, school = TT_calculate(
-                winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE,
-                stepLR=STEPLR, league=league, schoolset=school)
+            # rank_data, league, school = TT_calculate(
+            #     winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE,
+            #     stepLR=STEPLR, league=league, schoolset=school)
+            TT_calculate(winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE,
+                         stepLR=STEPLR, league=league, schoolset=school, top10=load_elo_top_N(year, 20))
         else:
-            rank_data, _, _ = TT_calculate(
-                winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
+            # rank_data, _, _ = TT_calculate(
+            #     winner, loser, K=K, epochs=EPOCHS, shuffle=SHUFFLE, stepLR=STEPLR)
+            TT_calculate(winner, loser, K=K, epochs=EPOCHS,
+                         shuffle=SHUFFLE, stepLR=STEPLR, top10=load_elo_top_N(year, 20))
 
-        Elo.save_to_csv(
-            year, rank_data, f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}_inherit{INHERIT}')
+        # Elo.save_to_csv(
+        #     year, rank_data, f'elo{EPOCHS}_K{K}_shuffle{SHUFFLE}_stepLR{STEPLR}_inherit{INHERIT}')
 
 
 if __name__ == '__main__':
