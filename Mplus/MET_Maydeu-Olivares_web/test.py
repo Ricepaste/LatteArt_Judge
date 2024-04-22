@@ -1,26 +1,25 @@
 trans = '''
-    F1                 0.155
-    F2                 0.147
-    F3                 0.146
-    F4                 0.147
-    F5                 0.147
-    F6                 0.148
-    F7                 0.146
-    F8                 0.146
-    F9                 0.153
-    F10                0.147
-    F11                0.147
-    F12                0.147
-    F13                0.147
-    F14                0.147
-    F15                0.146
-    F16                0.147
-    F17                0.147
-    F18                0.146
-    F19                0.000
+    F1                -0.180
+    F2                -0.627
+    F3                -0.243
+    F4                -0.243
+    F5                -0.177
+    F6                -0.232
+    F7                -0.222
+    F8                -0.226
+    F9                -0.242
+    F10               -0.272
+    F11               -1.115
+    F12               -0.226
+    F13               -0.519
+    F14               -0.267
+    F15               -0.272
+    F16               -0.262
+    F17               -0.244
+    F18                0.000
 '''
-team = ['NotreDame', 'Michigan', 'PennState', 'AppalachianState', 'Clemson', 'TexasA&M', 'Kentucky', 'Florida', 'Alabama', 'Oklahoma',
-        'Army', 'Syracuse', 'OhioState', 'LouisianaState', 'Georgia', 'CentralFlorida', 'Cincinnati', 'Washington', 'WashingtonState']
+team = ['FloridaState', 'LouisianaState', 'Mississippi', 'Tulane', 'Oklahoma', 'SouthernMethodist', 'Texas', 'Alabama',
+        'JamesMadison', 'Troy', 'Missouri', 'Washington', 'Oregon', 'OhioState', 'PennState', 'Georgia', 'Michigan', 'Louisville']
 
 for i in range(len(team)):
     trans = trans.replace(f'    F{i+1} ', team[i])

@@ -3,6 +3,8 @@ import numpy as np
 from elosports.elo import Elo
 import random
 
+from regex import F
+
 
 def data_load(year=2003, load='winner'):
     '''
@@ -120,7 +122,7 @@ def main(EPOCHS=100, K=32, SHUFFLE=False, STEPLR=False, INHERIT=False):
 
     league = None
     school = None
-    for year in range(2003, 2023):
+    for year in range(2003, 2024):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
         if (INHERIT):
@@ -144,7 +146,7 @@ def debug():
 
     league = None
     school = None
-    for year in range(2003, 2023):
+    for year in range(2003, 2024):
         winner = data_load(year, load='winner')
         loser = data_load(year, load='loser')
         if (INHERIT):
@@ -160,12 +162,11 @@ def debug():
 
 
 if __name__ == '__main__':
-    for epoch in [1, 10, 100, 1000]:
-        for k in [16, 24, 32]:
-            for inherit in [True, False]:
-                for steplr in [True, False]:
-                    main(EPOCHS=epoch, K=k, SHUFFLE=False,
-                         STEPLR=steplr, INHERIT=inherit)
+    # for epoch in [1, 10, 100, 1000]:
+    #     for k in [16, 24, 32]:
+    #         for inherit in [True, False]:
+    #             for steplr in [True, False]:
+    main(EPOCHS=10, K=24, SHUFFLE=False, STEPLR=False, INHERIT=False)
     # debug()
 
 
