@@ -218,7 +218,7 @@ def main(EPOCHS=100, K=32, SHUFFLE=False, STEPLR=False, INHERIT=False):
 
     league = None
     school = None
-    for year in range(2018, 2023):
+    for year in range(2023, 2024):
         winner = Elo.data_load(year, load='winner')
         loser = Elo.data_load(year, load='loser')
 

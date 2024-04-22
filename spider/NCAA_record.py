@@ -53,13 +53,13 @@ def get_team_records(year=2023):
 
 
 def main():
-    for i in range(2003, 2023):
+    for i in range(2003, 2024):
         records = get_team_records(i)
         sp.save_to_csv(i, records, "Record")  # type: ignore
-    for i in range(2003, 2023):
+    for i in range(2003, 2024):
         ranking = sp.get_year_A(i, "coaches-poll")  # type: ignore
         sp.save_to_csv(i, ranking, "coaches-poll")  # type: ignore
-    for i in range(2003, 2023):
+    for i in range(2003, 2024):
         ranking = sp.get_year_B(i)  # type: ignore
         sp.save_to_csv(i, ranking, "ap-poll")  # type: ignore
 

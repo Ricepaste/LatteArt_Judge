@@ -1,4 +1,4 @@
-TEAM_NUM = 19
+TEAM_NUM = 18
 
 ans = r'''Title: cars pc data: Unrestricted model
 DATA: 
