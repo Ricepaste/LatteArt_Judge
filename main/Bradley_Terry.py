@@ -84,7 +84,7 @@ import pandas as pd
 import numpy as np
 
 # training times
-n = 50
+n = 20
 class TeamRankEstimator:
     def __init__(self, file_path, output_file):
         self.data_file = file_path 
@@ -170,7 +170,7 @@ class TeamRankEstimator:
         self.write_results(result)
     
 if __name__ == '__main__':
-    for year in range(2003, 2023):
+    for year in range(2023, 2024):
         file_path = f"./spider/rank_data/{year}-{year+1}_Record.csv"
         output_file = f"./spider/rank_data/{year}-{year+1}_Bradley_Terry{n}.csv"
         team_rank_estimator = TeamRankEstimator(file_path, output_file)
