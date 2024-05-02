@@ -1,9 +1,4 @@
 .vscode/launch.json
-yolov5/train.py
 .vscode/settings.json
-LabelTool/train
-LabelTool/val
-LabelTool/Score.csv
-runs
 spider/rank_data
 main/test_thurstone.py
