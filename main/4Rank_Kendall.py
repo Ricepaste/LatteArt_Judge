@@ -1,5 +1,10 @@
 import pandas as pd
 import numpy as np
+from scipy.stats import spearmanr
+import random
+
+# METHOD = 0: Kendall's tau, METHOD = 1: Spearman's rank
+METHOD = 1
 
 list = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv', 
         '_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv',
@@ -54,6 +59,18 @@ def Kendall_tau(array1, array2):
     return tau
 
 
+def Spearman_rank(array1, array2):
+    max_len = max(len(array1), len(array2))
+    if len(array1) < max_len:
+        for i in range(max_len-len(array1)):
+            array1.append(random.randint(1, 2*max_len))
+    elif len(array2) < max_len:
+        for i in range(max_len-len(array2)):
+            array2.append(random.randint(1, 2*max_len))
+
+    correlation, p_value = spearmanr(array1, array2)
+    return correlation
+
 Form = []
 for k in range(len(list)-1):
     for l in range(k+1, len(list)):
@@ -92,7 +109,10 @@ for k in range(len(list)-1):
                 for i in range(len(rank1_arr)):
                     rank1_arr[i] = i+1
                 
-                rank_correlation = Kendall_tau(rank1_arr, rank2_arr)
+                if METHOD == 0:
+                    rank_correlation = Kendall_tau(rank1_arr, rank2_arr)
+                if METHOD == 1:
+                    rank_correlation = Spearman_rank(rank1_arr, rank2_arr)
                 
                 corr.append(rank_correlation)
                 
