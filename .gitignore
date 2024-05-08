@@ -2,3 +2,4 @@
 .vscode/settings.json
 spider/rank_data
 main/test_thurstone.py
+main/熱力圖.py
