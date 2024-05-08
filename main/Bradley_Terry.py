@@ -172,6 +172,6 @@ class TeamRankEstimator:
 if __name__ == '__main__':
     for year in range(2023, 2024):
         file_path = f"./spider/rank_data/{year}-{year+1}_Record.csv"
-        output_file = f"./spider/rank_data/{year}-{year+1}_Bradley_Terry{n}.csv"
+        output_file = f"./spider/rank_data/{year}-{year+1}_Bradley_Terry.csv"
         team_rank_estimator = TeamRankEstimator(file_path, output_file)
         team_rank_estimator.excute(year)
