@@ -5,7 +5,7 @@ import random
 import csv
 
 # METHOD = 0: Kendall's tau, METHOD = 1: Spearman's rank
-METHOD = 1
+METHOD = 0
 
 list = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv', 
         '_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv',
@@ -129,7 +129,10 @@ for year in range(2019, 2024):
                 print("File not found")
     corr_df = pd.DataFrame(corr_matrix, index=rank_name, columns=rank_name)
     # 將 DataFrame 保存到 CSV 文件
-    corr_df.to_csv(f'./spider/rank_data/{year}-{year+1}_Spearman_correlation_matrix.csv')
+    if METHOD == 1:
+        corr_df.to_csv(f'./spider/rank_data/{year}-{year+1}_Spearman_correlation_matrix.csv')
+    if METHOD == 0:
+        corr_df.to_csv(f'./spider/rank_data/{year}-{year+1}_Kendall_correlation_matrix.csv')
         
 # for i in Form:
 #     print(i)
