@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr
 import random
+import csv
 
 # METHOD = 0: Kendall's tau, METHOD = 1: Spearman's rank
 METHOD = 1
@@ -72,10 +73,11 @@ def Spearman_rank(array1, array2):
     return correlation
 
 Form = []
-for k in range(len(list)-1):
-    for l in range(k+1, len(list)):
-        corr = []
-        for year in range(2019, 2024):
+for year in range(2019, 2024):
+    corr = []
+    corr_matrix = np.zeros((len(rank_name), len(rank_name)))
+    for k in range(len(list)-1):
+        for l in range(k+1, len(list)):
             try:
                 rank1 = pd.read_csv(
                     f'./spider/rank_data/{year}-{year+1}{list[k]}', sep=',', header=None)
@@ -116,12 +118,18 @@ for k in range(len(list)-1):
                 
                 corr.append(rank_correlation)
                 
+                # 將相關係數填入矩陣
+                corr_matrix[k][l] = rank_correlation
+                corr_matrix[l][k] = rank_correlation  # 矩陣是對稱的
+                
                 print("File read successfully")
-                print(f"{rank_name[k]}_{rank_name[l]} Compare:")
-                print(f"{year}-{year+1} 年度 Kendall tau係數 : ", rank_correlation)
+                print(f"{rank_name[k]}_{rank_name[l]} Compare: " , rank_correlation)
+                # print(f"{year}-{year+1} 年度 Kendall tau係數 : ", rank_correlation)
             except:
                 print("File not found")
-        Form.append(f"{rank_name[k]} vs {rank_name[l]} Average Kendall's tau: {sum(corr)/len(corr)}")
+    corr_df = pd.DataFrame(corr_matrix, index=rank_name, columns=rank_name)
+    # 將 DataFrame 保存到 CSV 文件
+    corr_df.to_csv(f'./spider/rank_data/{year}-{year+1}_Spearman_correlation_matrix.csv')
         
 # for i in Form:
 #     print(i)
