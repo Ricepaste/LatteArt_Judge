@@ -37,7 +37,7 @@
 #     win_index = all_team_name.index(win_team_name[i])
 #     lose_index = all_team_name.index(lose_team_name[i])
 #     matrix[win_index][lose_index] += 1
-    
+
 # df = pd.DataFrame(matrix, index=all_team_name, columns=all_team_name)
 
 # def get_estimate(i, p, df):
@@ -47,7 +47,7 @@
 
 #     # 總場數(敗場數+勝場數)
 #     d_n = df.iloc[i] + df.iloc[:, i]
-    
+
 #     # 偏微分過後的值
 #     # 公式: Pi = sigma(Wij) / sigma((Wij + Wji) / (Pi + Pj))
 #     d_d = pd.Series([get_prob(i, j) for j in range(len(p))], index=p.index)
@@ -78,16 +78,18 @@
 
 # if __name__ == '__main__':
 #     for year in range(2002, 2023):
-        
+
 
 import pandas as pd
 import numpy as np
 
 # training times
 n = 20
+
+
 class TeamRankEstimator:
     def __init__(self, file_path, output_file):
-        self.data_file = file_path 
+        self.data_file = file_path
         self.output_file = output_file
 
     def deal_team_name(self, team_name):
@@ -101,7 +103,7 @@ class TeamRankEstimator:
                 team_name[i] = team_name[i][:team_name[i].index(' ')]\
                     + team_name[i][team_name[i].index(' ')+1:]
         return team_name
-    
+
     def read_data(self, year):
         record = pd.read_csv(self.data_file, sep='\t', header=None)
         win_index = 3
@@ -117,9 +119,9 @@ class TeamRankEstimator:
         self.lose_team_name = list(self.deal_team_name(
             record[lose_index].values.tolist()))
 
-
     def create_matrix(self):
-        matrix = [[0 for _ in range(len(self.all_team_name))] for _ in range(len(self.all_team_name))]
+        matrix = [[0 for _ in range(len(self.all_team_name))]
+                  for _ in range(len(self.all_team_name))]
 
         for win_team, lose_team in zip(self.win_team_name, self.lose_team_name):
             win_index = self.all_team_name.index(win_team)
@@ -129,14 +131,15 @@ class TeamRankEstimator:
         return matrix
 
     def estimate_rank(self, times, sorted=True):
-        df = pd.DataFrame(self.matrix, index=self.all_team_name, columns=self.all_team_name)
+        df = pd.DataFrame(self.matrix, index=self.all_team_name,
+                          columns=self.all_team_name)
         p = pd.Series([1 for _ in range(df.shape[0])], index=list(df.columns))
 
         estimates = [p]
 
         for _ in range(times):
             p = self.estimate_p(p, df)
-            p = p / p.sum()
+            p = p / p.sum()  # type: ignore
             estimates.append(p)
 
         p = p.sort_values(ascending=False) if sorted else p
@@ -149,7 +152,7 @@ class TeamRankEstimator:
         d_n: 總場數(敗場數+勝場數)
         d: sigma((Wij + Wji) / (Pi + Pj))
         """
-        get_prob = lambda i, j: np.nan if i == j else p.iloc[i] + p.iloc[j]
+        def get_prob(i, j): return np.nan if i == j else p.iloc[i] + p.iloc[j]
         n = df.iloc[i].sum()
         d_n = df.iloc[i] + df.iloc[:, i]
         d_d = pd.Series([get_prob(i, j) for j in range(len(p))], index=p.index)
@@ -162,15 +165,16 @@ class TeamRankEstimator:
 
     def write_results(self, rank):
         rank.to_csv(output_file, header=False)
-        
+
     def excute(self, year):
         self.read_data(year)
         self.matrix = self.create_matrix()
         result = self.estimate_rank(n, sorted=True)
         self.write_results(result)
-    
+
+
 if __name__ == '__main__':
-    for year in range(2023, 2024):
+    for year in range(2019, 2024):
         file_path = f"./spider/rank_data/{year}-{year+1}_Record.csv"
         output_file = f"./spider/rank_data/{year}-{year+1}_Bradley_Terry.csv"
         team_rank_estimator = TeamRankEstimator(file_path, output_file)

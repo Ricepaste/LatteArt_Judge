@@ -5,9 +5,9 @@ import random
 import csv
 
 # METHOD = 0: Kendall's tau, METHOD = 1: Spearman's rank
-METHOD = 0
+METHOD = 1
 
-list = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv', 
+list = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv',
         '_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv',
         '_Bradley_Terry.csv',
         '_TTU.csv'
@@ -26,7 +26,8 @@ team_name = {
     "Hawai'i": "Hawaii",
     "OleMiss": "Mississippi",
 }
-    
+
+
 def deal_team_name(rank):
     '''
     處理隊伍名稱
@@ -36,8 +37,9 @@ def deal_team_name(rank):
             rank[i] = team_name[rank[i]]
         if ' ' in rank[i]:
             rank[i] = rank[i].replace(' ', '')
-    
+
     return rank
+
 
 def Kendall_tau(array1, array2):
     '''
@@ -72,6 +74,7 @@ def Spearman_rank(array1, array2):
     correlation, p_value = spearmanr(array1, array2)
     return correlation
 
+
 Form = []
 for year in range(2019, 2024):
     corr = []
@@ -83,7 +86,7 @@ for year in range(2019, 2024):
                     f'./spider/rank_data/{year}-{year+1}{list[k]}', sep=',', header=None)
                 rank2 = pd.read_csv(
                     f'./spider/rank_data/{year}-{year+1}{list[l]}', sep=',', header=None)
-                
+
                 # 處理elo \t
                 if k == 1:
                     rank1 = pd.read_csv(
@@ -91,48 +94,50 @@ for year in range(2019, 2024):
                 elif l == 1:
                     rank2 = pd.read_csv(
                         f'./spider/rank_data/{year}-{year+1}{list[l]}', sep='\t', header=None)
-                
 
-                
                 rank1_arr = [rank1.values.tolist()[i][0].rstrip()
-                            for i in range(len(rank1.values.tolist()))]
+                             for i in range(len(rank1.values.tolist()))]
                 rank2_arr = [rank2.values.tolist()[i][0].rstrip()
-                            for i in range(len(rank2.values.tolist()))]
-                
+                             for i in range(len(rank2.values.tolist()))]
+
                 rank1_arr = deal_team_name(rank1_arr)
                 rank2_arr = deal_team_name(rank2_arr)
-                
+
                 for i in range(min(len(rank1_arr), len(rank2_arr))):
                     try:
                         rank2_arr[i] = rank1_arr.index(rank2_arr[i])+1
                     except:
-                        rank2_arr[i] = 1000    
+                        rank2_arr[i] = 1000
 
                 for i in range(len(rank1_arr)):
                     rank1_arr[i] = i+1
-                
+
                 if METHOD == 0:
                     rank_correlation = Kendall_tau(rank1_arr, rank2_arr)
                 if METHOD == 1:
                     rank_correlation = Spearman_rank(rank1_arr, rank2_arr)
-                
+
                 corr.append(rank_correlation)
-                
+
                 # 將相關係數填入矩陣
                 corr_matrix[k][l] = rank_correlation
                 corr_matrix[l][k] = rank_correlation  # 矩陣是對稱的
-                
+
                 print("File read successfully")
-                print(f"{rank_name[k]}_{rank_name[l]} Compare: " , rank_correlation)
+                print(
+                    f"{rank_name[k]}_{rank_name[l]} Compare: ", rank_correlation)
                 # print(f"{year}-{year+1} 年度 Kendall tau係數 : ", rank_correlation)
             except:
                 print("File not found")
+                assert False, "找不到拉乾"
     corr_df = pd.DataFrame(corr_matrix, index=rank_name, columns=rank_name)
     # 將 DataFrame 保存到 CSV 文件
     if METHOD == 1:
-        corr_df.to_csv(f'./spider/rank_data/{year}-{year+1}_Spearman_correlation_matrix.csv')
+        corr_df.to_csv(
+            f'./spider/rank_data/{year}-{year+1}_Spearman_correlation_matrix.csv')
     if METHOD == 0:
-        corr_df.to_csv(f'./spider/rank_data/{year}-{year+1}_Kendall_correlation_matrix.csv')
-        
+        corr_df.to_csv(
+            f'./spider/rank_data/{year}-{year+1}_Kendall_correlation_matrix.csv')
+
 # for i in Form:
 #     print(i)
