@@ -1,5 +1,4 @@
 from bs4 import BeautifulSoup as bs
-import os
 import requests
 import spider as sp
 

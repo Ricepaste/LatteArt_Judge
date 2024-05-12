@@ -2,6 +2,11 @@ import Elo
 import random
 import numpy as np
 
+'''
+此程式用來將比賽資料取前N名的隊伍,並轉換為Thurstone模型的pair2pair資料
+實際上必須使用Mplus去跑Thurstone模型,因此此程式只是將資料轉換為Mplus的格式
+'''
+
 
 class TTmodel():
     def __init__(self, teams_amount) -> None:
