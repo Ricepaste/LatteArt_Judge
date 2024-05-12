@@ -26,6 +26,8 @@ def ranking_to_pair(ranking: np.ndarray) -> np.ndarray:
     pair = []
     for i in range(len(ranking)):
         temp = []
+        if ('nan' in ranking[i]):
+            continue
         for j in range(len(ranking[i])):
             for k in range(j+1, len(ranking[i])):
                 if (np.where(ranking[i] == f'Method {j+1}')[0] < np.where(ranking[i] == f'Method {k+1}')[0]):
@@ -37,10 +39,15 @@ def ranking_to_pair(ranking: np.ndarray) -> np.ndarray:
     return np.array(pair)
 
 
+def save_csv(filename: str, data: np.ndarray):
+    df = pd.DataFrame(data)
+    df.to_csv(filename, index=False, header=False)
+
+
 def main():
     ranking = extract_rank()
     pair = ranking_to_pair(ranking)
-    print(pair)
+    save_csv('./form_rank/pair.csv', pair)
 
 
 if __name__ == '__main__':

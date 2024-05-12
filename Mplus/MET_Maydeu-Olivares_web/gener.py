@@ -1,10 +1,9 @@
-TEAM_NUM = 18
+TEAM_NUM = 4
 
 ans = r'''Title: cars pc data: Unrestricted model
 DATA: 
 	FILE IS '\Users\sharpaste\Documents\program\
 	testing\Python\yolo\Mplus\MET_Maydeu-Olivares_web\test.dat';
-! the data file contains 294 observations in free format
 
 VARIABLE: 
 '''
