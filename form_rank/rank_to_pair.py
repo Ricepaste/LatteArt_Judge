@@ -7,7 +7,7 @@ def read_csv(filename: str = './form_rank/Football_Ranking.csv') -> pd.DataFrame
     return df[1:]
 
 
-def extract_rank():
+def extract_rank() -> np.ndarray:
     idx = ["1st", "2nd", "3rd", "4th"]
     df = read_csv()
     all_rank = []
@@ -19,11 +19,28 @@ def extract_rank():
         all_rank += list(np.array(year_rank).T)
     all_rank = np.array(all_rank)
 
-    print(all_rank)
+    return all_rank
+
+
+def ranking_to_pair(ranking: np.ndarray) -> np.ndarray:
+    pair = []
+    for i in range(len(ranking)):
+        temp = []
+        for j in range(len(ranking[i])):
+            for k in range(j+1, len(ranking[i])):
+                if (np.where(ranking[i] == f'Method {j+1}')[0] < np.where(ranking[i] == f'Method {k+1}')[0]):
+                    temp.append(1)
+                else:
+                    temp.append(0)
+        pair.append(temp)
+
+    return np.array(pair)
 
 
 def main():
-    extract_rank()
+    ranking = extract_rank()
+    pair = ranking_to_pair(ranking)
+    print(pair)
 
 
 if __name__ == '__main__':
