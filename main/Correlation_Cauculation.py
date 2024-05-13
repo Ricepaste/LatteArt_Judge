@@ -5,15 +5,16 @@ import random
 import csv
 
 # METHOD = 0: Kendall's tau, METHOD = 1: Spearman's rank
-METHOD = 1
+METHOD = 0
 
 list = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv',
         '_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv',
         '_Bradley_Terry.csv',
-        '_TTU.csv'
+        '_TTU.csv',
+        '_ap-poll.csv',
         ]
 
-rank_name = ['Random Walk', 'Elo', 'Bradley-Terry', 'TTU']
+rank_name = ['Random Walk', 'Elo', 'Bradley-Terry', 'TTU', 'AP Poll']
 
 team_name = {
     'TCU': 'TexasChristian',
@@ -99,9 +100,26 @@ for year in range(2019, 2024):
                              for i in range(len(rank1.values.tolist()))]
                 rank2_arr = [rank2.values.tolist()[i][0].rstrip()
                              for i in range(len(rank2.values.tolist()))]
-
+                
                 rank1_arr = deal_team_name(rank1_arr)
                 rank2_arr = deal_team_name(rank2_arr)
+                
+                if k == 4:
+                    rank1 = pd.read_csv(
+                        f'./spider/rank_data/{year}-{year+1}{list[k]}', sep='\t', header=None)
+                    # get the second column and turn to list
+                    rank1 = rank1.iloc[:, 1].values.tolist()
+                    rank1_arr = deal_team_name(rank1)
+                    
+                elif l == 4:
+                    rank2 = pd.read_csv(
+                        f'./spider/rank_data/{year}-{year+1}{list[l]}', sep='\t', header=None)
+
+                    # get the second column and turn to list
+                    rank2 = rank2.iloc[:, 1].values.tolist()
+                    rank2_arr = deal_team_name(rank2)    
+                
+
 
                 for i in range(min(len(rank1_arr), len(rank2_arr))):
                     try:
