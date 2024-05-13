@@ -2,17 +2,16 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr
 import random
-import csv
 
 # METHOD = 0: Kendall's tau, METHOD = 1: Spearman's rank
 METHOD = 0
 
-list = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv',
-        '_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv',
-        '_Bradley_Terry.csv',
-        '_TTU.csv',
-        '_ap-poll.csv',
-        ]
+rank_object = ['_random_walk_matrix_Flash0.0001_CON0.1_INIT0.01.csv',
+               '_elo10_K24_shuffleFalse_stepLRFalse_inheritFalse.csv',
+               '_Bradley_Terry.csv',
+               '_TTU.csv',
+               '_ap-poll.csv',
+               ]
 
 rank_name = ['Random Walk', 'Elo', 'Bradley-Terry', 'TTU', 'AP Poll']
 
@@ -80,46 +79,44 @@ Form = []
 for year in range(2019, 2024):
     corr = []
     corr_matrix = np.zeros((len(rank_name), len(rank_name)))
-    for k in range(len(list)-1):
-        for l in range(k+1, len(list)):
+    for k in range(len(rank_object)-1):
+        for l in range(k+1, len(rank_object)):
             try:
                 rank1 = pd.read_csv(
-                    f'./spider/rank_data/{year}-{year+1}{list[k]}', sep=',', header=None)
+                    f'./spider/rank_data/{year}-{year+1}{rank_object[k]}', sep=',', header=None)
                 rank2 = pd.read_csv(
-                    f'./spider/rank_data/{year}-{year+1}{list[l]}', sep=',', header=None)
+                    f'./spider/rank_data/{year}-{year+1}{rank_object[l]}', sep=',', header=None)
 
                 # 處理elo \t
                 if k == 1:
                     rank1 = pd.read_csv(
-                        f'./spider/rank_data/{year}-{year+1}{list[k]}', sep='\t', header=None)
+                        f'./spider/rank_data/{year}-{year+1}{rank_object[k]}', sep='\t', header=None)
                 elif l == 1:
                     rank2 = pd.read_csv(
-                        f'./spider/rank_data/{year}-{year+1}{list[l]}', sep='\t', header=None)
+                        f'./spider/rank_data/{year}-{year+1}{rank_object[l]}', sep='\t', header=None)
 
                 rank1_arr = [rank1.values.tolist()[i][0].rstrip()
                              for i in range(len(rank1.values.tolist()))]
                 rank2_arr = [rank2.values.tolist()[i][0].rstrip()
                              for i in range(len(rank2.values.tolist()))]
-                
+
                 rank1_arr = deal_team_name(rank1_arr)
                 rank2_arr = deal_team_name(rank2_arr)
-                
+
                 if k == 4:
                     rank1 = pd.read_csv(
-                        f'./spider/rank_data/{year}-{year+1}{list[k]}', sep='\t', header=None)
+                        f'./spider/rank_data/{year}-{year+1}{rank_object[k]}', sep='\t', header=None)
                     # get the second column and turn to list
                     rank1 = rank1.iloc[:, 1].values.tolist()
                     rank1_arr = deal_team_name(rank1)
-                    
+
                 elif l == 4:
                     rank2 = pd.read_csv(
-                        f'./spider/rank_data/{year}-{year+1}{list[l]}', sep='\t', header=None)
+                        f'./spider/rank_data/{year}-{year+1}{rank_object[l]}', sep='\t', header=None)
 
                     # get the second column and turn to list
                     rank2 = rank2.iloc[:, 1].values.tolist()
-                    rank2_arr = deal_team_name(rank2)    
-                
-
+                    rank2_arr = deal_team_name(rank2)
 
                 for i in range(min(len(rank1_arr), len(rank2_arr))):
                     try:

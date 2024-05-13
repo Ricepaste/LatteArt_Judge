@@ -2,6 +2,5 @@
 .vscode/settings.json
 spider/rank_data
 main/test_thurstone.py
-main/熱力圖.py
 Mplus/MET_Maydeu-Olivares_web/Analysis_thurstone_report.py
 Mplus/MET_Maydeu-Olivares_web/gener_Mplus_code.py
