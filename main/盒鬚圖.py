@@ -3,11 +3,17 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # 定義期望值和標準差
+# data = {
+#     'Elo': (1.377, 0.183),
+#     'Random Walk': (0.410, 0.15),
+#     'Bradley-Terry': (0.295, 0.16),
+#     'Thurstone': (0.000, 0.0)
+# }
 data = {
-    'Elo': (1.377, 0.183),
-    'Random Walk': (0.410, 0.15),
-    'Bradley-Terry': (0.295, 0.16),
-    'Thurstone': (0.000, 0.0)
+    'Elo': (41.36, 32.8),
+    'Random Walk': (30.79, 11.06),
+    'Bradley-Terry': (29.36, 10.12),
+    'Thurstone': (26.5, 8.87)
 }
 
 # 計算四分位數和鬚端
