@@ -1,271 +1,308 @@
-from LatteDataset import *
-
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
+from torch.utils.data import DataLoader
+import torchvision.models as models
+from torchvision.models import EfficientNet_B0_Weights
+import torch.optim as optim
+from torch.optim import lr_scheduler
 import time
 import copy
 import torch
+import os
+import numpy as np
+
+from LatteDataset import TonyLatteDataset
+import Siamese_Model
 
 
-def initialize(BATCH_SIZE, WORKERS):
-    global data_transforms, dataloaders
+class LatteArtJudge_Model:
+    def __init__(
+        self,
+        pretrained_model=models.efficientnet_b0,
+        pretrained_weight=EfficientNet_B0_Weights.DEFAULT,
+        model=Siamese_Model.SNN,
+        load_weight: str = "",
+        freeze=True,
+    ) -> None:
 
-    data_transforms = {
-        'train': transforms.Compose([
-            transforms.RandomResizedCrop(800, scale=(0.8, 1)),  # 資料增補 224
-            transforms.Resize(900),
-            transforms.ColorJitter(contrast=(0.5, 0.8),  # type: ignore
-                                   saturation=(1.2, 1.5)),  # type: ignore
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                 [0.229, 0.224, 0.225]),
-            transforms.Grayscale(num_output_channels=3),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.RandomRotation(degrees=10),
-            transforms.RandomAffine(degrees=10),
-        ]),
-        'val': transforms.Compose([
-            # transforms.Resize((255, 255)),
-            transforms.Resize(900),
-            transforms.CenterCrop(800),
-            transforms.Resize(900),
-            # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                 [0.229, 0.224, 0.225]),
-            transforms.Grayscale(num_output_channels=3),
-            # transforms.RandomHorizontalFlip(p=0.5),
-            # transforms.RandomVerticalFlip(p=0.5),
-            # transforms.RandomRotation(degrees=10),
-            # transforms.RandomAffine(degrees=10),
-        ]),
-    }
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.weights = pretrained_weight
+        self.pretrained_model = pretrained_model(weights=self.weights)
+        self.preprocess = self.weights.transforms()
 
-    # 準備資料集匯入器
-    # 使用 ImageFolder 可方便轉換為 dataset
-    data_dir = '.\\LabelTool'
-    # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
-    #                                           data_transforms[x])
-    #                   for x in ['train', 'val']}
-    image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
-                                          data_transforms[x], x)
-                      for x in ['train', 'val']}
-    # image_datasets = {x: TonyLatteDataset(os.path.join(data_dir, x),
-    #                                       preprocess)
-    #                   for x in ['train', 'val']}
-    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x],  # type: ignore
-                                                  batch_size=BATCH_SIZE,
-                                                  shuffle=True,
-                                                  num_workers=WORKERS)
-                   for x in ['train', 'val']}
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-    print(dataset_sizes)
+        self.data_transforms = {
+            "train": transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(800, scale=(0.8, 1)),  # 資料增補 224
+                    transforms.Resize(900),
+                    transforms.ColorJitter(
+                        contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
+                    ),  # type: ignore
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.RandomHorizontalFlip(p=0.5),
+                    transforms.RandomVerticalFlip(p=0.5),
+                    transforms.RandomRotation(degrees=10),
+                    transforms.RandomAffine(degrees=10),
+                ]
+            ),
+            "val": transforms.Compose(
+                [
+                    # transforms.Resize((255, 255)),
+                    transforms.Resize(900),
+                    transforms.CenterCrop(800),
+                    transforms.Resize(900),
+                    # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    transforms.Grayscale(num_output_channels=3),
+                    # transforms.RandomHorizontalFlip(p=0.5),
+                    # transforms.RandomVerticalFlip(p=0.5),
+                    # transforms.RandomRotation(degrees=10),
+                    # transforms.RandomAffine(degrees=10),
+                ]
+            ),
+        }
 
-    for i, x in dataloaders['train']:
-        print(i.shape)
-        print(x)
-        print(x.data)
+        # freeze the pretrained model
+        if freeze:
+            for param in self.pretrained_model.parameters():
+                param.requires_grad = False
 
+        self.model = model(self.pretrained_model).to(self.device)
 
-def train_model(model, criterion, optimizer, scheduler, device, num_epochs=25, TRAIN_EFN=False, BATCH_SIZE=8, MODE='train'):
-    if MODE == 'train':
-        files = os.listdir('.\\runs')
+        if load_weight != "":
+            self.model.load_state_dict(torch.load(load_weight))
+
+        # 原先使用的損失函數
+        # self.criterion = torch.nn.MarginRankingLoss(margin=0.5, reduction="mean")
+        self.criterion = torch.nn.BCELoss()
+        self.optimizer = optim.Adam(self.model.parameters())
+        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=7, gamma=0.1)
+
+        print("Loaded pretrained model:", self.pretrained_model)
+        print("Use device:", self.device)
+        print("Original Preprocess:", self.preprocess)
+        print(
+            "Pretrained model top layer:",
+            self.pretrained_model._modules["classifier"],
+            sep="\n",
+        )
+
+    def dataset_initialize(self, BATCH_SIZE, WORKERS):
+
+        # 使用 ImageFolder 可方便轉換為 dataset
+        self.data_dir = ".\\LabelTool"
+        # image_datasets = {
+        #     x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x])
+        #     for x in ["train", "val"]
+        # }
+        self.image_datasets = {
+            x: TonyLatteDataset(
+                os.path.join(self.data_dir, x), self.data_transforms[x], x
+            )
+            for x in ["train", "val"]
+        }
+
+        self.dataloaders = {
+            x: DataLoader(
+                self.image_datasets[x],
+                batch_size=BATCH_SIZE,
+                shuffle=True,
+                num_workers=WORKERS,
+            )
+            for x in ["train", "val"]
+        }
+        self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
+        print(self.dataset_sizes)
+
+        for i, x in self.dataloaders["train"]:
+            print(i.shape)
+            print(x)
+            print(x.data)
+
+    def train(
+        self,
+        num_epochs=25,
+        TRAIN_EFN=False,
+        BATCH_SIZE=8,
+        WORKERS=0,
+    ):
+        # 初始化資料集
+        self.dataset_initialize(BATCH_SIZE, WORKERS)
+
+        files = os.listdir(".\\runs")
         i = 0
-        name = "efficientnet_b1"
+        name = "efficientnet_b0"
         while name in files:
             i += 1
-            name = "efficientnet_b1_{}".format(i)
-        writer = SummaryWriter('runs\\{}'.format(name))
+            name = "efficientnet_b0_{}".format(i)
+        writer = SummaryWriter("runs\\{}".format(name))
 
-    since = time.time()
-    writer.add_graph(model, torch.zeros(  # type: ignore
-        1, 3, 800, 800).to(device))
+        since = time.time()
+        writer.add_graph(self.model, torch.zeros(1, 3, 800, 800).to(self.device))
 
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
+        best_model_wts = copy.deepcopy(self.model.state_dict())
+        best_acc = 0.0
 
-    # val_index = 0
-    # best_loss = float('inf')
+        # val_index = 0
+        # best_loss = float('inf')
 
-    dataset_sizes = {phase: len(dataloaders[phase].dataset) for phase in [
-        'train', 'val']}
+        for epoch in range(num_epochs):
+            print(f"Epoch {epoch}/{num_epochs - 1}")
+            print("-" * 10)
 
-    for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-        print('-' * 10)
+            distribution = []
+            distribution_val = []
+            total = 0
 
-        distribution = []
-        distribution_val = []
+            # epoch 10 之後開始訓練原模型
+            if epoch == 10 and TRAIN_EFN:
+                for param in self.model.parameters():
+                    param.requires_grad = True
 
-        # epoch 10 之後開始訓練原模型
-        if (epoch == 10 and TRAIN_EFN):
-            for param in model.parameters():
-                param.requires_grad = True
+            # Each epoch has a training and validation phase
+            for phase in ["train", "val"]:
+                if phase == "train":
+                    self.model.train()  # Set model to training mode
+                else:
+                    self.model.eval()  # Set model to evaluate mode
 
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()  # Set model to training mode
-            else:
-                model.eval()   # Set model to evaluate mode
+                running_loss = 0.0
+                running_corrects = 0
 
-            running_loss = 0.0
-            running_corrects = 0
+                if epoch != 0 and epoch % 10 == 0 and phase == "train":
+                    self.dataset: TonyLatteDataset = self.dataloaders[phase].dataset  # type: ignore
+                    self.dataset.restratify()
+                    dataset_sizes = {
+                        phase: len(self.dataloaders[phase].dataset)  # type: ignore
+                        for phase in ["train", "val"]
+                    }
+                    print(dataset_sizes["train"])
 
-            if (epoch != 0 and epoch % 10 == 0 and phase == 'train'):
-                dataloaders[phase].dataset.restratify()
-                dataset_sizes = {phase: len(dataloaders[phase].dataset) for phase in [
-                    'train', 'val']}
-                print(dataset_sizes['train'])
+                # 逐批訓練或驗證
+                for i, ((img0, img1), label) in enumerate(self.dataloaders[phase]):
 
-            # 逐批訓練或驗證
-            for inputs, labels in dataloaders[phase]:
-                # inputs1 = inputs[:BATCH_SIZE/2]
-                # inputs2 = inputs[BATCH_SIZE/2:]
-                labels1 = labels[:BATCH_SIZE//2]
-                labels2 = labels[BATCH_SIZE//2:]
-                if (labels1.shape[0] != labels2.shape[0]):
-                    print('labels1.size != labels2.size')
-                    continue
-                rank_labels = (labels1 > labels2).to(int).to(device)
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-                # inputs1 = inputs1.to(device)
-                # inputs2 = inputs2.to(device)
-                # labels1 = labels1.to(device)
-                # labels2 = labels2.to(device)
+                    img0, img1, label = (
+                        img0.to(self.device),
+                        img1.to(self.device),
+                        label.to(self.device),
+                    )
 
-                # zero the parameter gradients
-                optimizer.zero_grad()
+                    self.optimizer.zero_grad()
 
-                # 訓練時需要梯度下降
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
-                    _, preds = torch.max(outputs, 1)
-                    outputs = outputs.float()
+                    # 訓練時需要梯度下降
+                    with torch.set_grad_enabled(phase == "train"):
+                        output = self.model(img0, img1)
+                        loss = self.criterion(output, label)
 
-                    outputs = outputs.squeeze(1)
-                    labels = labels.float()
+                        # 訓練時需要 backward + optimize
+                        if phase == "train":
+                            loss.backward()
+                            self.optimizer.step()
 
-                    outputs1 = outputs[:BATCH_SIZE//2]
-                    outputs2 = outputs[BATCH_SIZE//2:]
-                    # loss = criterion(outputs, labels)
-                    loss = criterion(outputs1, outputs2, rank_labels)
+                    # 統計損失
+                    running_loss += loss.item() * img0.size(0)
 
-                    # print(outputs, labels)
-                    # print('loss:\n', loss)
-                    if (loss.item() > 1000):
-                        print('loss:', loss)
-                    print(outputs1)
-                    print(labels)
+                    # 統計正確率
+                    proba = output > 0.5
+                    total += label.size(0)
+                    running_corrects += (proba == label).sum().item()
+                    print(
+                        f"Epoch: {epoch}, Accuracy: {100 * running_corrects / total:.2f}"
+                    )
 
-                    # 訓練時需要 backward + optimize
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
+                    # 輸出label的分布範圍，確認是否在猜測期望值
+                    if phase == "train":
+                        distribution.append(
+                            output.detach().cpu().numpy().astype(float).tolist()
+                        )
+                    elif phase == "val":
+                        distribution_val.append(
+                            output.detach().cpu().numpy().astype(float).tolist()
+                        )
 
-                # 統計損失
-                running_loss += loss.item() * inputs.size(0)
-                # print(loss, inputs.size(0))
-                # 統計正確率
-                edge_up = outputs <= (labels.data + 0.5)
-                edge_down = outputs > (labels.data - 0.5)
+                if phase == "train":
+                    distribution = [y for x in distribution for y in x]
+                    writer.add_histogram(  # type: ignore
+                        "training/output_distribution", np.array(distribution), epoch
+                    )
+                elif phase == "val":
+                    distribution_val = [y for x in distribution_val for y in x]
+                    writer.add_histogram(  # type: ignore
+                        "validation/output_distribution",
+                        np.array(distribution_val),
+                        epoch,
+                    )
 
-                # 輸出label的分布範圍，確認是否在猜測期望值
-                # for i in range(labels.data.shape[0]):
+                if phase == "train":
+                    self.scheduler.step()
 
-                #     writer.add_scalar('training/output_labels', outputs[i],  # type: ignore
-                #                       val_index)
-                #     val_index += 1
-                # print(outputs.detach().cpu().numpy().astype(float))
-                if phase == 'train':
-                    distribution.append(
-                        outputs.detach().cpu().numpy().astype(float).tolist())
-                elif phase == 'val':
-                    distribution_val.append(
-                        outputs.detach().cpu().numpy().astype(float).tolist())
+                epoch_loss = running_loss / dataset_sizes[phase]
+                epoch_acc = float(running_corrects) / dataset_sizes[phase]
 
-                # print(labels.data)
-                # print(edge_down)
-                for i in range(len(edge_up)):
-                    if edge_up[i] and edge_down[i]:
-                        running_corrects += 1
+                if phase == "train":
+                    writer.add_scalar(
+                        "training/loss", epoch_loss, epoch  # type: ignore
+                    )
+                    writer.add_scalar(
+                        "training/accuracy", epoch_acc, epoch  # type: ignore
+                    )
+                elif phase == "val":
+                    writer.add_scalar(
+                        "validation/loss", epoch_loss, epoch  # type: ignore
+                    )
+                    writer.add_scalar(
+                        "validation/accuracy", epoch_acc, epoch  # type: ignore
+                    )
 
-            if phase == 'train':
-                # print(distribution)
+                print(
+                    "{} Loss: {:.4f} Acc: {:.4f}".format(phase, epoch_loss, epoch_acc)
+                )
 
-                distribution = [y for x in distribution for y in x]
-                # print(distribution)
-                writer.add_histogram(  # type: ignore
-                    'training/output_distribution', np.array(distribution), epoch)
-            elif phase == 'val':
-                # print(distribution_val)
+                # 如果是評估階段，且準確率創新高即存入 best_model_wts
+                # if phase == 'val' and\
+                #         (epoch_acc >= best_acc or epoch_loss <= best_loss):
+                if phase == "val" and (epoch_acc >= best_acc):
+                    best_acc = epoch_acc
+                    best_model_wts = copy.deepcopy(self.model.state_dict())
 
-                distribution_val = [y for x in distribution_val for y in x]
-                # print(distribution_val)
-                writer.add_histogram(  # type: ignore
-                    'validation/output_distribution', np.array(distribution_val), epoch)
+            print()
 
-            if phase == 'train':
-                scheduler.step()
+        time_elapsed = time.time() - since
+        print(
+            "Training complete in {:.0f}m {:.0f}s".format(
+                (time_elapsed // 60), (time_elapsed % 60)
+            )
+        )
+        print(f"Best val Acc: {best_acc:4f}")
 
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = float(running_corrects) / dataset_sizes[phase]
+        # 存最後權重
+        files = os.listdir(".\\runs")
+        i = 0
+        old_name = None
+        name = "efficientnet_b0"
+        while name in files:
+            old_name = name
+            i += 1
+            name = "efficientnet_b0_{}".format(i)
+        torch.save(self.model.state_dict(), ".\\runs\\{}\\last.pt".format(old_name))
 
-            if phase == 'train':
-                writer.add_scalar('training/loss', epoch_loss,  # type: ignore
-                                  epoch)
-                writer.add_scalar('training/accuracy',  # type: ignore
-                                  epoch_acc, epoch)
-            elif phase == 'val':
-                writer.add_scalar('validation/loss',  # type: ignore
-                                  epoch_loss, epoch)
-                writer.add_scalar('validation/accuracy',  # type: ignore
-                                  epoch_acc, epoch)
+        # 載入最佳模型
+        self.model.load_state_dict(best_model_wts)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
+        # 存最佳權重
+        files = os.listdir(".\\runs")
+        i = 0
+        name = "efficientnet_b0"
+        while name in files:
+            old_name = name
+            i += 1
+            name = "efficientnet_b0_{}".format(i)
+        torch.save(self.model.state_dict(), ".\\runs\\{}\\best.pt".format(old_name))
 
-            # 如果是評估階段，且準確率創新高即存入 best_model_wts
-            # if phase == 'val' and\
-            #         (epoch_acc >= best_acc or epoch_loss <= best_loss):
-            if phase == 'val' and (epoch_acc >= best_acc):
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+        writer.flush()  # type: ignore
+        writer.close()  # type: ignore
 
-        print()
-
-    time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        (time_elapsed // 60), (time_elapsed % 60)))
-    print(f'Best val Acc: {best_acc:4f}')
-
-    # 存最後權重
-    files = os.listdir('.\\runs')
-    i = 0
-    old_name = None
-    name = "efficientnet_b1"
-    while name in files:
-        old_name = name
-        i += 1
-        name = "efficientnet_b1_{}".format(i)
-    torch.save(model.state_dict(), '.\\runs\\{}\\last.pt'.format(old_name))
-
-    # 載入最佳模型
-    model.load_state_dict(best_model_wts)
-
-    # 存最佳權重
-    files = os.listdir('.\\runs')
-    i = 0
-    name = "efficientnet_b1"
-    while name in files:
-        old_name = name
-        i += 1
-        name = "efficientnet_b1_{}".format(i)
-    torch.save(model.state_dict(), '.\\runs\\{}\\best.pt'.format(old_name))
-
-    writer.flush()  # type: ignore
-    writer.close()  # type: ignore
-
-    return model
+        return self.model
