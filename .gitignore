@@ -8,3 +8,4 @@ runs
 spider/rank_data
 main/test_thurstone.py
 main/__pycache__/
+LabelTool/ForTestingImage
