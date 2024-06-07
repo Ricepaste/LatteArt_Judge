@@ -3,8 +3,8 @@ import os
 import pandas as pd
 import numpy as np
 from PIL import Image, ImageTk
-from tkinter import PhotoImage
 from Elo import Elo
+from Split_Label import Split_Label
 
 class ScoringTool:
     def __init__(self):
@@ -12,9 +12,6 @@ class ScoringTool:
         self.window.title("Scoring Tool")
         self.window.geometry("800x500")
         self.window.resizable(0, 0)
-        # self.window.wm_attributes("-transparentcolor", "white")
-        
-        self.transparent_image = PhotoImage(width=1, height=1)
 
         self.file_list = self.get_file_list()
         self.image_combinations = self.image_combination()
@@ -133,3 +130,4 @@ if __name__ == "__main__":
         df.to_csv("./LabelTool/ForTestingImage.csv", index=False)
         
     ScoringTool()
+    Split_Label()
