@@ -43,7 +43,7 @@ class ScoringTool:
         self.window.mainloop()
 
     def get_file_list(self):
-        file_list = os.listdir("./LabelTool/ForTestingImage")
+        file_list = os.listdir("./LabelTool/backup27")
         file_list.sort(key=lambda x: int(x.split(".")[0]))
         return file_list
 
@@ -62,12 +62,12 @@ class ScoringTool:
         self.image1_index, self.image2_index = self.image_combinations[random_index]
         self.image_combinations.pop(random_index)
 
-        image1 = Image.open("./LabelTool/ForTestingImage/" +
+        image1 = Image.open("./LabelTool/backup27/" +
                             self.file_list[self.image1_index])
         image1 = image1.resize((250, 250))
         image1 = ImageTk.PhotoImage(image1)
 
-        image2 = Image.open("./LabelTool/ForTestingImage/" +
+        image2 = Image.open("./LabelTool/backup27/" +
                             self.file_list[self.image2_index])
         image2 = image2.resize((250, 250))
         image2 = ImageTk.PhotoImage(image2)
@@ -122,12 +122,12 @@ if __name__ == "__main__":
         record = pd.DataFrame(columns=["WinnerID", "LoserID"])
         record.to_csv("./LabelTool/record.csv", index=False)
         
-        df = pd.read_csv("./LabelTool/ForTestingImage.csv")
+        df = pd.read_csv("./LabelTool/Score.csv")
         imgScore = df.iloc[:, 1].values
         for i in range(len(imgScore)):
             imgScore[i] = 1500
         df.iloc[:, 1] = imgScore
-        df.to_csv("./LabelTool/ForTestingImage.csv", index=False)
+        df.to_csv("./LabelTool/Score.csv", index=False)
         
     ScoringTool()
     Split_Label()
