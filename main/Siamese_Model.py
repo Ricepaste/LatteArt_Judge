@@ -14,7 +14,7 @@ class SNN(nn.Module):
         self.classfier = nn.Sequential(
             nn.Linear(2 * 1280 * 1 * 1, 500),
             nn.ReLU(inplace=True),
-            nn.Linear(500, 1),
+            nn.Linear(500, 10),
             nn.Sigmoid(),
         )
 
