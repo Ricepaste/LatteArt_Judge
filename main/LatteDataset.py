@@ -11,6 +11,7 @@ import torch
 class TonyLatteDataset(Dataset):
     ...
 
+    # TODO delete probablity method, and look forward the backupup27 folder.
     def __init__(self, root, transform, x):
         # --------------------------------------------
         # Initialize paths, transforms, and so on
@@ -18,27 +19,29 @@ class TonyLatteDataset(Dataset):
         self.transform = transform
         self.root = root
 
-        # 讀取每個label的抽樣機率
-        arr = pd.read_csv(
-            os.path.join(self.root, "LabelTool", "label_probability.csv"), header=None
-        )
-        arr = np.array(arr.values).flatten().tolist()
+        # region trash
+        # # 讀取每個label的抽樣機率
+        # arr = pd.read_csv(
+        #     os.path.join(self.root, "LabelTool", "label_probability.csv"), header=None
+        # )
+        # arr = np.array(arr.values).flatten().tolist()
+        # endregion
 
         # Load image path and annotations
         files = os.listdir(root + "\\images")
-        self.imgs = ["{}\\images\\{}".format(root, filename) for filename in files]
+        self.imgs = [f"{root}\\images\\{filename}" for filename in files]
 
         files = os.listdir(root + "\\labels")
         for i in range(len(files)):
             files[i] = files[i].replace("jpg", "txt")
-        self.lbls = ["{}\\labels\\{}".format(root, filename) for filename in files]
+        self.lbls = [f"{root}\\labels\\{filename}" for filename in files]
 
         if x == "train":
             assert len(self.imgs) == len(
                 self.lbls
             ), "images & labels mismatched length!"
 
-            Sum_of_every_label = [0 for i in range(11)]
+            Sum_of_every_label = [0 for _ in range(10)]
             # 讀取label，並統計每個label的數量
             for i in range(len(self.imgs)):
                 with open(self.lbls[i], "r") as f:
@@ -48,24 +51,26 @@ class TonyLatteDataset(Dataset):
             print("Amount of every label:")
             print(Sum_of_every_label)
 
-            stratify_imgs = []
-            stratify_lbls = []
-            Sum_of_every_label_stratified = [0 for i in range(11)]
-            # 讀取label，並依照抽樣機率進行抽樣
-            for i in range(len(self.imgs)):
-                with open(self.lbls[i], "r") as f:
-                    # 對讀取的label進行四捨五入
-                    lbl = int(np.round(float(f.read())))
-                    thd = random.random()
-                    if thd <= arr[lbl]:
-                        stratify_imgs.append(self.imgs[i])
-                        stratify_lbls.append(self.lbls[i])
-                        Sum_of_every_label_stratified[lbl] += 1
-            print("Amount of every label after stratified:")
-            print(Sum_of_every_label_stratified)
+            # region trash
+            # stratify_imgs = []
+            # stratify_lbls = []
+            # Sum_of_every_label_stratified = [0 for i in range(10)]
+            # # 讀取label，並依照抽樣機率進行抽樣
+            # for i in range(len(self.imgs)):
+            #     with open(self.lbls[i], "r") as f:
+            #         # 對讀取的label進行四捨五入
+            #         lbl = int(np.round(float(f.read())))
+            #         thd = random.random()
+            #         if thd <= arr[lbl]:
+            #             stratify_imgs.append(self.imgs[i])
+            #             stratify_lbls.append(self.lbls[i])
+            #             Sum_of_every_label_stratified[lbl] += 1
+            # print("Amount of every label after stratified:")
+            # print(Sum_of_every_label_stratified)
 
-            self.imgs = stratify_imgs
-            self.lbls = stratify_lbls
+            # self.imgs = stratify_imgs
+            # self.lbls = stratify_lbls
+            # endregion
 
         assert len(self.imgs) == len(self.lbls), "images & labels mismatched length!"
 
@@ -92,7 +97,8 @@ class TonyLatteDataset(Dataset):
         if self.transform is not None:
             img1 = self.transform(img1)
 
-        # Get a negative example
+        # Get a negative or same example
+        same = random.randint(0, 1)
         while True:
             # Choose a random index for the negative example
             index2 = random.randint(0, len(self.imgs) - 1)
@@ -100,7 +106,7 @@ class TonyLatteDataset(Dataset):
             # If the labels are not the same, break the loop
             with open(self.lbls[index2], "r") as f:
                 lbl2 = float(f.read())
-            if lbl1 != lbl2:
+            if ((lbl1 == lbl2) and same) or ((lbl1 != lbl2) and not same):
                 break
 
         # Get the image for the negative example
