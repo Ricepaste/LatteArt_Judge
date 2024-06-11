@@ -19,6 +19,6 @@ tensorboard --logdir yolov5\runs\train
 2. run Scoring_Tool.py
 
 ```
-ForTestingImage.csv存放圖片分數
+Score.csv存放圖片分數
 record.csv存放使用者的選擇
 ```
