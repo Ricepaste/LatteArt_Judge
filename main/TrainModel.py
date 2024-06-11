@@ -174,7 +174,7 @@ class LatteArtJudge_Model:
 
                 if epoch != 0 and epoch % 10 == 0 and phase == "train":
                     self.dataset: TonyLatteDataset = self.dataloaders[phase].dataset  # type: ignore
-                    self.dataset.restratify()
+                    # self.dataset.restratify()
                     dataset_sizes = {
                         phase: len(self.dataloaders[phase].dataset)  # type: ignore
                         for phase in ["train", "val"]
