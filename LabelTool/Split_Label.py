@@ -7,7 +7,7 @@ import numpy as np
 
 class Split_Label:
     def __init__(self):
-        self.df = pd.read_csv("./LabelTool/ForTestingImage.csv", sep=",")
+        self.df = pd.read_csv("./LabelTool/Score.csv", sep=",")
         self.split()
         
     def split(self):
