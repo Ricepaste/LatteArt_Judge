@@ -1,8 +1,9 @@
 import pandas as pd
 
 class Elo:
-    def __init__(self, winner_index, loser_index, k=32):
-        self.df = pd.read_csv("./LabelTool/Score.csv", sep=",")
+    def __init__(self, winner_index, loser_index, k=32, FOLDER_NAME = None):
+        self.FOLDER_NAME = FOLDER_NAME
+        self.df = pd.read_csv(f"./LabelTool/{self.FOLDER_NAME}/Score.csv", sep=",")
         self.winner = self.df.iloc[winner_index][1]
         self.winner_index = winner_index
         self.loser = self.df.iloc[loser_index][1]
@@ -24,4 +25,4 @@ class Elo:
     def update(self):
         self.df.iloc[self.winner_index][1] = self.winner
         self.df.iloc[self.loser_index][1] = self.loser
-        self.df.to_csv("./LabelTool/Score.csv", index=False)
+        self.df.to_csv(f"./LabelTool/{self.FOLDER_NAME}/Score.csv", index=False)

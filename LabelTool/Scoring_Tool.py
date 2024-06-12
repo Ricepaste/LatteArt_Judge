@@ -5,9 +5,11 @@ import numpy as np
 from PIL import Image, ImageTk
 from Elo import Elo
 from Split_Label import Split_Label
+from Preprocessing import Preprocessing
 
 class ScoringTool:
-    def __init__(self):
+    def __init__(self, FOLDER_NAME):
+        self.FOLDER_NAME = FOLDER_NAME
         self.window = tk.Tk()
         self.window.title("Scoring Tool")
         self.window.geometry("800x500")
@@ -16,7 +18,7 @@ class ScoringTool:
         self.file_list = self.get_file_list()
         self.image_combinations = self.image_combination()
         self.image1, self.image2 = self.get_image()
-        self.record = pd.read_csv("./LabelTool/record.csv", sep=",")
+        self.record = pd.read_csv(f"./LabelTool/{self.FOLDER_NAME}/record.csv", sep=",")
 
         self.canvas = tk.Canvas(self.window, highlightthickness=0)
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -43,7 +45,9 @@ class ScoringTool:
         self.window.mainloop()
 
     def get_file_list(self):
-        file_list = os.listdir("./LabelTool/backup27")
+        file_list = os.listdir(f"./LabelTool/{self.FOLDER_NAME}")
+        # if file end with .csv, pass it then sort the file list
+        file_list = [file for file in file_list if not file.endswith(".csv")]
         file_list.sort(key=lambda x: int(x.split(".")[0]))
         return file_list
 
@@ -62,12 +66,12 @@ class ScoringTool:
         self.image1_index, self.image2_index = self.image_combinations[random_index]
         self.image_combinations.pop(random_index)
 
-        image1 = Image.open("./LabelTool/backup27/" +
+        image1 = Image.open(f"./LabelTool/{self.FOLDER_NAME}/" +
                             self.file_list[self.image1_index])
         image1 = image1.resize((250, 250))
         image1 = ImageTk.PhotoImage(image1)
 
-        image2 = Image.open("./LabelTool/backup27/" +
+        image2 = Image.open(f"./LabelTool/{self.FOLDER_NAME}/" +
                             self.file_list[self.image2_index])
         image2 = image2.resize((250, 250))
         image2 = ImageTk.PhotoImage(image2)
@@ -80,15 +84,15 @@ class ScoringTool:
         if button_pressed == 1:
             print("Image 1 button pressed")
             write = [self.image1_index, self.image2_index]
-            Elo(self.image1_index, self.image2_index)
+            Elo(self.image1_index, self.image2_index, k=32, FOLDER_NAME = self.FOLDER_NAME)
             
         elif button_pressed == 2:
             print("Image 2 button pressed")
             write = [self.image2_index, self.image1_index]
-            Elo(self.image2_index, self.image1_index)
+            Elo(self.image2_index, self.image1_index, k=32, FOLDER_NAME = self.FOLDER_NAME)
 
         self.record = pd.concat([self.record, pd.DataFrame([write], columns=["WinnerID", "LoserID"])], ignore_index=True)
-        self.record.to_csv("./LabelTool/record.csv", index=False)
+        self.record.to_csv(f"./LabelTool/{self.FOLDER_NAME}/record.csv", index=False)
         
         new_image1, new_image2 = self.get_image()
 
@@ -101,7 +105,6 @@ class ScoringTool:
             self.score_label.configure(text="No more images to score")
             self.image1_button.configure(state=tk.DISABLED)
             self.image2_button.configure(state=tk.DISABLED)
-            
             
     def set_background_with_opacity(self, image_path):
         image = Image.open(image_path)
@@ -116,18 +119,13 @@ class ScoringTool:
 # 重置所有評分紀錄及圖片分數
 RESET = True
 
+# 資料集存放的資料夾名稱
+FOLDER_NAME = "backup27"
+
+# Training data: 60%, Testing data: 40%
+RATIO = 0.6
+
 if __name__ == "__main__":
-    
-    if RESET == True:
-        record = pd.DataFrame(columns=["WinnerID", "LoserID"])
-        record.to_csv("./LabelTool/record.csv", index=False)
-        
-        df = pd.read_csv("./LabelTool/Score.csv")
-        imgScore = df.iloc[:, 1].values
-        for i in range(len(imgScore)):
-            imgScore[i] = 1500
-        df.iloc[:, 1] = imgScore
-        df.to_csv("./LabelTool/Score.csv", index=False)
-        
-    ScoringTool()
-    Split_Label()
+    Preprocessing(FOLDER_NAME, RESET)
+    ScoringTool(FOLDER_NAME)
+    Split_Label(FOLDER_NAME, RATIO)

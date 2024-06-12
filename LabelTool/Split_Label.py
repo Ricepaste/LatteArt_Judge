@@ -6,9 +6,12 @@ import numpy as np
 """
 
 class Split_Label:
-    def __init__(self):
-        self.df = pd.read_csv("./LabelTool/Score.csv", sep=",")
+    def __init__(self, FOLDER_NAME, ratio):
+        self.FOLDER_NAME = FOLDER_NAME
+        self.ratio = ratio
+        self.df = pd.read_csv(f"./LabelTool/{self.FOLDER_NAME}/Score.csv", sep=",")
         self.split()
+        self.train_test_split()
         
     def split(self):
         # 根據score進行排序
@@ -27,4 +30,23 @@ class Split_Label:
             self.df.iloc[start:end, self.df.columns.get_loc('Label')] = 10 - i
 
         self.df = self.df.drop(columns=['Score'])
-        self.df.to_csv("./LabelTool/Image_label.csv", index=False)
+        self.df.to_csv(f"./LabelTool/{self.FOLDER_NAME}/Image_label.csv", index=False)
+        
+    def train_test_split(self):
+        data = pd.read_csv(f"./LabelTool/{self.FOLDER_NAME}/Image_label.csv")
+        
+        train_index = []
+        test_index = []
+        for i in range(1, 11):
+            temp = data[data['Label'] == i]
+            # randomly pick two index from each label, do not use extend
+            train_index += temp[:int(len(temp)*self.ratio)].index.tolist()
+            test_index += temp[int(len(temp)*self.ratio):].index.tolist()
+            
+        train_data = data.iloc[train_index]
+        test_data = data.iloc[test_index]
+        
+        train_data.to_csv(f"./LabelTool/{self.FOLDER_NAME}/train.csv", index=False)
+        test_data.to_csv(f"./LabelTool/{self.FOLDER_NAME}/test.csv", index=False)
+        
+        print("Split_Label Done.")

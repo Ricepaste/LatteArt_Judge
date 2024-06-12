@@ -15,10 +15,12 @@ tensorboard --logdir yolov5\runs\train
 
 # 如何使用LabelTool
 
-1. run Preprocess.py
-2. run Scoring_Tool.py
+1. run Scoring_Tool.py即可
 
 ```
 Score.csv存放圖片分數
 record.csv存放使用者的選擇
+Image_label.csv存放圖片label
+train.csv為訓練資料集
+test.csv為測試資料集
 ```
