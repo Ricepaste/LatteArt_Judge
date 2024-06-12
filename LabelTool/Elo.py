@@ -20,9 +20,8 @@ class Elo:
         expected_result = self.expected(self.winner, self.loser)
         self.winner = self.winner + self.k * (1 - expected_result)
         self.loser = self.loser + self.k * (expected_result - 1)
-        return self.winner, self.loser
     
     def update(self):
-        self.df.iloc[self.winner_index][1] = self.winner
-        self.df.iloc[self.loser_index][1] = self.loser
+        self.df.iloc[self.winner_index][1] = int(self.winner)
+        self.df.iloc[self.loser_index][1] = int(self.loser)
         self.df.to_csv(f"./LabelTool/{self.FOLDER_NAME}/Score.csv", index=False)
