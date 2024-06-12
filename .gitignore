@@ -8,4 +8,8 @@ runs
 spider/rank_data
 main/test_thurstone.py
 main/__pycache__/
-LabelTool/ForTestingImage
+LabelTool/backup27/Image_label.csv
+LabelTool/backup27/record.csv
+LabelTool/backup27/Score.csv
+LabelTool/backup27/test.csv
+LabelTool/backup27/train.csv
