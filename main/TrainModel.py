@@ -10,6 +10,8 @@ import copy
 import torch
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from PIL import ImageOps
 
 from LatteDataset import TonyLatteDataset
 import Siamese_Model
@@ -33,14 +35,15 @@ class LatteArtJudge_Model:
         self.data_transforms = {
             "train": transforms.Compose(
                 [
-                    transforms.RandomResizedCrop(800, scale=(0.8, 1)),  # 資料增補 224
-                    transforms.Resize(900),
+                    transforms.RandomResizedCrop(
+                        (224, 224), scale=(0.8, 1)
+                    ),  # 資料增補 224
+                    # transforms.Resize(224),
                     transforms.ColorJitter(
                         contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
                     ),  # type: ignore
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                    transforms.Grayscale(num_output_channels=3),
+                    # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                     transforms.RandomHorizontalFlip(p=0.5),
                     transforms.RandomVerticalFlip(p=0.5),
                     transforms.RandomRotation(degrees=10),
@@ -50,17 +53,10 @@ class LatteArtJudge_Model:
             "val": transforms.Compose(
                 [
                     # transforms.Resize((255, 255)),
-                    transforms.Resize(900),
-                    transforms.CenterCrop(800),
-                    transforms.Resize(900),
+                    transforms.Resize((224, 224)),
                     # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                    transforms.Grayscale(num_output_channels=3),
-                    # transforms.RandomHorizontalFlip(p=0.5),
-                    # transforms.RandomVerticalFlip(p=0.5),
-                    # transforms.RandomRotation(degrees=10),
-                    # transforms.RandomAffine(degrees=10),
+                    # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             ),
         }
@@ -90,18 +86,12 @@ class LatteArtJudge_Model:
             sep="\n",
         )
 
-    def dataset_initialize(self, BATCH_SIZE, WORKERS):
+    def dataset_initialize(self, DATASET_DIR=".\\LabelTool", BATCH_SIZE=8, WORKERS=0):
 
         # 使用 ImageFolder 可方便轉換為 dataset
-        self.data_dir = ".\\LabelTool"
-        # image_datasets = {
-        #     x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x])
-        #     for x in ["train", "val"]
-        # }
+        self.data_dir = DATASET_DIR
         self.image_datasets = {
-            x: TonyLatteDataset(
-                os.path.join(self.data_dir, x), self.data_transforms[x], x
-            )
+            x: TonyLatteDataset(self.data_dir, self.data_transforms[x], x)
             for x in ["train", "val"]
         }
 
@@ -114,23 +104,33 @@ class LatteArtJudge_Model:
             )
             for x in ["train", "val"]
         }
+        self.test_one_dataloaders = DataLoader(
+            TonyLatteDataset(self.data_dir, self.data_transforms["val"], "val"),
+            batch_size=1,
+            shuffle=True,
+            num_workers=WORKERS,
+        )
+
         self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
         print(self.dataset_sizes)
 
-        for i, x in self.dataloaders["train"]:
-            print(i.shape)
+        for (img1, img2), x in self.dataloaders["train"]:
+            print(img1.shape)
+            print(img2.shape)
             print(x)
-            print(x.data)
 
     def train(
         self,
         num_epochs=25,
-        TRAIN_EFN=False,
-        BATCH_SIZE=8,
-        WORKERS=0,
+        train_efn=False,
+        batch_size=8,
+        workers=0,
+        dataset_dir=".\\LabelTool",
     ):
         # 初始化資料集
-        self.dataset_initialize(BATCH_SIZE, WORKERS)
+        self.dataset_initialize(
+            DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
+        )
 
         files = os.listdir(".\\runs")
         i = 0
@@ -141,7 +141,13 @@ class LatteArtJudge_Model:
         writer = SummaryWriter("runs\\{}".format(name))
 
         since = time.time()
-        writer.add_graph(self.model, torch.zeros(1, 3, 800, 800).to(self.device))
+        writer.add_graph(
+            self.model,
+            (
+                torch.zeros(1, 3, 800, 800).to(self.device),
+                torch.zeros(1, 3, 800, 800).to(self.device),
+            ),
+        )
 
         best_model_wts = copy.deepcopy(self.model.state_dict())
         best_acc = 0.0
@@ -158,7 +164,7 @@ class LatteArtJudge_Model:
             total = 0
 
             # epoch 10 之後開始訓練原模型
-            if epoch == 10 and TRAIN_EFN:
+            if epoch == 1 and train_efn:
                 for param in self.model.parameters():
                     param.requires_grad = True
 
@@ -171,15 +177,6 @@ class LatteArtJudge_Model:
 
                 running_loss = 0.0
                 running_corrects = 0
-
-                if epoch != 0 and epoch % 10 == 0 and phase == "train":
-                    self.dataset: TonyLatteDataset = self.dataloaders[phase].dataset  # type: ignore
-                    # self.dataset.restratify()
-                    dataset_sizes = {
-                        phase: len(self.dataloaders[phase].dataset)  # type: ignore
-                        for phase in ["train", "val"]
-                    }
-                    print(dataset_sizes["train"])
 
                 # 逐批訓練或驗證
                 for i, ((img0, img1), label) in enumerate(self.dataloaders[phase]):
@@ -195,6 +192,8 @@ class LatteArtJudge_Model:
                     # 訓練時需要梯度下降
                     with torch.set_grad_enabled(phase == "train"):
                         output = self.model(img0, img1)
+                        print(img0, img1)
+                        print(output, label)
                         loss = self.criterion(output, label)
 
                         # 訓練時需要 backward + optimize
@@ -239,8 +238,8 @@ class LatteArtJudge_Model:
                 if phase == "train":
                     self.scheduler.step()
 
-                epoch_loss = running_loss / dataset_sizes[phase]
-                epoch_acc = float(running_corrects) / dataset_sizes[phase]
+                epoch_loss = running_loss / self.dataset_sizes[phase]
+                epoch_acc = float(running_corrects) / self.dataset_sizes[phase]
 
                 if phase == "train":
                     writer.add_scalar(
@@ -306,3 +305,37 @@ class LatteArtJudge_Model:
         writer.close()  # type: ignore
 
         return self.model
+
+    def test_one_run(
+        self, batch_size=1, workers=0, dataset_dir=".\\LabelTool\\backup27"
+    ):
+        self.model.eval()
+        # 初始化資料集
+        self.dataset_initialize(
+            DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
+        )
+
+        i, ((img0, img1), label) = next(enumerate(self.test_one_dataloaders))
+        img0, img1, label = (
+            img0.to(self.device),
+            img1.to(self.device),
+            label.to(self.device),
+        )
+
+        output = self.model(img0, img1)
+        print(output, label)
+
+        img0 = transforms.ToPILImage()(img0.squeeze().cpu())
+        img1 = transforms.ToPILImage()(img1.squeeze().cpu())
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(img0)  # type: ignore
+        plt.title("Image 0")
+
+        plt.subplot(1, 2, 2)
+        plt.imshow(img1)  # type: ignore
+        plt.title("Image 1")
+
+        plt.show()
+
+        return output
