@@ -19,22 +19,14 @@ class TonyLatteDataset(Dataset):
         self.transform = transform
         self.root = root
 
-        # region trash
-        # # 讀取每個label的抽樣機率
-        # arr = pd.read_csv(
-        #     os.path.join(self.root, "LabelTool", "label_probability.csv"), header=None
-        # )
-        # arr = np.array(arr.values).flatten().tolist()
-        # endregion
-
         # Load image path and annotations
-        files = os.listdir(root + "\\images")
-        self.imgs = [f"{root}\\images\\{filename}" for filename in files]
-
-        files = os.listdir(root + "\\labels")
-        for i in range(len(files)):
-            files[i] = files[i].replace("jpg", "txt")
-        self.lbls = [f"{root}\\labels\\{filename}" for filename in files]
+        if x == "train":
+            files = os.path.join(root, "train.csv")
+        else:
+            files = os.path.join(root, "test.csv")
+        df = pd.read_csv(files)
+        self.imgs = list(df["ImageID"])
+        self.lbls = list(df["Label"])
 
         if x == "train":
             assert len(self.imgs) == len(
@@ -44,10 +36,8 @@ class TonyLatteDataset(Dataset):
             Sum_of_every_label = [0 for _ in range(10)]
             # 讀取label，並統計每個label的數量
             for i in range(len(self.imgs)):
-                with open(self.lbls[i], "r") as f:
-                    # 對讀取的label進行四捨五入
-                    lbl = int(np.round(float(f.read())))
-                    Sum_of_every_label[lbl] += 1
+                lbl = self.lbls[i]
+                Sum_of_every_label[lbl - 1] += 1
             print("Amount of every label:")
             print(Sum_of_every_label)
 
@@ -81,10 +71,9 @@ class TonyLatteDataset(Dataset):
         # 3. Return the data (e.g. image and label)
         # --------------------------------------------
 
-        imgpath = self.imgs[index]
-        img1 = Image.open(imgpath).convert("RGB")
-        with open(self.lbls[index], "r") as f:
-            lbl1 = float(f.read())
+        img1_path = os.path.join(self.root, str(self.imgs[index]) + ".jpg")
+        img1 = Image.open(img1_path).convert("RGB")
+        lbl1 = self.lbls[index]
 
         # 4. 雙邊濾波
         open_cv_image = np.array(img1)
@@ -104,13 +93,12 @@ class TonyLatteDataset(Dataset):
             index2 = random.randint(0, len(self.imgs) - 1)
 
             # If the labels are not the same, break the loop
-            with open(self.lbls[index2], "r") as f:
-                lbl2 = float(f.read())
+            lbl2 = self.lbls[index2]
             if ((lbl1 == lbl2) and same) or ((lbl1 != lbl2) and not same):
                 break
 
         # Get the image for the negative example
-        img2_path = self.imgs[index2]
+        img2_path = os.path.join(self.root, str(self.imgs[index2]) + ".jpg")
         img2 = Image.open(img2_path).convert("RGB")
 
         # Apply the transformations to the image
