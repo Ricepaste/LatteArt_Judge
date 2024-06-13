@@ -10,6 +10,8 @@ import copy
 import torch
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from PIL import ImageOps
 
 from LatteDataset import TonyLatteDataset
 import Siamese_Model
@@ -41,8 +43,7 @@ class LatteArtJudge_Model:
                         contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
                     ),  # type: ignore
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                    transforms.Grayscale(num_output_channels=3),
+                    # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                     transforms.RandomHorizontalFlip(p=0.5),
                     transforms.RandomVerticalFlip(p=0.5),
                     transforms.RandomRotation(degrees=10),
@@ -55,12 +56,7 @@ class LatteArtJudge_Model:
                     transforms.Resize((224, 224)),
                     # transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                    transforms.Grayscale(num_output_channels=3),
-                    # transforms.RandomHorizontalFlip(p=0.5),
-                    # transforms.RandomVerticalFlip(p=0.5),
-                    # transforms.RandomRotation(degrees=10),
-                    # transforms.RandomAffine(degrees=10),
+                    # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             ),
         }
@@ -108,6 +104,13 @@ class LatteArtJudge_Model:
             )
             for x in ["train", "val"]
         }
+        self.test_one_dataloaders = DataLoader(
+            TonyLatteDataset(self.data_dir, self.data_transforms["val"], "val"),
+            batch_size=1,
+            shuffle=True,
+            num_workers=WORKERS,
+        )
+
         self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
         print(self.dataset_sizes)
 
@@ -161,7 +164,7 @@ class LatteArtJudge_Model:
             total = 0
 
             # epoch 10 之後開始訓練原模型
-            if epoch == 10 and train_efn:
+            if epoch == 1 and train_efn:
                 for param in self.model.parameters():
                     param.requires_grad = True
 
@@ -302,3 +305,37 @@ class LatteArtJudge_Model:
         writer.close()  # type: ignore
 
         return self.model
+
+    def test_one_run(
+        self, batch_size=1, workers=0, dataset_dir=".\\LabelTool\\backup27"
+    ):
+        self.model.eval()
+        # 初始化資料集
+        self.dataset_initialize(
+            DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
+        )
+
+        i, ((img0, img1), label) = next(enumerate(self.test_one_dataloaders))
+        img0, img1, label = (
+            img0.to(self.device),
+            img1.to(self.device),
+            label.to(self.device),
+        )
+
+        output = self.model(img0, img1)
+        print(output, label)
+
+        img0 = transforms.ToPILImage()(img0.squeeze().cpu())
+        img1 = transforms.ToPILImage()(img1.squeeze().cpu())
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(img0)  # type: ignore
+        plt.title("Image 0")
+
+        plt.subplot(1, 2, 2)
+        plt.imshow(img1)  # type: ignore
+        plt.title("Image 1")
+
+        plt.show()
+
+        return output
