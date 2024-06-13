@@ -6,10 +6,12 @@ from PIL import Image, ImageTk
 from Elo import Elo
 from Split_Label import Split_Label
 from Preprocessing import Preprocessing
+import math
 
 class ScoringTool:
-    def __init__(self, FOLDER_NAME):
+    def __init__(self, FOLDER_NAME, ALGO):
         self.FOLDER_NAME = FOLDER_NAME
+        self.ALGO = ALGO
         self.window = tk.Tk()
         self.window.title("Scoring Tool")
         self.window.geometry("800x500")
@@ -46,7 +48,6 @@ class ScoringTool:
 
     def get_file_list(self):
         file_list = os.listdir(f"./LabelTool/{self.FOLDER_NAME}")
-        # if file end with .csv, pass it then sort the file list
         file_list = [file for file in file_list if not file.endswith(".csv")]
         file_list.sort(key=lambda x: int(x.split(".")[0]))
         return file_list
@@ -59,13 +60,27 @@ class ScoringTool:
         return temp
 
     def get_image(self):
+        score = pd.read_csv(f"./LabelTool/{self.FOLDER_NAME}/score.csv", sep=",")
+        
         if not self.image_combinations:
             return None, None
-
+        
         random_index = np.random.randint(0, len(self.image_combinations))
         self.image1_index, self.image2_index = self.image_combinations[random_index]
-        self.image_combinations.pop(random_index)
-
+        
+        if self.ALGO == 1:
+            self.image_combinations.pop(random_index)
+        elif self.ALGO == 2:
+            while(True):
+                img1_score = score.loc[score["ImageID"] == self.image1_index, "Score"].values[0]
+                img2_score = score.loc[score["ImageID"] == self.image2_index, "Score"].values[0]
+                if self.probability(img1_score, img2_score):
+                    self.image_combinations.pop(random_index)
+                    break
+                else:
+                    random_index = np.random.randint(0, len(self.image_combinations))
+                    self.image1_index, self.image2_index = self.image_combinations[random_index]
+            
         image1 = Image.open(f"./LabelTool/{self.FOLDER_NAME}/" +
                             self.file_list[self.image1_index])
         image1 = image1.resize((250, 250))
@@ -79,6 +94,16 @@ class ScoringTool:
         print("Picture 1: " + self.file_list[self.image1_index], ", Picture 2: " + self.file_list[self.image2_index])
 
         return image1, image2
+
+    def probability(self, score1, score2):
+        score_diff = 1 / abs(score1 - score2)
+        prob =  1 / (1 + math.exp(-score_diff)) * 100
+        random_prob = np.random.randint(0, 100)
+        
+        if (random_prob < prob):
+            return True
+        else:
+            return False
 
     def scoring(self, button_pressed):
         if button_pressed == 1:
@@ -117,7 +142,7 @@ class ScoringTool:
         self.canvas.image = photo
 
 # 重置所有評分紀錄及圖片分數
-RESET = True
+RESET = False
 
 # 資料集存放的資料夾名稱
 FOLDER_NAME = "backup27"
@@ -125,7 +150,10 @@ FOLDER_NAME = "backup27"
 # Training data: 60%, Testing data: 40%
 RATIO = 0.6
 
+# 演算法
+ALGO_VERSION = 2
+
 if __name__ == "__main__":
     Preprocessing(FOLDER_NAME, RESET)
-    ScoringTool(FOLDER_NAME)
+    ScoringTool(FOLDER_NAME, ALGO_VERSION)
     Split_Label(FOLDER_NAME, RATIO)
