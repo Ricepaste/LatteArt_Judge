@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
 import Siamese_Model
 
-# TODO label標準化、不要每次都讀取資料集、損失函數重新設計、照片排序比分、神經元增加、圖片先分類
+# TODO label標準化、不要每次都讀取資料集、損失函數重新設計、神經元增加、圖片先分類
 
 WORKERS = 0
 LR = 0.001
@@ -30,7 +30,13 @@ def main():
             load_weight="",
             freeze=True,
         )
-        Latte_Model.train(num_epochs=25, TRAIN_EFN=False, BATCH_SIZE=8, WORKERS=0)
+        Latte_Model.train(
+            num_epochs=25,
+            train_efn=False,
+            batch_size=8,
+            workers=0,
+            dataset_dir=".\\LabelTool\\backup27",
+        )
 
 
 if __name__ == "__main__":
