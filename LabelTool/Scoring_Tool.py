@@ -8,6 +8,7 @@ from Split_Label import Split_Label
 from Preprocessing import Preprocessing
 import math
 
+
 class ScoringTool:
     def __init__(self, FOLDER_NAME, ALGO):
         self.FOLDER_NAME = FOLDER_NAME
@@ -79,8 +80,20 @@ class ScoringTool:
         
         random_index = np.random.randint(0, len(self.image_combinations))
         self.image1_index, self.image2_index = self.image_combinations[random_index]
-        self.image_combinations.pop(random_index)
-
+        
+        if self.ALGO == 1:
+            self.image_combinations.pop(random_index)
+        elif self.ALGO == 2:
+            while(True):
+                img1_score = score.loc[score["ImageID"] == self.image1_index, "Score"].values[0]
+                img2_score = score.loc[score["ImageID"] == self.image2_index, "Score"].values[0]
+                if self.probability(img1_score, img2_score):
+                    self.image_combinations.pop(random_index)
+                    break
+                else:
+                    random_index = np.random.randint(0, len(self.image_combinations))
+                    self.image1_index, self.image2_index = self.image_combinations[random_index]
+            
         image1 = Image.open(f"./LabelTool/{self.FOLDER_NAME}/" +
                             self.file_list[self.image1_index])
         image1 = image1.resize((250, 250))
@@ -100,7 +113,7 @@ class ScoringTool:
         return image1, image2
 
     def probability(self, score1, score2):
-        score_diff = 1 / abs(score1 - score2)
+        score_diff = 1 / abs(score1 - score2) + 10 ** -10
         prob =  1 / (1 + math.exp(-score_diff)) * 100
         random_prob = np.random.randint(0, 100)
         
@@ -167,5 +180,10 @@ ALGO_VERSION = 2
 
 if __name__ == "__main__":
     Preprocessing(FOLDER_NAME, RESET)
+<<<<<<< HEAD
     ScoringTool(FOLDER_NAME, ALGO_VERSION)
     Split_Label(FOLDER_NAME, RATIO)
+=======
+    ScoringTool(FOLDER_NAME)
+    Split_Label(FOLDER_NAME, RATIO)
+>>>>>>> 472e128b9259e391897e12070b589e091201fd7f
