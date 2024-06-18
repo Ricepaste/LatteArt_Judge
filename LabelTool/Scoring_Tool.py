@@ -180,10 +180,5 @@ ALGO_VERSION = 2
 
 if __name__ == "__main__":
     Preprocessing(FOLDER_NAME, RESET)
-<<<<<<< HEAD
     ScoringTool(FOLDER_NAME, ALGO_VERSION)
     Split_Label(FOLDER_NAME, RATIO)
-=======
-    ScoringTool(FOLDER_NAME)
-    Split_Label(FOLDER_NAME, RATIO)
->>>>>>> 472e128b9259e391897e12070b589e091201fd7f
