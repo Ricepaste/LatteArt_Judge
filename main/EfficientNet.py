@@ -31,12 +31,13 @@ def main():
             freeze=True,
         )
         Latte_Model.train(
-            num_epochs=25,
-            train_efn=False,
+            num_epochs=100,
+            train_efn=True,
             batch_size=8,
             workers=0,
             dataset_dir=".\\LabelTool\\backup27",
         )
+        Latte_Model.test_one_run()
 
 
 if __name__ == "__main__":

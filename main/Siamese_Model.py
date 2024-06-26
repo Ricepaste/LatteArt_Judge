@@ -12,9 +12,9 @@ class SNN(nn.Module):
         )
         self.feature_extractor = features_and_avgpool
         self.classfier = nn.Sequential(
-            nn.Linear(2 * 1280 * 1 * 1, 500),
+            nn.Linear(2 * 1280 * 1 * 1, 10000),
             nn.ReLU(inplace=True),
-            nn.Linear(500, 1),
+            nn.Linear(10000, 1),
             nn.Sigmoid(),
         )
 
