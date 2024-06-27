@@ -15,3 +15,5 @@ LabelTool/backup27/record.csv
 LabelTool/backup27/Score.csv
 LabelTool/backup27/test.csv
 LabelTool/backup27/train.csv
+*.zip
+

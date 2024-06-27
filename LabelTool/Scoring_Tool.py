@@ -74,28 +74,35 @@ class ScoringTool:
 
     def get_image(self):
         score = pd.read_csv(f"./LabelTool/{self.FOLDER_NAME}/score.csv", sep=",")
-        
+
         if not self.image_combinations:
             return None, None
-        
+
         random_index = np.random.randint(0, len(self.image_combinations))
         self.image1_index, self.image2_index = self.image_combinations[random_index]
-        
+
         if self.ALGO == 1:
             self.image_combinations.pop(random_index)
         elif self.ALGO == 2:
-            while(True):
-                img1_score = score.loc[score["ImageID"] == self.image1_index, "Score"].values[0]
-                img2_score = score.loc[score["ImageID"] == self.image2_index, "Score"].values[0]
+            while True:
+                img1_score = score.loc[
+                    score["ImageID"] == self.image1_index, "Score"
+                ].values[0]
+                img2_score = score.loc[
+                    score["ImageID"] == self.image2_index, "Score"
+                ].values[0]
                 if self.probability(img1_score, img2_score):
                     self.image_combinations.pop(random_index)
                     break
                 else:
                     random_index = np.random.randint(0, len(self.image_combinations))
-                    self.image1_index, self.image2_index = self.image_combinations[random_index]
-            
-        image1 = Image.open(f"./LabelTool/{self.FOLDER_NAME}/" +
-                            self.file_list[self.image1_index])
+                    self.image1_index, self.image2_index = self.image_combinations[
+                        random_index
+                    ]
+
+        image1 = Image.open(
+            f"./LabelTool/{self.FOLDER_NAME}/" + self.file_list[self.image1_index]
+        )
         image1 = image1.resize((250, 250))
         image1 = ImageTk.PhotoImage(image1)
 
@@ -113,11 +120,11 @@ class ScoringTool:
         return image1, image2
 
     def probability(self, score1, score2):
-        score_diff = 1 / abs(score1 - score2) + 10 ** -10
-        prob =  1 / (1 + math.exp(-score_diff)) * 100
+        score_diff = 1 / abs(score1 - score2) + 10**-10
+        prob = 1 / (1 + math.exp(-score_diff)) * 100
         random_prob = np.random.randint(0, 100)
-        
-        if (random_prob < prob):
+
+        if random_prob < prob:
             return True
         else:
             return False
