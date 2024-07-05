@@ -17,3 +17,4 @@ LabelTool/backup27/test.csv
 LabelTool/backup27/train.csv
 *.zip
 
+main/__pycache__/
