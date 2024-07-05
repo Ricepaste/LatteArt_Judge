@@ -1,10 +1,10 @@
 from json import load
-from TrainModel import *
+from main.src.training.TrainModel import *
 from torchvision.io import read_image
 from torchvision.models import EfficientNet_B0_Weights
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
-import Siamese_Model
+import main.src.model.Siamese_Model as Siamese_Model
 
 # TODO label標準化、不要每次都讀取資料集、損失函數重新設計、神經元增加、圖片先分類
 

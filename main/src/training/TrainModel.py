@@ -13,8 +13,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import ImageOps
 
-from LatteDataset import TonyLatteDataset
-import Siamese_Model
+from main.src.processing.LatteDataset import TonyLatteDataset
+import main.src.model.Siamese_Model as Siamese_Model
 
 
 class LatteArtJudge_Model:
