@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from PIL import ImageOps
 
 from main.src.processing.LatteDataset import TonyLatteDataset
-import main.src.model.Siamese_Model as Siamese_Model
+import main.src.model.Siamese_Module as Siamese_Module
 
 
 class LatteArtJudge_Model:
@@ -22,7 +22,7 @@ class LatteArtJudge_Model:
         self,
         pretrained_model=models.efficientnet_b0,
         pretrained_weight=EfficientNet_B0_Weights.DEFAULT,
-        model=Siamese_Model.SNN,
+        model=Siamese_Module.SNN,
         load_weight: str = "",
         freeze=True,
     ) -> None:
@@ -144,8 +144,8 @@ class LatteArtJudge_Model:
         writer.add_graph(
             self.model,
             (
-                torch.zeros(1, 3, 800, 800).to(self.device),
-                torch.zeros(1, 3, 800, 800).to(self.device),
+                torch.zeros(1, 3, 224, 224).to(self.device),
+                torch.zeros(1, 3, 224, 224).to(self.device),
             ),
         )
 
