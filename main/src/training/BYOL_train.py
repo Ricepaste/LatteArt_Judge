@@ -13,8 +13,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from main.src.processing.Unlabeled_LatteDataset import UL_LatteDataset
-import main.src.module.BYOL_Module as BYOL_Module
+from src.processing.Unlabeled_LatteDataset import UL_LatteDataset
+import src.module.BYOL_Module as BYOL_Module
 
 
 class BYOL_Model:
@@ -105,11 +105,6 @@ class BYOL_Model:
         self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
         print(self.dataset_sizes)
 
-        for (img1, img2), x in self.dataloaders["train"]:
-            print(img1.shape)
-            print(img2.shape)
-            print(x)
-
     def train(
         self,
         num_epochs=25,
@@ -131,13 +126,6 @@ class BYOL_Model:
         writer = SummaryWriter("runs\\{}".format(name))
 
         since = time.time()
-        writer.add_graph(
-            (self.online_net, self.target_net),
-            (
-                torch.zeros(1, 3, 224, 224).to(self.device),
-                torch.zeros(1, 3, 224, 224).to(self.device),
-            ),
-        )
 
         best_model_wts = copy.deepcopy(self.online_net.encoder.state_dict())
         best_loss = float("inf")

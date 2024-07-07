@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from PIL import ImageOps
 
 from main.src.processing.LatteDataset import TonyLatteDataset
-import main.src.model.Siamese_Module as Siamese_Module
+import main.src.module.Siamese_Module as Siamese_Module
 
 
 class LatteArtJudge_Model:

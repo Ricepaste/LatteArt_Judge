@@ -18,3 +18,6 @@ LabelTool/backup27/train.csv
 *.zip
 
 main/__pycache__/
+main/src/module/__pycache__/
+main/src/training/__pycache__/
+main/src/processing/__pycache__/

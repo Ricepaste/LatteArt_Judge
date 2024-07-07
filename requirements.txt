@@ -7,6 +7,7 @@ cycler==0.12.1
 filelock==3.14.0
 fonttools==4.53.0
 fsspec==2024.6.0
+future==1.0.0
 gitdb==4.0.11
 GitPython==3.1.43
 grpcio==1.64.1
@@ -14,6 +15,7 @@ idna==3.7
 intel-openmp==2021.4.0
 Jinja2==3.1.4
 kiwisolver==1.4.5
+lxml==5.2.2
 Markdown==3.6
 MarkupSafe==2.1.5
 matplotlib==3.9.0
@@ -30,6 +32,7 @@ psutil==5.9.8
 py-cpuinfo==9.0.0
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
+pytils==0.4.1
 pytz==2024.1
 PyYAML==6.0.1
 requests==2.32.3
@@ -42,6 +45,7 @@ tbb==2021.12.0
 tensorboard==2.17.0
 tensorboard-data-server==0.7.2
 thop==0.1.1.post2209072238
+tools==0.1.9
 torch==2.3.1+cu118
 torch-tb-profiler==0.4.3
 torchaudio==2.3.1+cu118

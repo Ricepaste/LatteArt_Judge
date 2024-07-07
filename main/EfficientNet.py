@@ -1,24 +1,14 @@
 from json import load
-from main.src.training.TrainModel import *
 from torchvision.io import read_image
 from torchvision.models import EfficientNet_B0_Weights
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
+from main.src.training.TrainModel import *
 import main.src.module.Siamese_Module as Siamese_Module
 
 # TODO label標準化、不要每次都讀取資料集、損失函數重新設計、神經元增加、圖片先分類
 
-WORKERS = 0
-LR = 0.001
-MOMENTUM = 0.1
-BATCH_SIZE = 8
-EPOCHS = 100
-LOAD_MODEL = True
-LOAD_MODEL_PATH = ".\\EFN_Model\\best_mini.pt"
 MODE = 1  # mode 1 means training, mode 2 means testing
-GRAY_VISION = True
-GRAY_VISION_PREVIEW = True
-TRAIN_EFN = False
 
 
 def main():
