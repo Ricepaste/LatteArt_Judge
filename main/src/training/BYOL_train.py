@@ -122,7 +122,7 @@ class BYOL_Model:
         name = "efficientnet_b0_BYOL"
         while name in files:
             i += 1
-            name = "efficientnet_b0__BYOL_{}".format(i)
+            name = "efficientnet_b0_BYOL_{}".format(i)
         writer = SummaryWriter("runs\\{}".format(name))
 
         since = time.time()
@@ -169,6 +169,9 @@ class BYOL_Model:
 
                     # 統計損失
                     running_loss += loss.item() * img0.size(0)
+                    print(
+                        f"{running_loss} loss, {loss.item()} item, {img0.size(0)} size"
+                    )
 
                 if phase == "train":
                     self.scheduler.step()
@@ -187,7 +190,19 @@ class BYOL_Model:
                 #         (epoch_acc >= best_acc or epoch_loss <= best_loss):
                 if phase == "val" and (epoch_loss <= best_loss):
                     best_loss = epoch_loss
-                    best_model_wts = copy.deepcopy(self.online_net.encoder.state_dict())
+                    # 存最佳權重
+                    files = os.listdir(".\\runs")
+                    i = 0
+                    name = "efficientnet_b0_BYOL"
+                    old_name = name
+                    while name in files:
+                        old_name = name
+                        i += 1
+                        name = "efficientnet_b0_BYOL_{}".format(i)
+                    torch.save(
+                        self.online_net.encoder.state_dict(),
+                        ".\\runs\\{}\\best.pt".format(old_name),
+                    )
 
             print()
 
@@ -210,22 +225,6 @@ class BYOL_Model:
         torch.save(
             self.online_net.encoder.state_dict(),
             ".\\runs\\{}\\last.pt".format(old_name),
-        )
-
-        # 載入最佳模型
-        self.online_net.encoder.load_state_dict(best_model_wts)
-
-        # 存最佳權重
-        files = os.listdir(".\\runs")
-        i = 0
-        name = "efficientnet_b0_BYOL"
-        while name in files:
-            old_name = name
-            i += 1
-            name = "efficientnet_b0_BYOL_{}".format(i)
-        torch.save(
-            self.online_net.encoder.state_dict(),
-            ".\\runs\\{}\\best.pt".format(old_name),
         )
 
         writer.flush()  # type: ignore
