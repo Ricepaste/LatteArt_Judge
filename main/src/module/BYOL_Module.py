@@ -30,7 +30,7 @@ class OnlineNetwork(nn.Module):
 
 
 class TargetNetwork(nn.Module):
-    def __init__(self, online_network, momentum=0.99):
+    def __init__(self, online_network, momentum=0.999):
         super(TargetNetwork, self).__init__()
         self.momentum = momentum
         self.online_network = online_network

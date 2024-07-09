@@ -3,8 +3,8 @@ from torchvision.io import read_image
 from torchvision.models import EfficientNet_B0_Weights
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
-from main.src.training.TrainModel import *
-import main.src.module.Siamese_Module as Siamese_Module
+from src.training.TrainModel import *
+import src.module.Siamese_Module as Siamese_Module
 
 # TODO label標準化、不要每次都讀取資料集、損失函數重新設計、神經元增加、圖片先分類
 
@@ -16,6 +16,7 @@ def main():
         Latte_Model = LatteArtJudge_Model(
             pretrained_model=models.efficientnet_b0,
             pretrained_weight=EfficientNet_B0_Weights.DEFAULT,
+            pretrained_encoder=".\\runs\\efficientnet_b0_BYOL_1\\best.pt",
             model=Siamese_Module.SNN,
             load_weight="",
             freeze=True,

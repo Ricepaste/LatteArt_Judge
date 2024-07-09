@@ -12,9 +12,10 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import ImageOps
+import torch.nn as nn
 
-from main.src.processing.LatteDataset import TonyLatteDataset
-import main.src.module.Siamese_Module as Siamese_Module
+from src.processing.LatteDataset import TonyLatteDataset
+import src.module.Siamese_Module as Siamese_Module
 
 
 class LatteArtJudge_Model:
@@ -22,6 +23,7 @@ class LatteArtJudge_Model:
         self,
         pretrained_model=models.efficientnet_b0,
         pretrained_weight=EfficientNet_B0_Weights.DEFAULT,
+        pretrained_encoder: str = "",
         model=Siamese_Module.SNN,
         load_weight: str = "",
         freeze=True,
@@ -30,6 +32,11 @@ class LatteArtJudge_Model:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.weights = pretrained_weight
         self.pretrained_model = pretrained_model(weights=self.weights)
+        self.pretrained_model = nn.Sequential(
+            self.pretrained_model.features, self.pretrained_model.avgpool
+        )
+        if pretrained_encoder != "":
+            self.pretrained_model.load_state_dict(torch.load(pretrained_encoder))
         self.preprocess = self.weights.transforms()
 
         self.data_transforms = {
@@ -80,11 +87,6 @@ class LatteArtJudge_Model:
         print("Loaded pretrained model:", self.pretrained_model)
         print("Use device:", self.device)
         print("Original Preprocess:", self.preprocess)
-        print(
-            "Pretrained model top layer:",
-            self.pretrained_model._modules["classifier"],
-            sep="\n",
-        )
 
     def dataset_initialize(self, DATASET_DIR=".\\LabelTool", BATCH_SIZE=8, WORKERS=0):
 

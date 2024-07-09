@@ -13,7 +13,7 @@ def main():
         byol_model = BYOL_train.BYOL_Model()
         byol_model.train(
             num_epochs=200,
-            batch_size=30,
+            batch_size=50,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
         )
 

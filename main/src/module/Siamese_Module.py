@@ -5,12 +5,9 @@ import torch
 
 class SNN(nn.Module):
 
-    def __init__(self, pretrained_model):
+    def __init__(self, image_encoder):
         super(SNN, self).__init__()
-        features_and_avgpool = nn.Sequential(
-            pretrained_model.features, pretrained_model.avgpool
-        )
-        self.feature_extractor = features_and_avgpool
+        self.feature_extractor = image_encoder
         self.classfier = nn.Sequential(
             nn.Linear(2 * 1280 * 1 * 1, 10000),
             nn.ReLU(inplace=True),
