@@ -12,8 +12,8 @@ def main():
     if MODE == 1:
         byol_model = BYOL_train.BYOL_Model()
         byol_model.train(
-            num_epochs=200,
-            batch_size=50,
+            num_epochs=20,
+            batch_size=40,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
         )
 

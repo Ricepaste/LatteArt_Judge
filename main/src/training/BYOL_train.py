@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.processing.Unlabeled_LatteDataset import UL_LatteDataset
+from src.processing.TinyImageNet import TinyImageNetBYOLDataset
 import src.module.BYOL_Module as BYOL_Module
 
 
@@ -82,7 +83,7 @@ class BYOL_Model:
         # 使用 ImageFolder 可方便轉換為 dataset
         self.data_dir = DATASET_DIR
         self.image_datasets = {
-            x: UL_LatteDataset(self.data_dir, self.data_transforms[x])
+            x: TinyImageNetBYOLDataset(x, self.data_transforms[x])
             for x in ["train", "val"]
         }
 
@@ -96,7 +97,7 @@ class BYOL_Model:
             for x in ["train", "val"]
         }
         self.test_one_dataloaders = DataLoader(
-            UL_LatteDataset(self.data_dir, self.data_transforms["val"]),
+            TinyImageNetBYOLDataset('val', self.data_transforms["val"]),
             batch_size=1,
             shuffle=True,
             num_workers=WORKERS,
@@ -117,6 +118,7 @@ class BYOL_Model:
             DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
         )
 
+        # TODO: 存擋系統可以單獨拉出來寫成一個函數
         files = os.listdir(".\\runs")
         i = 0
         name = "efficientnet_b0_BYOL"

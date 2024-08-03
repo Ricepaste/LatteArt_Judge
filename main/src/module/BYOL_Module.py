@@ -12,11 +12,15 @@ class OnlineNetwork(nn.Module):
         self.projector = nn.Sequential(
             nn.Flatten(),  # 添加展平層
             nn.Linear(1280, 256),  # 根據 encoder 的輸出大小調整
+            nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
             nn.Linear(256, 128),
         )
         self.predictor = nn.Sequential(
-            nn.Linear(128, 256), nn.ReLU(inplace=True), nn.Linear(256, 128)
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 128),
         )
 
     def forward(self, x1, x2):
