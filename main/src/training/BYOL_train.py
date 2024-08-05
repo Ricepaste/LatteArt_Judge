@@ -1,4 +1,5 @@
 from pickle import FLOAT, INT
+from tkinter.ttk import Progressbar
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from torch.utils.data import DataLoader
@@ -22,7 +23,7 @@ class BYOL_Model:
     def __init__(
         self,
         pretrained_model=models.efficientnet_b0,
-        pretrained_weight=EfficientNet_B0_Weights.DEFAULT,
+        pretrained_weight=None,
         online_net=BYOL_Module.OnlineNetwork,
         target_net=BYOL_Module.TargetNetwork,
         load_weight: str = "",
@@ -31,7 +32,10 @@ class BYOL_Model:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.weights = pretrained_weight
         self.pretrained_model = pretrained_model(weights=self.weights)
-        self.preprocess = self.weights.transforms()
+        if self.weights is not None:
+            self.preprocess = self.weights.transforms()
+        else:
+            self.preprocess = None
 
         # TODO: 這裡的 transform 需要再確認
         self.data_transforms = {
@@ -97,7 +101,7 @@ class BYOL_Model:
             for x in ["train", "val"]
         }
         self.test_one_dataloaders = DataLoader(
-            TinyImageNetBYOLDataset('val', self.data_transforms["val"]),
+            TinyImageNetBYOLDataset("val", self.data_transforms["val"]),
             batch_size=1,
             shuffle=True,
             num_workers=WORKERS,
@@ -145,6 +149,8 @@ class BYOL_Model:
 
                 running_loss = 0.0
 
+                Progressbar = 0
+
                 # 逐批訓練或驗證
                 for i, (img0, img1) in enumerate(self.dataloaders[phase]):
 
@@ -160,7 +166,7 @@ class BYOL_Model:
                         online_output = self.online_net(img0, img1)
                         target_output = self.target_net(img0, img1)
 
-                        print(online_output, target_output)
+                        # print(online_output, target_output)
                         loss = self.criterion(online_output, target_output)
 
                         # 訓練時需要 backward + optimize
@@ -171,8 +177,11 @@ class BYOL_Model:
 
                     # 統計損失
                     running_loss += loss.item() * img0.size(0)
+
+                    Progressbar += img0.size(0)
                     print(
-                        f"{running_loss} loss, {loss.item()} item, {img0.size(0)} size"
+                        f"{running_loss} loss, {loss.item()} item, \
+                            size :{img0.size(0)} / {self.dataset_sizes[phase]}, {Progressbar / self.dataset_sizes[phase] * 100:2f}%"
                     )
 
                 if phase == "train":

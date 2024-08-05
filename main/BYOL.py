@@ -10,6 +10,9 @@ MODE = 1  # mode 1 means training, mode 2 means testing
 
 def main():
     if MODE == 1:
+        # byol_model = BYOL_train.BYOL_Model(
+        #     pretrained_weight=EfficientNet_B0_Weights.DEFAULT
+        # )
         byol_model = BYOL_train.BYOL_Model()
         byol_model.train(
             num_epochs=20,
