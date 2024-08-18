@@ -32,3 +32,5 @@ data/cifar-10-batches-py/data_batch_4
 data/cifar-10-batches-py/data_batch_5
 data/cifar-10-batches-py/readme.html
 data/cifar-10-batches-py/test_batch
+main/BYOL_image.py
+efficientnet_b0_cifar10_accuracy_cht.png
