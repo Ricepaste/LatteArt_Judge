@@ -7,7 +7,12 @@ class OnlineNetwork(nn.Module):
     def __init__(self, pretrained_model):
         super(OnlineNetwork, self).__init__()
         self.encoder = nn.Sequential(
-            pretrained_model.features, pretrained_model.avgpool
+            pretrained_model.conv1,
+            pretrained_model.maxpool,
+            pretrained_model.stage2,
+            pretrained_model.stage3,
+            pretrained_model.stage4,
+            pretrained_model.conv5,
         )
         self.projector = nn.Sequential(
             nn.Flatten(),  # 添加展平層
@@ -24,8 +29,8 @@ class OnlineNetwork(nn.Module):
         )
 
     def forward(self, x1, x2):
-        z1 = self.encoder(x1)
-        z2 = self.encoder(x2)
+        z1 = self.encoder(x1).mean([2, 3])
+        z2 = self.encoder(x2).mean([2, 3])
         p1 = self.projector(z1)
         p2 = self.projector(z2)
         q1 = self.predictor(p1)

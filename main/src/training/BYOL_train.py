@@ -4,7 +4,6 @@ from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from torch.utils.data import DataLoader
 import torchvision.models as models
-from torchvision.models import EfficientNet_B0_Weights
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import time
@@ -22,7 +21,7 @@ import src.module.BYOL_Module as BYOL_Module
 class BYOL_Model:
     def __init__(
         self,
-        pretrained_model=models.efficientnet_b0,
+        pretrained_model=models.shufflenet_v2_x0_5,
         pretrained_weight=None,
         online_net=BYOL_Module.OnlineNetwork,
         target_net=BYOL_Module.TargetNetwork,

@@ -24,7 +24,7 @@ import src.module.SimSiam_Module as SimSiam_Module
 class SimSiam_Model:
     def __init__(
         self,
-        pretrained_model=models.efficientnet_b0,
+        pretrained_model=models.shufflenet_v2_x0_5,
         pretrained_weight=None,
         load_weight: str = "",
     ) -> None:

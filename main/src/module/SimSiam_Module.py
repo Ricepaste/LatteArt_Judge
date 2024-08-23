@@ -4,16 +4,21 @@ import copy
 
 
 class SimSiam(nn.Module):
-    def __init__(self, pretrained_model, dim=2048, pred_dim=512):
+    def __init__(self, pretrained_model, dim=1024, pred_dim=512):
         super(SimSiam, self).__init__()
 
         # create the encoder
         self.encoder = nn.Sequential(
-            pretrained_model.features, pretrained_model.avgpool
+            pretrained_model.conv1,
+            pretrained_model.maxpool,
+            pretrained_model.stage2,
+            pretrained_model.stage3,
+            pretrained_model.stage4,
+            pretrained_model.conv5,
         )
 
         # build a 3-layer projector
-        prev_dim = 1280
+        prev_dim = 1024
         self.projector = nn.Sequential(
             nn.Flatten(),
             nn.Linear(prev_dim, prev_dim, bias=False),
@@ -35,8 +40,10 @@ class SimSiam(nn.Module):
         )  # output layer
 
     def forward(self, x1, x2):
-        z1 = self.projector(self.encoder(x1))
-        z2 = self.projector(self.encoder(x2))
+        y1 = self.encoder(x1).mean([2, 3])
+        y2 = self.encoder(x2).mean([2, 3])
+        z1 = self.projector(y1)
+        z2 = self.projector(y2)
         p1 = self.predictor(z1)
         p2 = self.predictor(z2)
         return p1, p2, z1.detach(), z2.detach()

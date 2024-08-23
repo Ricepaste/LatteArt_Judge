@@ -10,7 +10,7 @@ import copy
 import src.module.SimSiam_Module as SimSiam_Module
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_1/best.pt"
+ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_2/best.pt"
 
 # 設定設備
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,19 +55,26 @@ class Encoder(nn.Module):
         # self.efficientnet = models.efficientnet_b0(
         #     weights=EfficientNet_B0_Weights.DEFAULT
         # )
-        self.efficientnet = models.efficientnet_b0(weights=None)
+        self.shuffleNet = models.shufflenet_v2_x0_5(weights=None)
         self.encoder = nn.Sequential(
-            self.efficientnet.features, self.efficientnet.avgpool
+            self.shuffleNet.conv1,
+            self.shuffleNet.maxpool,
+            self.shuffleNet.stage2,
+            self.shuffleNet.stage3,
+            self.shuffleNet.stage4,
+            self.shuffleNet.conv5,
         )
-        self.output_dim = self.efficientnet.classifier[1].in_features
+        self.output_dim = 1024
 
     def forward(self, x):
-        x = self.encoder(x)  # 只提取特徵，不經過最後的 classifier
+        x = self.encoder(x).mean([2, 3])  # 只提取特徵，不經過最後的 classifier
         x = x.view(x.size(0), -1)
         return x
 
 
-simsiam = SimSiam_Module.SimSiam(pretrained_model=models.efficientnet_b0(weights=None))
+simsiam = SimSiam_Module.SimSiam(
+    pretrained_model=models.shufflenet_v2_x0_5(weights=None)
+)
 simsiam.load_state_dict(torch.load(ENCODER_PATH))
 
 encoder = Encoder()
@@ -86,13 +93,15 @@ class LinearClassifier(nn.Module):
         return self.linear(x)
 
 
-classifier = LinearClassifier(1280).to(device)  # 假設您的 encoder 有 output_dim 屬性
+classifier = LinearClassifier(1024).to(device)  # 假設您的 encoder 有 output_dim 屬性
 
 # 訓練線性分類器
 optimizer = optim.Adam(classifier.parameters(), lr=0.001)
 criterion = nn.CrossEntropyLoss()
 
 epochs = 10  # 可以根據需要調整 epoch 數量
+
+LOG = []
 
 for epoch in range(epochs):
     # 訓練階段
@@ -124,6 +133,12 @@ for epoch in range(epochs):
 
     test_loss /= len(test_loader.dataset)  # type: ignore
     accuracy = 100.0 * correct / len(test_loader.dataset)  # type: ignore
+    print(
+        f"Epoch {epoch+1}/{epochs}, Test Loss: {test_loss:.4f}, Accuracy: {accuracy:.2f}%"
+    )
+    LOG.append((epoch, test_loss, accuracy))
+
+for epoch, test_loss, accuracy in LOG:
     print(
         f"Epoch {epoch+1}/{epochs}, Test Loss: {test_loss:.4f}, Accuracy: {accuracy:.2f}%"
     )
