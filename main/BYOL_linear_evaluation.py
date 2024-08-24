@@ -7,7 +7,7 @@ from torchvision.models import EfficientNet_B0_Weights
 import torchvision.models as models
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/efficientnet_b0_BYOL_2/best.pt"
+ENCODER_PATH = "./runs/efficientnet_b0_BYOL_1/best.pt"
 
 # 設定設備
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -15,16 +15,22 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 加載 CIFAR-10 數據集
 train_transform = transforms.Compose(
     [
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
+        transforms.RandomResizedCrop((224, 224), scale=(0.6, 1)),
+        transforms.ColorJitter(
+            contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
+        ),  # type: ignore
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
+        transforms.RandomRotation(degrees=20),
+        transforms.RandomAffine(degrees=10),
     ]
 )
 test_transform = transforms.Compose(
     [
+        transforms.RandomResizedCrop((224, 224), scale=(0.9, 1)),
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ]
 )
 
@@ -35,8 +41,8 @@ test_dataset = datasets.CIFAR10(
     root="./data", train=False, download=True, transform=test_transform
 )
 
-train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=100, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=500, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=200, shuffle=False)
 
 
 # 加載預訓練的 encoder
@@ -46,14 +52,19 @@ class Encoder(nn.Module):
         # self.efficientnet = models.efficientnet_b0(
         #     weights=EfficientNet_B0_Weights.DEFAULT
         # )
-        self.efficientnet = models.efficientnet_b0(weights=None)
+        self.shuffleNet = models.shufflenet_v2_x0_5(weights=None)
         self.encoder = nn.Sequential(
-            self.efficientnet.features, self.efficientnet.avgpool
+            self.shuffleNet.conv1,
+            self.shuffleNet.maxpool,
+            self.shuffleNet.stage2,
+            self.shuffleNet.stage3,
+            self.shuffleNet.stage4,
+            self.shuffleNet.conv5,
         )
-        self.output_dim = self.efficientnet.classifier[1].in_features
+        self.output_dim = 1024
 
     def forward(self, x):
-        x = self.encoder(x)  # 只提取特徵，不經過最後的 classifier
+        x = self.encoder(x).mean([2, 3])  # 只提取特徵，不經過最後的 classifier
         x = x.view(x.size(0), -1)
         return x
 
@@ -84,10 +95,13 @@ criterion = nn.CrossEntropyLoss()
 
 epochs = 10  # 可以根據需要調整 epoch 數量
 
+LOG = []
+
 for epoch in range(epochs):
     # 訓練階段
     classifier.train()
     for batch_idx, (data, target) in enumerate(train_loader):
+        print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(train_loader)}")
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         with torch.no_grad():  # 凍結 encoder 的權重
@@ -103,6 +117,7 @@ for epoch in range(epochs):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+            print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(test_loader)}")
             data, target = data.to(device), target.to(device)
             features = encoder(data)
             output = classifier(features)
@@ -112,6 +127,12 @@ for epoch in range(epochs):
 
     test_loss /= len(test_loader.dataset)  # type: ignore
     accuracy = 100.0 * correct / len(test_loader.dataset)  # type: ignore
+    print(
+        f"Epoch {epoch+1}/{epochs}, Test Loss: {test_loss:.4f}, Accuracy: {accuracy:.2f}%"
+    )
+    LOG.append((epoch, test_loss, accuracy))
+
+for epoch, test_loss, accuracy in LOG:
     print(
         f"Epoch {epoch+1}/{epochs}, Test Loss: {test_loss:.4f}, Accuracy: {accuracy:.2f}%"
     )

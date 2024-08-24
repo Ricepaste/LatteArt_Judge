@@ -16,7 +16,7 @@ class OnlineNetwork(nn.Module):
         )
         self.projector = nn.Sequential(
             nn.Flatten(),  # 添加展平層
-            nn.Linear(1280, 256),  # 根據 encoder 的輸出大小調整
+            nn.Linear(1024, 256),  # 根據 encoder 的輸出大小調整
             nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
             nn.Linear(256, 128),
@@ -60,8 +60,8 @@ class TargetNetwork(nn.Module):
             )
 
     def forward(self, x1, x2):
-        z1 = self.target_network.encoder(x1)
-        z2 = self.target_network.encoder(x2)
+        z1 = self.target_network.encoder(x1).mean([2, 3])
+        z2 = self.target_network.encoder(x2).mean([2, 3])
         p1 = self.target_network.projector(z1)
         p2 = self.target_network.projector(z2)
         return (p1.detach(), p2.detach())  # 確保 target 的輸出不反向傳播梯度

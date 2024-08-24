@@ -217,6 +217,21 @@ class SimSiam_Model:
                         ".\\runs\\{}\\best.pt".format(old_name),
                     )
 
+                if phase == "train":
+                    # 存最後權重
+                    files = os.listdir(".\\runs")
+                    i = 0
+                    old_name = None
+                    name = "efficientnet_b0_SimSiam"
+                    while name in files:
+                        old_name = name
+                        i += 1
+                        name = "efficientnet_b0_SimSiam_{}".format(i)
+                    torch.save(
+                        self.model.state_dict(),
+                        ".\\runs\\{}\\last.pt".format(old_name),
+                    )
+
             print()
 
         time_elapsed = time.time() - since
@@ -224,20 +239,6 @@ class SimSiam_Model:
             "Training complete in {:.0f}m {:.0f}s".format(
                 (time_elapsed // 60), (time_elapsed % 60)
             )
-        )
-
-        # 存最後權重
-        files = os.listdir(".\\runs")
-        i = 0
-        old_name = None
-        name = "efficientnet_b0_SimSiam"
-        while name in files:
-            old_name = name
-            i += 1
-            name = "efficientnet_b0_SimSiam_{}".format(i)
-        torch.save(
-            self.model.state_dict(),
-            ".\\runs\\{}\\last.pt".format(old_name),
         )
 
         writer.flush()  # type: ignore

@@ -13,8 +13,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.processing.Unlabeled_LatteDataset import UL_LatteDataset
-from src.processing.TinyImageNet import TinyImageNetBYOLDataset
+from src.processing.CIFAR10 import CIFAR10_Dataset
 import src.module.BYOL_Module as BYOL_Module
 
 
@@ -86,7 +85,8 @@ class BYOL_Model:
         # 使用 ImageFolder 可方便轉換為 dataset
         self.data_dir = DATASET_DIR
         self.image_datasets = {
-            x: TinyImageNetBYOLDataset(x, self.data_transforms[x])
+            x: CIFAR10_Dataset(x, self.data_transforms[x])
+            for x in ["train", "val"]
             for x in ["train", "val"]
         }
 
@@ -100,7 +100,7 @@ class BYOL_Model:
             for x in ["train", "val"]
         }
         self.test_one_dataloaders = DataLoader(
-            TinyImageNetBYOLDataset("val", self.data_transforms["val"]),
+            CIFAR10_Dataset("val", self.data_transforms["val"]),
             batch_size=1,
             shuffle=True,
             num_workers=WORKERS,
@@ -213,6 +213,20 @@ class BYOL_Model:
                         self.online_net.encoder.state_dict(),
                         ".\\runs\\{}\\best.pt".format(old_name),
                     )
+                if phase == "train":
+                    # 存最後權重
+                    files = os.listdir(".\\runs")
+                    i = 0
+                    old_name = None
+                    name = "efficientnet_b0_BYOL"
+                    while name in files:
+                        old_name = name
+                        i += 1
+                        name = "efficientnet_b0__BYOL_{}".format(i)
+                    torch.save(
+                        self.online_net.encoder.state_dict(),
+                        ".\\runs\\{}\\last.pt".format(old_name),
+                    )
 
             print()
 
@@ -221,20 +235,6 @@ class BYOL_Model:
             "Training complete in {:.0f}m {:.0f}s".format(
                 (time_elapsed // 60), (time_elapsed % 60)
             )
-        )
-
-        # 存最後權重
-        files = os.listdir(".\\runs")
-        i = 0
-        old_name = None
-        name = "efficientnet_b0_BYOL"
-        while name in files:
-            old_name = name
-            i += 1
-            name = "efficientnet_b0__BYOL_{}".format(i)
-        torch.save(
-            self.online_net.encoder.state_dict(),
-            ".\\runs\\{}\\last.pt".format(old_name),
         )
 
         writer.flush()  # type: ignore
