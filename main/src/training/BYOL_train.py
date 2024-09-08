@@ -222,7 +222,7 @@ class BYOL_Model:
                     while name in files:
                         old_name = name
                         i += 1
-                        name = "efficientnet_b0__BYOL_{}".format(i)
+                        name = "efficientnet_b0_BYOL_{}".format(i)
                     torch.save(
                         self.online_net.encoder.state_dict(),
                         ".\\runs\\{}\\last.pt".format(old_name),

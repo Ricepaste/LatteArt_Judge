@@ -7,7 +7,7 @@ from torchvision.models import EfficientNet_B0_Weights
 import torchvision.models as models
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/efficientnet_b0_BYOL_1/best.pt"
+ENCODER_PATH = "./runs/efficientnet_b0_BYOL_2/last.pt"
 
 # 設定設備
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
