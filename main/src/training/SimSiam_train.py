@@ -1,20 +1,15 @@
 from pickle import FLOAT, INT
-from tkinter.ttk import Progressbar
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from torch.utils.data import DataLoader
 import torchvision.models as models
-from torchvision.models import EfficientNet_B0_Weights
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import time
-import copy
 import torch
 import os
-import numpy as np
-import matplotlib.pyplot as plt
+from gradcache import GradCache
 
-from src.processing.Unlabeled_LatteDataset import UL_LatteDataset
 from src.processing.CIFAR10 import CIFAR10_Dataset
 
 # Import SimSiam modules
@@ -42,9 +37,7 @@ class SimSiam_Model:
             "train": transforms.Compose(
                 [
                     transforms.RandomResizedCrop((224, 224), scale=(0.6, 1)),
-                    transforms.ColorJitter(
-                        contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
-                    ),  # type: ignore
+                    transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
                     transforms.ToTensor(),
                     # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                     transforms.RandomHorizontalFlip(p=0.5),
@@ -56,9 +49,7 @@ class SimSiam_Model:
             "val": transforms.Compose(
                 [
                     transforms.RandomResizedCrop((224, 224), scale=(0.6, 1)),
-                    transforms.ColorJitter(
-                        contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
-                    ),  # type: ignore
+                    transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
                     transforms.ToTensor(),
                     # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                     transforms.RandomHorizontalFlip(p=0.5),
@@ -118,14 +109,21 @@ class SimSiam_Model:
     def train(
         self,
         num_epochs=25,
+        grad_cache_chunk_size=0,
         batch_size=64,
         workers=0,
         dataset_dir=".\\LabelTool",
     ):
-        # 初始化資料集
+        # 初始化資料集、梯度快取
         self.dataset_initialize(
             DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
         )
+        if grad_cache_chunk_size > 0:
+            gc = GradCache(
+                models=[self.model],
+                chunk_sizes=grad_cache_chunk_size,
+                loss_fn=self.criterion,
+            )
 
         # TODO: 存擋系統可以單獨拉出來寫成一個函數
         files = os.listdir(".\\runs")
@@ -137,8 +135,6 @@ class SimSiam_Model:
         writer = SummaryWriter("runs\\{}".format(name))
 
         since = time.time()
-
-        best_model_wts = copy.deepcopy(self.model.state_dict())
         best_loss = float("inf")
 
         for epoch in range(num_epochs):
@@ -170,7 +166,10 @@ class SimSiam_Model:
                     with torch.set_grad_enabled(phase == "train"):
                         p1, p2, z1, z2 = self.model(img0, img1)
 
-                        loss = self.criterion(p1, p2, z1, z2)
+                        if grad_cache_chunk_size <= 0:
+                            loss = self.criterion(p1, p2, z1, z2)
+                        elif grad_cache_chunk_size > 0:
+                            loss = gc.cache_step(p1, p2, z1, z2)
 
                         # 訓練時需要 backward + optimize
                         if phase == "train":
