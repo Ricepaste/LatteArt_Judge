@@ -1,3 +1,4 @@
+from torch import Tensor, tensor
 import torch.nn as nn
 import torch.nn.functional as F
 import copy
@@ -49,6 +50,29 @@ class SimSiam(nn.Module):
         return p1, p2, z1.detach(), z2.detach()
 
 
+class SimSiam_online(SimSiam):
+    # 繼承SimSiam類別
+    def __init__(self, *args, **kwargs):
+        super(SimSiam_online, self).__init__(*args, **kwargs)
+
+    def forward(self, x1):
+        y1 = self.encoder(x1).mean([2, 3])
+        z1 = self.projector(y1)
+        p1 = self.predictor(z1)
+        return p1
+
+
+class SimSiam_target(SimSiam):
+    # 繼承SimSiam類別
+    def __init__(self, *args, **kwargs):
+        super(SimSiam_target, self).__init__(*args, **kwargs)
+
+    def forward(self, x1):
+        y1 = self.encoder(x1).mean([2, 3])
+        z1 = self.projector(y1)
+        return z1.detach().requires_grad_()
+
+
 class SimSiamLoss(nn.Module):
     def __init__(self):
         super(SimSiamLoss, self).__init__()
@@ -62,5 +86,20 @@ class SimSiamLoss(nn.Module):
 
         # negative cosine similarity
         loss = -(p1 * z2).sum(dim=1).mean() / 2 - (p2 * z1).sum(dim=1).mean() / 2
+
+        return loss
+
+
+class SimSiamLoss_unsymmetric(nn.Module):
+    def __init__(self):
+        super(SimSiamLoss_unsymmetric, self).__init__()
+
+    def forward(self, p1, z2):
+        # normalize projection output
+        p1 = nn.functional.normalize(p1, dim=1)
+        z2 = nn.functional.normalize(z2, dim=1)
+
+        # negative cosine similarity
+        loss = -(p1 * z2).sum(dim=1).mean()
 
         return loss

@@ -8,7 +8,8 @@ from torch.optim import lr_scheduler
 import time
 import torch
 import os
-from gradcache import GradCache
+from grad_cache.grad_cache import GradCache
+from tqdm import tqdm
 
 from src.processing.CIFAR10 import CIFAR10_Dataset
 
@@ -118,42 +119,48 @@ class SimSiam_Model:
         self.dataset_initialize(
             DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
         )
+
+        # Initialize grad cache: include loss function and model
         if grad_cache_chunk_size > 0:
+            self.criterion = SimSiam_Module.SimSiamLoss_unsymmetric()
+            self.model = [
+                SimSiam_Module.SimSiam_online(self.pretrained_model).to(self.device),
+                SimSiam_Module.SimSiam_target(self.pretrained_model).to(self.device),
+            ]
             gc = GradCache(
-                models=[self.model],
+                models=self.model,
                 chunk_sizes=grad_cache_chunk_size,
                 loss_fn=self.criterion,
             )
 
-        # TODO: 存擋系統可以單獨拉出來寫成一個函數
-        files = os.listdir(".\\runs")
-        i = 0
-        name = "efficientnet_b0_SimSiam"
-        while name in files:
-            i += 1
-            name = "efficientnet_b0_SimSiam_{}".format(i)
-        writer = SummaryWriter("runs\\{}".format(name))
+        writer = self.save_model(models=self.model, type="tensorboard_init")
+        assert isinstance(
+            writer, SummaryWriter
+        ), "TensorBoard writer initialization failed"
 
         since = time.time()
         best_loss = float("inf")
 
-        for epoch in range(num_epochs):
-            print(f"Epoch {epoch}/{num_epochs - 1}")
-            print("-" * 10)
+        for epoch in tqdm(range(num_epochs), unit="epochs", dynamic_ncols=True):
 
             # Each epoch has a training and validation phase
             for phase in ["train", "val"]:
                 if phase == "train":
-                    self.model.train()  # Set model to training mode
+                    self.apply_to_models(self.model, lambda model: model.train())
                 else:
-                    self.model.eval()  # Set model to evaluate mode
+                    self.apply_to_models(self.model, lambda model: model.eval())
 
                 running_loss = 0.0
 
-                Progressbar = 0
-
                 # 逐批訓練或驗證
-                for i, (img0, img1) in enumerate(self.dataloaders[phase]):
+                for i, (img0, img1) in enumerate(
+                    tqdm(
+                        self.dataloaders[phase],
+                        unit="batchs",
+                        leave=False,
+                        dynamic_ncols=True,
+                    )
+                ):
 
                     img0, img1 = (
                         img0.to(self.device),
@@ -164,26 +171,27 @@ class SimSiam_Model:
 
                     # 訓練時需要梯度下降
                     with torch.set_grad_enabled(phase == "train"):
-                        p1, p2, z1, z2 = self.model(img0, img1)
 
-                        if grad_cache_chunk_size <= 0:
+                        if not (isinstance(self.model, list)):
+                            p1, p2, z1, z2 = self.model(img0, img1)
                             loss = self.criterion(p1, p2, z1, z2)
-                        elif grad_cache_chunk_size > 0:
-                            loss = gc.cache_step(p1, p2, z1, z2)
+                        elif phase == "val":
+                            p1 = self.model[0](img0)
+                            z1 = self.model[1](img1)
+                            loss = self.criterion(
+                                p1.requires_grad_(), z1.requires_grad_()
+                            )
+                        else:
+                            loss = gc.cache_step(img0, img1)
 
                         # 訓練時需要 backward + optimize
                         if phase == "train":
-                            loss.backward()
+                            if not (isinstance(self.model, list)):
+                                loss.backward()
                             self.optimizer.step()
 
                     # 統計損失
                     running_loss += loss.item() * img0.size(0)
-
-                    Progressbar += img0.size(0)
-                    print(
-                        f"{running_loss} loss, {loss.item()} item, \
-                            size :{img0.size(0)} / {self.dataset_sizes[phase]}, {Progressbar / self.dataset_sizes[phase] * 100:2f}%"
-                    )
 
                 if phase == "train":
                     self.scheduler.step()
@@ -195,41 +203,16 @@ class SimSiam_Model:
                 elif phase == "val":
                     writer.add_scalar("validation/loss", epoch_loss, epoch)
 
-                print("{} Loss: {:.4f}".format(phase, epoch_loss))
+                print("\n{} Loss: {:.4f}".format(phase, epoch_loss))
 
                 # 如果是評估階段，且準確率創新高即存入 best_model_wts
-                # if phase == 'val' and\
-                #         (epoch_acc >= best_acc or epoch_loss <= best_loss):
                 if phase == "val" and (epoch_loss <= best_loss):
                     best_loss = epoch_loss
-                    # 存最佳權重
-                    files = os.listdir(".\\runs")
-                    i = 0
-                    name = "efficientnet_b0_SimSiam"
-                    old_name = name
-                    while name in files:
-                        old_name = name
-                        i += 1
-                        name = "efficientnet_b0_SimSiam_{}".format(i)
-                    torch.save(
-                        self.model.state_dict(),
-                        ".\\runs\\{}\\best.pt".format(old_name),
-                    )
+                    self.save_model(self.model, type="best")
 
+                # 存最後權重
                 if phase == "train":
-                    # 存最後權重
-                    files = os.listdir(".\\runs")
-                    i = 0
-                    old_name = None
-                    name = "efficientnet_b0_SimSiam"
-                    while name in files:
-                        old_name = name
-                        i += 1
-                        name = "efficientnet_b0_SimSiam_{}".format(i)
-                    torch.save(
-                        self.model.state_dict(),
-                        ".\\runs\\{}\\last.pt".format(old_name),
-                    )
+                    self.save_model(self.model, type="last")
 
             print()
 
@@ -243,4 +226,57 @@ class SimSiam_Model:
         writer.flush()  # type: ignore
         writer.close()  # type: ignore
 
-        return self.model.encoder
+    def apply_to_models(self, models, func):
+        """
+        对模型列表或单个模型应用某个函数。
+
+        Args:
+            models: 模型列表或单个模型。
+            func: 要应用的函数。
+        """
+        if isinstance(models, list):
+            for model in models:
+                func(model)
+        else:
+            func(models)
+
+    def save_model(
+        self,
+        models,
+        filename_prefix="shuffleNet_v05_SimSiam_",
+        directory="./runs",
+        type="best",
+    ):
+        """
+        保存最佳模型权重到指定目录。
+        或者初始化tensorboard的writer並保存到指定目錄
+
+        Args:
+        models: 模型列表或单个模型。
+        filename_prefix: 文件名
+        directory: 保存目录。
+        type: "best" 或 "last" 或 "tensorboard_init"
+        """
+        assert type in [
+            "last",
+            "best",
+            "tensorboard_init",
+        ], "type 参数只能是 'best'、'last' 或 'tensorboard_init'"
+        files = os.listdir(directory)
+        i = 0
+        exist_filename = "Unknown"
+        next_filename = filename_prefix
+        while next_filename in files:
+            exist_filename = next_filename
+            i += 1
+            next_filename = f"{filename_prefix}_{i}"
+
+        if type == "tensorboard_init":
+            return SummaryWriter(f"{directory}/{next_filename}")
+
+        filepath = os.path.join(directory, exist_filename, f"{type}.pt")
+
+        if isinstance(models, list):
+            torch.save(models[0].state_dict(), filepath)
+        else:
+            torch.save(models.state_dict(), filepath)
