@@ -1,6 +1,5 @@
 from json import load
 from torchvision.io import read_image
-from torchvision.models import EfficientNet_B0_Weights
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 
 import src.training.SimSiam_train as SimSiam_train
@@ -13,9 +12,9 @@ def main():
     if MODE == 1:
         simsiam_model = SimSiam_train.SimSiam_Model(load_weight="")
         simsiam_model.train(
-            num_epochs=20,
-            batch_size=40,
-            grad_cache_chunk_size=4,
+            num_epochs=10,
+            batch_size=400,
+            grad_cache_chunk_size=40,
             workers=4,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
         )

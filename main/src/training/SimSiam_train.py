@@ -123,9 +123,17 @@ class SimSiam_Model:
         # Initialize grad cache: include loss function and model
         if grad_cache_chunk_size > 0:
             self.criterion = SimSiam_Module.SimSiamLoss_unsymmetric()
+            online_model = SimSiam_Module.SimSiam_online(
+                self.pretrained_model,
+            ).to(self.device)
+            target_model = SimSiam_Module.SimSiam_target(
+                self.pretrained_model,
+                online=online_model,
+            ).to(self.device)
+
             self.model = [
-                SimSiam_Module.SimSiam_online(self.pretrained_model).to(self.device),
-                SimSiam_Module.SimSiam_target(self.pretrained_model).to(self.device),
+                online_model,
+                target_model,
             ]
             gc = GradCache(
                 models=self.model,

@@ -53,7 +53,11 @@ class SimSiam(nn.Module):
 class SimSiam_online(SimSiam):
     # 繼承SimSiam類別
     def __init__(self, *args, **kwargs):
+        # temp_proj = kwargs.pop("shared_projector", None)
+        # temp_pred = kwargs.pop("shared_predictor", None)
         super(SimSiam_online, self).__init__(*args, **kwargs)
+        # self.projector = temp_proj
+        # self.predictor = temp_pred
 
     def forward(self, x1):
         y1 = self.encoder(x1).mean([2, 3])
@@ -65,11 +69,16 @@ class SimSiam_online(SimSiam):
 class SimSiam_target(SimSiam):
     # 繼承SimSiam類別
     def __init__(self, *args, **kwargs):
+        temp_online = kwargs.pop("online")
+        assert isinstance(temp_online, SimSiam_online), "online network is required"
         super(SimSiam_target, self).__init__(*args, **kwargs)
+        self.online = temp_online
+        self.target = copy.deepcopy(self.online)
 
     def forward(self, x1):
-        y1 = self.encoder(x1).mean([2, 3])
-        z1 = self.projector(y1)
+        self.target = copy.deepcopy(self.online)
+        y1 = self.target.encoder(x1).mean([2, 3])
+        z1 = self.target.projector(y1)
         return z1.detach().requires_grad_()
 
 
