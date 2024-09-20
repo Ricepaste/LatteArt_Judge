@@ -2,15 +2,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
-from torchvision.models import EfficientNet_B0_Weights
+from torch.utils.data import DataLoader, SubsetRandomSampler
 import torchvision.models as models
 import copy
+import numpy as np
 
 import src.module.SimSiam_Module as SimSiam_Module
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_2/best.pt"
+ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__1/best.pt"
+# ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_2/best.pt"
 
 # 設定設備
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,7 +45,26 @@ test_dataset = datasets.CIFAR10(
     root="./data", train=False, download=True, transform=test_transform
 )
 
-train_loader = DataLoader(train_dataset, batch_size=120, shuffle=True)
+# TODO: Random seed add
+torch.manual_seed(0)
+np.random.seed(0)
+# 抽樣部分：每個 class 抽樣 10% 的數據
+num_train = len(train_dataset)
+indices = list(range(num_train))
+labels = train_dataset.targets  # 獲取所有標籤
+
+train_idx = []
+for label in range(10):  # CIFAR-10 有 10 個 class
+    label_indices = [i for i, x in enumerate(labels) if x == label]
+    train_idx.extend(
+        np.random.choice(
+            label_indices, size=int(0.1 * len(label_indices)), replace=False
+        )
+    )
+
+train_sampler = SubsetRandomSampler(train_idx)
+
+train_loader = DataLoader(train_dataset, batch_size=120, sampler=train_sampler)
 test_loader = DataLoader(test_dataset, batch_size=100, shuffle=False)
 
 
