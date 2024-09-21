@@ -13,8 +13,8 @@ def main():
         simsiam_model = SimSiam_train.SimSiam_Model(load_weight="")
         simsiam_model.train(
             num_epochs=10,
-            batch_size=400,
-            grad_cache_chunk_size=40,
+            batch_size=40,
+            grad_cache_chunk_size=4,
             workers=4,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
         )

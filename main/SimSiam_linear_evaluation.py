@@ -10,7 +10,7 @@ import numpy as np
 import src.module.SimSiam_Module as SimSiam_Module
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__1/best.pt"
+ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__5/last.pt"
 # ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_2/best.pt"
 
 # 設定設備
@@ -45,7 +45,6 @@ test_dataset = datasets.CIFAR10(
     root="./data", train=False, download=True, transform=test_transform
 )
 
-# TODO: Random seed add
 torch.manual_seed(0)
 np.random.seed(0)
 # 抽樣部分：每個 class 抽樣 10% 的數據

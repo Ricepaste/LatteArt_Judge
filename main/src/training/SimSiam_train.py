@@ -71,7 +71,7 @@ class SimSiam_Model:
         self.optimizer = optim.SGD(
             self.model.parameters(), lr=0.05, momentum=0.9, weight_decay=5e-4
         )
-        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
+        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20)
 
         # Use SimSiam loss
         self.criterion = SimSiam_Module.SimSiamLoss()
@@ -141,10 +141,26 @@ class SimSiam_Model:
                 loss_fn=self.criterion,
             )
 
+            # Use SGD optimizer for SimSiam
+            self.optimizer = [
+                optim.SGD(
+                    self.model[0].parameters(), lr=0.05, momentum=0.9, weight_decay=5e-4
+                ),
+                optim.SGD(
+                    self.model[1].parameters(), lr=0.05, momentum=0.9, weight_decay=5e-4
+                ),
+            ]
+            self.scheduler = [
+                lr_scheduler.CosineAnnealingLR(self.optimizer[0], T_max=20),
+                lr_scheduler.CosineAnnealingLR(self.optimizer[1], T_max=20),
+            ]
+
         writer = self.save_model(models=self.model, type="tensorboard_init")
         assert isinstance(
             writer, SummaryWriter
         ), "TensorBoard writer initialization failed"
+
+        # TODO: add hyperparameters info to logging, knn
 
         since = time.time()
         best_loss = float("inf")
@@ -175,7 +191,11 @@ class SimSiam_Model:
                         img1.to(self.device),
                     )
 
-                    self.optimizer.zero_grad()
+                    if isinstance(self.optimizer, list):
+                        self.optimizer[0].zero_grad()
+                        self.optimizer[1].zero_grad()
+                    else:
+                        self.optimizer.zero_grad()
 
                     # 訓練時需要梯度下降
                     with torch.set_grad_enabled(phase == "train"):
@@ -194,15 +214,23 @@ class SimSiam_Model:
 
                         # 訓練時需要 backward + optimize
                         if phase == "train":
-                            if not (isinstance(self.model, list)):
+                            if not (isinstance(self.model, list)) and not (
+                                isinstance(self.optimizer, list)
+                            ):
                                 loss.backward()
-                            self.optimizer.step()
+                                self.optimizer.step()
+                            elif isinstance(self.optimizer, list):
+                                self.optimizer[0].step()
 
                     # 統計損失
                     running_loss += loss.item() * img0.size(0)
 
                 if phase == "train":
-                    self.scheduler.step()
+                    if isinstance(self.scheduler, list):
+                        self.scheduler[0].step()
+                        self.scheduler[1].step()
+                    else:
+                        self.scheduler.step()
 
                 epoch_loss = running_loss / self.dataset_sizes[phase]
 
