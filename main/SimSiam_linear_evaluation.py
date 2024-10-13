@@ -10,7 +10,7 @@ import numpy as np
 import src.module.SimSiam_Module as SimSiam_Module
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__5/last.pt"
+ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__1/last.pt"
 # ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_2/best.pt"
 
 # 設定設備
@@ -19,16 +19,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 加載 CIFAR-10 數據集
 train_transform = transforms.Compose(
     [
-        transforms.RandomResizedCrop((224, 224), scale=(0.6, 1)),
-        transforms.ColorJitter(
-            contrast=(0.5, 0.8), saturation=(1.2, 1.5)  # type: ignore
-        ),  # type: ignore
+        transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
+        transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
         transforms.ToTensor(),
-        # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        transforms.RandomRotation(degrees=20),
-        transforms.RandomAffine(degrees=10),
+        transforms.RandomGrayscale(p=0.2),
     ]
 )
 test_transform = transforms.Compose(
@@ -115,7 +110,7 @@ class LinearClassifier(nn.Module):
 classifier = LinearClassifier(1024).to(device)  # 假設您的 encoder 有 output_dim 屬性
 
 # 訓練線性分類器
-optimizer = optim.Adam(classifier.parameters(), lr=0.001)
+optimizer = optim.Adam(classifier.parameters(), lr=0.001)  # type: ignore
 criterion = nn.CrossEntropyLoss()
 
 epochs = 10  # 可以根據需要調整 epoch 數量

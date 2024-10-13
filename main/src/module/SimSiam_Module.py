@@ -2,6 +2,7 @@ from torch import Tensor, tensor
 import torch.nn as nn
 import torch.nn.functional as F
 import copy
+import torch
 
 
 class SimSiam(nn.Module):
@@ -67,19 +68,17 @@ class SimSiam_online(SimSiam):
 
 
 class SimSiam_target(SimSiam):
-    # 繼承SimSiam類別
     def __init__(self, *args, **kwargs):
         temp_online = kwargs.pop("online")
         assert isinstance(temp_online, SimSiam_online), "online network is required"
         super(SimSiam_target, self).__init__(*args, **kwargs)
-        self.online = temp_online
-        self.target = copy.deepcopy(self.online)
+        self.target = temp_online  # 直接共享參數
 
     def forward(self, x1):
-        self.target = copy.deepcopy(self.online)
-        y1 = self.target.encoder(x1).mean([2, 3])
-        z1 = self.target.projector(y1)
-        return z1.detach().requires_grad_()
+        with torch.no_grad():  # 確保 target 網路不參與梯度計算
+            y1 = self.target.encoder(x1).mean([2, 3])
+            z1 = self.target.projector(y1)
+        return z1.detach().requires_grad_()  # 額外 detach() 避免警告
 
 
 class SimSiamLoss(nn.Module):

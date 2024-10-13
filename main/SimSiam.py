@@ -14,7 +14,7 @@ def main():
         simsiam_model.train(
             num_epochs=10,
             batch_size=40,
-            grad_cache_chunk_size=4,
+            grad_cache_chunk_size=10,
             workers=4,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
         )

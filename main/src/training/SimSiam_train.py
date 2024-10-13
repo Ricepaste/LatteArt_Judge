@@ -3,7 +3,7 @@ from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from torch.utils.data import DataLoader
 import torchvision.models as models
-import torch.optim as optim
+from torch.optim.sgd import SGD
 from torch.optim import lr_scheduler
 import time
 import torch
@@ -23,8 +23,9 @@ class SimSiam_Model:
         pretrained_model=models.shufflenet_v2_x0_5,
         pretrained_weight=None,
         load_weight: str = "",
+        base_lr=0.03,
     ) -> None:
-
+        self.base_lr = base_lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.weights = pretrained_weight
         self.pretrained_model = pretrained_model(weights=self.weights)
@@ -37,26 +38,24 @@ class SimSiam_Model:
         self.data_transforms = {
             "train": transforms.Compose(
                 [
-                    transforms.RandomResizedCrop((224, 224), scale=(0.6, 1)),
-                    transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
+                    transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
+                    transforms.RandomApply(
+                        [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                    ),
                     transforms.ToTensor(),
-                    # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                     transforms.RandomHorizontalFlip(p=0.5),
-                    transforms.RandomVerticalFlip(p=0.5),
-                    transforms.RandomRotation(degrees=20),
-                    transforms.RandomAffine(degrees=10),
+                    transforms.RandomGrayscale(p=0.2),
                 ]
             ),
             "val": transforms.Compose(
                 [
-                    transforms.RandomResizedCrop((224, 224), scale=(0.6, 1)),
-                    transforms.ColorJitter(contrast=(0.5, 0.8), saturation=(1.2, 1.5)),
+                    transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
+                    transforms.RandomApply(
+                        [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                    ),
                     transforms.ToTensor(),
-                    # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                     transforms.RandomHorizontalFlip(p=0.5),
-                    transforms.RandomVerticalFlip(p=0.5),
-                    transforms.RandomRotation(degrees=20),
-                    transforms.RandomAffine(degrees=10),
+                    transforms.RandomGrayscale(p=0.2),
                 ]
             ),
         }
@@ -66,12 +65,6 @@ class SimSiam_Model:
 
         if load_weight != "":
             self.model.load_state_dict(torch.load(load_weight))
-
-        # Use SGD optimizer for SimSiam
-        self.optimizer = optim.SGD(
-            self.model.parameters(), lr=0.05, momentum=0.9, weight_decay=5e-4
-        )
-        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20)
 
         # Use SimSiam loss
         self.criterion = SimSiam_Module.SimSiamLoss()
@@ -143,17 +136,31 @@ class SimSiam_Model:
 
             # Use SGD optimizer for SimSiam
             self.optimizer = [
-                optim.SGD(
-                    self.model[0].parameters(), lr=0.05, momentum=0.9, weight_decay=5e-4
+                SGD(
+                    self.model[0].parameters(),
+                    lr=self.base_lr * batch_size / 256,
+                    momentum=0.9,
+                    weight_decay=5e-4,
                 ),
-                optim.SGD(
-                    self.model[1].parameters(), lr=0.05, momentum=0.9, weight_decay=5e-4
+                SGD(
+                    self.model[1].parameters(),
+                    lr=self.base_lr * batch_size / 256,
+                    momentum=0.9,
+                    weight_decay=5e-4,
                 ),
             ]
             self.scheduler = [
-                lr_scheduler.CosineAnnealingLR(self.optimizer[0], T_max=20),
-                lr_scheduler.CosineAnnealingLR(self.optimizer[1], T_max=20),
+                lr_scheduler.CosineAnnealingLR(self.optimizer[0], T_max=800),
+                lr_scheduler.CosineAnnealingLR(self.optimizer[1], T_max=800),
             ]
+        elif not (isinstance(self.model, list)):
+            self.optimizer = SGD(
+                self.model.parameters(),
+                lr=self.base_lr * batch_size / 256,
+                momentum=0.9,
+                weight_decay=5e-4,
+            )
+            self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=800)
 
         writer = self.save_model(models=self.model, type="tensorboard_init")
         assert isinstance(
@@ -210,7 +217,9 @@ class SimSiam_Model:
                                 p1.requires_grad_(), z1.requires_grad_()
                             )
                         else:
-                            loss = gc.cache_step(img0, img1)
+                            loss = 0.5 * gc.cache_step(
+                                img0, img1
+                            ) + 0.5 * gc.cache_step(img1, img0)
 
                         # 訓練時需要 backward + optimize
                         if phase == "train":
