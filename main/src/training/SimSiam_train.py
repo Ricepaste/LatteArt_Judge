@@ -167,11 +167,63 @@ class SimSiam_Model:
             writer, SummaryWriter
         ), "TensorBoard writer initialization failed"
 
-        # TODO: add hyperparameters info to logging, knn
-
         since = time.time()
         best_loss = float("inf")
 
+        # 收集超參數
+        hparam_dict = {
+            "pretrained_model": self.pretrained_model.__class__.__name__,
+            "base_lr": self.base_lr,
+            "num_epochs": num_epochs,
+            "batch_size": batch_size,
+            "grad_cache_chunk_size": grad_cache_chunk_size,
+            "optimizer": (
+                self.optimizer.__class__.__name__
+                if not isinstance(self.optimizer, list)
+                else self.optimizer[0].__class__.__name__
+            ),  # 處理optimizer list的情況
+            # ... 其他模型超參數 ...
+        }
+
+        if not isinstance(self.optimizer, list):
+            # 非 GradCache 情況
+            hparam_dict["scheduler"] = self.scheduler.__class__.__name__
+            for k, v in self.optimizer.defaults.items():
+                hparam_dict[f"optimizer_{k}"] = v
+            if isinstance(self.scheduler, list):
+                for idx, scheduler in enumerate(self.scheduler):
+                    for k, v in scheduler.state_dict().items():
+                        if isinstance(
+                            v, (int, float, str, bool, torch.Tensor)
+                        ):  # 只記錄基本類型
+                            hparam_dict[f"scheduler_{idx}_{k}"] = v
+            else:
+                for k, v in self.scheduler.state_dict().items():
+                    if isinstance(
+                        v, (int, float, str, bool, torch.Tensor)
+                    ):  # 只記錄基本類型
+                        hparam_dict[f"scheduler_{k}"] = v
+        else:
+            # GradCache 情況，記錄兩個 optimizer 和 scheduler 的參數
+            if isinstance(self.scheduler, list):
+                for i in range(len(self.optimizer)):
+                    hparam_dict[f"optimizer_{i}"] = self.optimizer[i].__class__.__name__
+                    for k, v in self.optimizer[i].defaults.items():
+                        hparam_dict[f"optimizer_{i}_{k}"] = v
+                    hparam_dict[f"scheduler_{i}"] = self.scheduler[i].__class__.__name__
+                    for k, v in self.scheduler[i].state_dict().items():
+                        if isinstance(v, (int, float, str, bool, torch.Tensor)):
+                            hparam_dict[f"scheduler_{i}_{k}"] = v
+            else:
+                for k, v in self.scheduler.state_dict().items():
+                    if isinstance(v, (int, float, str, bool, torch.Tensor)):
+                        hparam_dict[f"scheduler_{k}"] = v
+
+        # 記錄超參數
+        writer.add_hparams(hparam_dict, {})
+        writer.flush()
+
+        # TODO: add knn
         for epoch in tqdm(range(num_epochs), unit="epochs", dynamic_ncols=True):
 
             # Each epoch has a training and validation phase
@@ -253,6 +305,8 @@ class SimSiam_Model:
                 # 如果是評估階段，且準確率創新高即存入 best_model_wts
                 if phase == "val" and (epoch_loss <= best_loss):
                     best_loss = epoch_loss
+                    # 更新 best_loss 指標
+                    writer.add_scalar("validation/best_loss", best_loss, epoch)
                     self.save_model(self.model, type="best")
 
                 # 存最後權重
