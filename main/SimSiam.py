@@ -12,9 +12,9 @@ def main():
     if MODE == 1:
         simsiam_model = SimSiam_train.SimSiam_Model(load_weight="")
         simsiam_model.train(
-            num_epochs=10,
+            num_epochs=100,
             batch_size=40,
-            grad_cache_chunk_size=10,
+            grad_cache_chunk_size=0,
             workers=4,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
         )

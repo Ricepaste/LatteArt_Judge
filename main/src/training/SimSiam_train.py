@@ -10,6 +10,10 @@ import torch
 import os
 from grad_cache.grad_cache import GradCache
 from tqdm import tqdm
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import numpy as np
 
 from src.processing.CIFAR10 import CIFAR10_Dataset
 
@@ -223,7 +227,6 @@ class SimSiam_Model:
         writer.add_hparams(hparam_dict, {})
         writer.flush()
 
-        # TODO: add knn
         for epoch in tqdm(range(num_epochs), unit="epochs", dynamic_ncols=True):
 
             # Each epoch has a training and validation phase
@@ -232,11 +235,13 @@ class SimSiam_Model:
                     self.apply_to_models(self.model, lambda model: model.train())
                 else:
                     self.apply_to_models(self.model, lambda model: model.eval())
+                    features = []
+                    labels = []
 
                 running_loss = 0.0
 
                 # 逐批訓練或驗證
-                for i, (img0, img1) in enumerate(
+                for i, (img0, img1, label) in enumerate(
                     tqdm(
                         self.dataloaders[phase],
                         unit="batchs",
@@ -262,13 +267,22 @@ class SimSiam_Model:
                         if not (isinstance(self.model, list)):
                             p1, p2, z1, z2 = self.model(img0, img1)
                             loss = self.criterion(p1, p2, z1, z2)
-                        elif phase == "val":
+                            if phase == "val":
+                                y1 = self.model.encoder(img0).mean([2, 3])
+                                features.append(y1.cpu().numpy())
+                                labels.append(label.cpu().numpy())
+                        elif isinstance(self.model, list) and phase == "val":
                             p1 = self.model[0](img0)
                             z1 = self.model[1](img1)
-                            loss = self.criterion(
-                                p1.requires_grad_(), z1.requires_grad_()
+
+                            y1 = self.model[0].encoder(img0).mean([2, 3])
+                            features.append(y1.cpu().numpy())
+                            labels.append(label.cpu().numpy())
+
+                            loss = 0.5 * self.criterion(p1, z1) + 0.5 * self.criterion(
+                                z1, p1
                             )
-                        else:
+                        elif isinstance(self.model, list) and phase == "train":
                             loss = 0.5 * gc.cache_step(
                                 img0, img1
                             ) + 0.5 * gc.cache_step(img1, img0)
@@ -298,7 +312,28 @@ class SimSiam_Model:
                 if phase == "train":
                     writer.add_scalar("training/loss", epoch_loss, epoch)
                 elif phase == "val":
+                    knn_features = np.concatenate(features, axis=0)
+                    knn_labels = np.concatenate(labels, axis=0)
+
+                    # 將驗證集的特徵和標籤分成訓練集和測試集
+                    train_features, test_features, train_labels, test_labels = (
+                        train_test_split(
+                            knn_features,
+                            knn_labels,
+                            test_size=0.5,
+                            random_state=0,  # 可以調整 test_size 和 random_state
+                        )
+                    )
+
+                    # 使用 KNN 評估
+                    knn = KNeighborsClassifier(n_neighbors=5)  # k=5 為例
+                    knn.fit(train_features, train_labels)  # 使用訓練集訓練 KNN
+                    predictions = knn.predict(test_features)  # 使用測試集評估 KNN
+                    knn_accuracy = accuracy_score(test_labels, predictions)
+
                     writer.add_scalar("validation/loss", epoch_loss, epoch)
+                    writer.add_scalar("validation/knn_accuracy", knn_accuracy, epoch)
+                    print(f"KNN Accuracy: {knn_accuracy:.4f}")
 
                 print("\n{} Loss: {:.4f}".format(phase, epoch_loss))
 

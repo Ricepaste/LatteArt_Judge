@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 import torchvision.models as models
 import copy
 import numpy as np
+from tqdm import tqdm
 
 import src.module.SimSiam_Module as SimSiam_Module
 
@@ -117,11 +118,10 @@ epochs = 10  # 可以根據需要調整 epoch 數量
 
 LOG = []
 
-for epoch in range(epochs):
+for epoch in tqdm(range(epochs), unit="epoch"):
     # 訓練階段
     classifier.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
-        print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(train_loader)}")
+    for batch_idx, (data, target) in tqdm(enumerate(train_loader), desc="train"):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         with torch.no_grad():  # 凍結 encoder 的權重
@@ -136,8 +136,7 @@ for epoch in range(epochs):
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        for data, target in test_loader:
-            print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(test_loader)}")
+        for data, target in tqdm(test_loader, desc="test"):
             data, target = data.to(device), target.to(device)
             features = encoder(data)
             output = classifier(features)
