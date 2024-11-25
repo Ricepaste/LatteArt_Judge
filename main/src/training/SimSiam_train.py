@@ -43,9 +43,9 @@ class SimSiam_Model:
             "train": transforms.Compose(
                 [
                     transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
-                    transforms.RandomApply(
-                        [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
-                    ),
+                    # transforms.RandomApply(
+                    #     [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                    # ),
                     transforms.ToTensor(),
                     transforms.RandomHorizontalFlip(p=0.5),
                     transforms.RandomGrayscale(p=0.2),
@@ -54,9 +54,9 @@ class SimSiam_Model:
             "val": transforms.Compose(
                 [
                     transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
-                    transforms.RandomApply(
-                        [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
-                    ),
+                    # transforms.RandomApply(
+                    #     [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                    # ),
                     transforms.ToTensor(),
                     transforms.RandomHorizontalFlip(p=0.5),
                     transforms.RandomGrayscale(p=0.2),

@@ -11,7 +11,7 @@ from tqdm import tqdm
 import src.module.SimSiam_Module as SimSiam_Module
 
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__1/last.pt"
+ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__1/best.pt"
 # ENCODER_PATH = "./runs/efficientnet_b0_SimSiam_2/best.pt"
 
 # 設定設備
@@ -21,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_transform = transforms.Compose(
     [
         transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
-        transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+        # transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
         transforms.ToTensor(),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomGrayscale(p=0.2),
@@ -59,8 +59,8 @@ for label in range(10):  # CIFAR-10 有 10 個 class
 
 train_sampler = SubsetRandomSampler(train_idx)
 
-train_loader = DataLoader(train_dataset, batch_size=120, sampler=train_sampler)
-test_loader = DataLoader(test_dataset, batch_size=100, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=200, sampler=train_sampler)
+test_loader = DataLoader(test_dataset, batch_size=150, shuffle=False)
 
 
 # 加載預訓練的 encoder
@@ -121,7 +121,7 @@ LOG = []
 for epoch in tqdm(range(epochs), unit="epoch"):
     # 訓練階段
     classifier.train()
-    for batch_idx, (data, target) in tqdm(enumerate(train_loader), desc="train"):
+    for batch_idx, (data, target) in enumerate(tqdm(train_loader, desc="train")):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         with torch.no_grad():  # 凍結 encoder 的權重
