@@ -17,6 +17,7 @@ def main():
             grad_cache_chunk_size=0,
             workers=4,
             dataset_dir=".\\LabelTool\\Unlabeled_photo",
+            use_RigL=False,
         )
 
 
