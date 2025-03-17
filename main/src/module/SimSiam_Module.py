@@ -6,7 +6,12 @@ import torch
 
 
 class SimSiam(nn.Module):
-    def __init__(self, pretrained_model, dim=1024, pred_dim=512):
+    def __init__(
+        self,
+        pretrained_model,
+        encoder_output_dim=1024,
+        projector_inner_dim=256,
+    ):
         super(SimSiam, self).__init__()
 
         # create the encoder
@@ -20,25 +25,31 @@ class SimSiam(nn.Module):
         )
 
         # build a 3-layer projector
-        prev_dim = 1024
         self.projector = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(prev_dim, prev_dim, bias=False),
-            nn.BatchNorm1d(prev_dim),
+            nn.Linear(encoder_output_dim, projector_inner_dim, bias=False),
+            nn.BatchNorm1d(projector_inner_dim),
             nn.ReLU(inplace=True),  # first layer
-            nn.Linear(prev_dim, prev_dim, bias=False),
-            nn.BatchNorm1d(prev_dim),
+            nn.Linear(projector_inner_dim, projector_inner_dim, bias=False),
+            nn.BatchNorm1d(projector_inner_dim),
             nn.ReLU(inplace=True),  # second layer
-            nn.Linear(prev_dim, dim, bias=False),
-            nn.BatchNorm1d(dim, affine=False),  # third layer
+            nn.Linear(projector_inner_dim, projector_inner_dim, bias=False),
+            nn.BatchNorm1d(projector_inner_dim, affine=False),  # third layer
         )  # output layer
 
+        """
+        according to the original paper, 
+        predictor's output and projector's output vector should be the same size to calculate loss.
+        Meanwhile, the predictor's inner dimmension should be 1/4 of predictor's output dimmension.
+        """
+        predictor_output_dim = projector_inner_dim
+        predictor_inner_dim = predictor_output_dim // 4
         # build a 2-layer predictor
         self.predictor = nn.Sequential(
-            nn.Linear(dim, pred_dim, bias=False),
-            nn.BatchNorm1d(pred_dim),
+            nn.Linear(projector_inner_dim, predictor_inner_dim, bias=False),
+            nn.BatchNorm1d(predictor_inner_dim),
             nn.ReLU(inplace=True),  # hidden layer
-            nn.Linear(pred_dim, dim),
+            nn.Linear(predictor_inner_dim, predictor_output_dim),
         )  # output layer
 
     def forward(self, x1, x2):
