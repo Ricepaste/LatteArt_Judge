@@ -14,11 +14,13 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import numpy as np
+from rigl_torch.RigL import RigLScheduler
 
 from src.processing.CIFAR10 import CIFAR10_Dataset
 
 # Import SimSiam modules
 import src.module.SimSiam_Module as SimSiam_Module
+from tests.test_rigl import T_end
 
 
 class SimSiam_Model:
@@ -102,7 +104,7 @@ class SimSiam_Model:
         )
 
         self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
-        print(self.dataset_sizes)
+        # print(self.dataset_sizes)
 
     def train(
         self,
@@ -111,11 +113,16 @@ class SimSiam_Model:
         batch_size=64,
         workers=0,
         dataset_dir=".\\LabelTool",
+        use_RigL=False,
     ):
         # 初始化資料集、梯度快取
         self.dataset_initialize(
             DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
         )
+
+        # 總迭代次數
+        total_iterations = num_epochs * len(self.dataloaders["train"])
+        T_end = int(0.75 * total_iterations)
 
         # Initialize grad cache: include loss function and model
         if grad_cache_chunk_size > 0:
@@ -164,7 +171,26 @@ class SimSiam_Model:
                 momentum=0.9,
                 weight_decay=5e-4,
             )
-            self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=800)
+            if use_RigL:
+                self.pruner = RigLScheduler(
+                    self.model,  # model you created
+                    self.optimizer,  # optimizer (recommended = SGD w/ momentum)
+                    dense_allocation=0.5,  # a float between 0 and 1 that designates how sparse you want the network to be # (0.1 dense_allocation = 90% sparse)
+                    sparsity_distribution="uniform",  # distribution hyperparam within the paper, currently only supports `uniform`
+                    T_end=T_end,  # T_end hyperparam within the paper (recommended = 75% * total_iterations)
+                    delta=100,  # delta hyperparam within the paper (recommended = 100)
+                    alpha=0.3,  # alpha hyperparam within the paper (recommended = 0.3)
+                    grad_accumulation_n=1,  # new hyperparam contribution (not in the paper)
+                    # for more information, see the `Contributions Beyond the Paper` section
+                    static_topo=False,  # if True, the topology will be frozen, in other words RigL will not do it's job
+                    # (for debugging)
+                    ignore_linear_layers=False,  # if True, linear layers in the network will be kept fully dense
+                    state_dict=None,
+                )
+            else:
+                self.scheduler = lr_scheduler.CosineAnnealingLR(
+                    self.optimizer, T_max=800
+                )
 
         writer = self.save_model(models=self.model, type="tensorboard_init")
         assert isinstance(
@@ -189,39 +215,44 @@ class SimSiam_Model:
             # ... 其他模型超參數 ...
         }
 
-        if not isinstance(self.optimizer, list):
-            # 非 GradCache 情況
-            hparam_dict["scheduler"] = self.scheduler.__class__.__name__
-            for k, v in self.optimizer.defaults.items():
-                hparam_dict[f"optimizer_{k}"] = v
-            if isinstance(self.scheduler, list):
-                for idx, scheduler in enumerate(self.scheduler):
-                    for k, v in scheduler.state_dict().items():
+        if not use_RigL:
+            if not isinstance(self.optimizer, list):
+                # 非 GradCache 情況
+                hparam_dict["scheduler"] = self.scheduler.__class__.__name__
+                for k, v in self.optimizer.defaults.items():
+                    hparam_dict[f"optimizer_{k}"] = v
+                if isinstance(self.scheduler, list):
+                    for idx, scheduler in enumerate(self.scheduler):
+                        for k, v in scheduler.state_dict().items():
+                            if isinstance(
+                                v, (int, float, str, bool, torch.Tensor)
+                            ):  # 只記錄基本類型
+                                hparam_dict[f"scheduler_{idx}_{k}"] = v
+                else:
+                    for k, v in self.scheduler.state_dict().items():
                         if isinstance(
                             v, (int, float, str, bool, torch.Tensor)
                         ):  # 只記錄基本類型
-                            hparam_dict[f"scheduler_{idx}_{k}"] = v
+                            hparam_dict[f"scheduler_{k}"] = v
             else:
-                for k, v in self.scheduler.state_dict().items():
-                    if isinstance(
-                        v, (int, float, str, bool, torch.Tensor)
-                    ):  # 只記錄基本類型
-                        hparam_dict[f"scheduler_{k}"] = v
-        else:
-            # GradCache 情況，記錄兩個 optimizer 和 scheduler 的參數
-            if isinstance(self.scheduler, list):
-                for i in range(len(self.optimizer)):
-                    hparam_dict[f"optimizer_{i}"] = self.optimizer[i].__class__.__name__
-                    for k, v in self.optimizer[i].defaults.items():
-                        hparam_dict[f"optimizer_{i}_{k}"] = v
-                    hparam_dict[f"scheduler_{i}"] = self.scheduler[i].__class__.__name__
-                    for k, v in self.scheduler[i].state_dict().items():
+                # GradCache 情況，記錄兩個 optimizer 和 scheduler 的參數
+                if isinstance(self.scheduler, list):
+                    for i in range(len(self.optimizer)):
+                        hparam_dict[f"optimizer_{i}"] = self.optimizer[
+                            i
+                        ].__class__.__name__
+                        for k, v in self.optimizer[i].defaults.items():
+                            hparam_dict[f"optimizer_{i}_{k}"] = v
+                        hparam_dict[f"scheduler_{i}"] = self.scheduler[
+                            i
+                        ].__class__.__name__
+                        for k, v in self.scheduler[i].state_dict().items():
+                            if isinstance(v, (int, float, str, bool, torch.Tensor)):
+                                hparam_dict[f"scheduler_{i}_{k}"] = v
+                else:
+                    for k, v in self.scheduler.state_dict().items():
                         if isinstance(v, (int, float, str, bool, torch.Tensor)):
-                            hparam_dict[f"scheduler_{i}_{k}"] = v
-            else:
-                for k, v in self.scheduler.state_dict().items():
-                    if isinstance(v, (int, float, str, bool, torch.Tensor)):
-                        hparam_dict[f"scheduler_{k}"] = v
+                            hparam_dict[f"scheduler_{k}"] = v
 
         # 記錄超參數
         writer.add_hparams(hparam_dict, {})
@@ -293,14 +324,17 @@ class SimSiam_Model:
                                 isinstance(self.optimizer, list)
                             ):
                                 loss.backward()
-                                self.optimizer.step()
+                                if use_RigL and self.pruner():
+                                    self.optimizer.step()
+                                elif not (use_RigL):
+                                    self.optimizer.step()
                             elif isinstance(self.optimizer, list):
                                 self.optimizer[0].step()
 
                     # 統計損失
                     running_loss += loss.item() * img0.size(0)
 
-                if phase == "train":
+                if phase == "train" and not (use_RigL):
                     if isinstance(self.scheduler, list):
                         self.scheduler[0].step()
                         self.scheduler[1].step()
