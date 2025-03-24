@@ -1,0 +1,11 @@
+.git
+.gitignore
+
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+
+.env
+runs
+third_party_libs\*
