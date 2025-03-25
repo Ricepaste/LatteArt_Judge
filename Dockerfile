@@ -20,5 +20,11 @@ RUN pip install --no-cache-dir -e /app/third_party_libs/GradCache
 # 安裝 requirements.txt 中的其他 Python 套件
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 安裝 rigl-torch所需套件
+RUN pip install --no-cache-dir -r /app/third_party_libs/rigl-torch/requirements.txt
+
+# 安裝 rigl-torch
+RUN pip install --no-cache-dir -e /app/third_party_libs/rigl-torch
+
 # 設定容器啟動時執行的命令 (例如，運行你的 PyTorch 程式)
 # CMD ["python", "your_script.py"]  # 將 "your_script.py" 替換成你的主要程式碼檔案名稱

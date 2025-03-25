@@ -9,3 +9,4 @@ __pycache__
 .env
 runs
 third_party_libs\*
+!third_party_libs/rigl-torch

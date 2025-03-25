@@ -8,3 +8,4 @@ data/*
 **/*/*.zip
 
 third_party_libs/*
+!third_party_libs/rigl-torch
