@@ -11,7 +11,7 @@
 3. 執行以下指令開始執行容器
 
    ```powershell
-   docker run --gpus '"device=0"' -d -it --rm -v sharpaste/repo/LatteArt_Judge:/app --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
+   docker run --gpus '"device=0"' -d -it --rm -v sharpaste/repo/LatteArt_Judge/main:/app/main -v sharpaste/repo/LatteArt_Judge/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
    ```
 
    `--rm`
@@ -32,7 +32,7 @@
    如下：
 
    ```powershell
-   docker run --gpus all -d -it --rm -v C:/Users/a3525/Documents/program/testing/Python/yolo:/app --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
+   docker run --gpus all -d -it --rm -v C:/Users/a3525/Documents/program/testing/Python/yolo/main:/app/main -v C:/Users/a3525/Documents/program/testing/Python/yolo/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
    ```
 
 4. 查看容器日誌
