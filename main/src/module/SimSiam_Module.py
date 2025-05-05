@@ -94,19 +94,36 @@ class SimSiam_target(SimSiam):
 
 class SimSiamLoss(nn.Module):
     def __init__(self):
-        super(SimSiamLoss, self).__init__()
+        super().__init__()
+
+    def D(self, p, z):
+        # p: NxC
+        # z: NxC
+        z = z.detach()  # stop gradient
+        p = F.normalize(p, dim=1)  # l2-normalize
+        z = F.normalize(z, dim=1)  # l2-normalize
+        return -(p * z).sum(dim=1)  # dot product & negation
+
+    def calculate_L1(self, p1, z2):
+        """計算 L1 = D(p1, z2.detach())"""
+        return self.D(p1, z2)
+
+    def calculate_L2(self, p2, z1):
+        """計算 L2 = D(p2, z1.detach())"""
+        return self.D(p2, z1)
 
     def forward(self, p1, p2, z1, z2):
-        # normalize projection output
-        p1 = nn.functional.normalize(p1, dim=1)
-        p2 = nn.functional.normalize(p2, dim=1)
-        z1 = nn.functional.normalize(z1, dim=1)
-        z2 = nn.functional.normalize(z2, dim=1)
-
-        # negative cosine similarity
-        loss = -(p1 * z2).sum(dim=1).mean() / 2 - (p2 * z1).sum(dim=1).mean() / 2
-
+        """計算總損失"""
+        l1 = self.calculate_L1(p1, z2)
+        l2 = self.calculate_L2(p2, z1)
+        loss = 0.5 * (l1.mean() + l2.mean())  # 計算平均損失
         return loss
+
+    def forward_components(self, p1, p2, z1, z2):
+        """返回 L1 和 L2 的 batch 平均損失"""
+        l1_batch_mean = self.calculate_L1(p1, z2).mean()
+        l2_batch_mean = self.calculate_L2(p2, z1).mean()
+        return l1_batch_mean, l2_batch_mean
 
 
 class SimSiamLoss_unsymmetric(nn.Module):
