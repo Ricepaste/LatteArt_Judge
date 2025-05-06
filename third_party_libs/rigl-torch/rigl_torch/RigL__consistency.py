@@ -690,13 +690,15 @@ class RigLScheduler:
             # --- Calculate Scores ---
             score_drop = torch.abs(w)
             score_grow_total = torch.abs(grad_total)
-            cos_sim = F.cosine_similarity(grad_l1.view(-1), grad_l2.view(-1), dim=0)
-            cos_sim = torch.nan_to_num(cos_sim, nan=0.0)
-            raw_factor = 1 + self.consistency_lambda * cos_sim
-            # 把 grow_factor 限制在一個比較合理的正數範圍內，例如 [0.1, 1.5]
-            # 下限 0.1 (避免太小)，上限 1.5 (避免 lambda 太大時增長過度，可以調整)
-            grow_factor = torch.clamp(raw_factor, min=0.1, max=1.5)
-            score_grow = score_grow_total * grow_factor
+            # consistency_factor_elementwise = torch.sign(grad_l1) * torch.sign(grad_l2)
+            # consistency_modifier = torch.clamp(
+            #     1 + self.consistency_lambda * consistency_factor_elementwise, min=0.1
+            # )
+            # # 把 grow_factor 限制在一個比較合理的正數範圍內，例如 [0.1, 1.5]
+            # # 下限 0.1 (避免太小)，上限 1.5 (避免 lambda 太大時增長過度，可以調整)
+            # score_grow = score_grow_total * consistency_modifier
+
+            score_grow = score_grow_total  # 直接使用原始的 score_grow_total
 
             # --- Distributed Sync ---
             if is_dist:
