@@ -117,9 +117,9 @@ class SimSiamLoss(nn.Module):
         l1 = self.calculate_L1(p1, z2)
         l2 = self.calculate_L2(p2, z1)
 
-        print(
-            f"DEBUG Loss: l1_mean = {l1.mean().item():.4f}, l2_mean = {l2.mean().item():.4f}"
-        )
+        # print(
+        #     f"DEBUG Loss: l1_mean = {l1.mean().item():.4f}, l2_mean = {l2.mean().item():.4f}"
+        # )
 
         loss = 0.5 * (l1.mean() + l2.mean())  # 計算平均損失
         return loss
