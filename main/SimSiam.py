@@ -7,7 +7,7 @@ import src.training.SimSiam_train as SimSiam_train
 # 設置共用的訓練參數
 common_train_params = {
     "num_epochs": 100,  # 可以設長一點試試
-    "batch_size": 256,
+    "batch_size": 128,
     "workers": 0,  # 根據你的設備調整
     "dataset_dir": ".\\LabelTool",  # 你的資料集路徑
     "rigl_dense_allocation": 0.2,  # RigL 稀疏度 (90% sparse)
