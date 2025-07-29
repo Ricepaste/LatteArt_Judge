@@ -11,7 +11,10 @@
 3. 執行以下指令開始執行容器
 
    ```powershell
-   docker run --gpus '"device=0"' -d -it --rm -v sharpaste/repo/LatteArt_Judge/main:/app/main -v sharpaste/repo/LatteArt_Judge/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
+   docker run --gpus 'device=0' -d -it --rm -v /home/sharpaste/repo/LatteArt_Judge/LatteArt_Judge/main:/app/main -v /home/sharpaste/repo/LatteArt_Judge/LatteArt_Judge/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
+   ```
+   ```powershell
+   docker run --gpus 'device=0' -d -it --rm -v /home/sharpaste/repo/LatteArt_Judge/main:/app/main -v /home/sharpaste/repo/LatteArt_Judge/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
    ```
 
    `--rm`
