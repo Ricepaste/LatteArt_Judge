@@ -22,7 +22,7 @@ common_train_params = {
 def main():
     model_trainer = ADS_SSL_training_flow.ADS_SSL_Model(
         pretrained_model_class=models.shufflenet_v2_x0_5,
-        base_lr=0.0005
+        base_lr=0.05
     )
     model_trainer.train(
         num_epochs=100,
