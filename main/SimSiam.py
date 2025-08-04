@@ -10,7 +10,7 @@ common_train_params = {
     "batch_size": 128,
     "workers": 0,  # 根據你的設備調整
     "dataset_dir": ".\\LabelTool",  # 你的資料集路徑
-    "rigl_dense_allocation": 0.2,  # RigL 稀疏度 (90% sparse)
+    "rigl_dense_allocation": 0.6,  # RigL 稀疏度 (90% sparse)
     "rigl_delta": 100,
     "rigl_alpha": 0.3,
     "consistency_lambda": 0.1,

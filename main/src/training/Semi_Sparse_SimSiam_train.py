@@ -1,0 +1,317 @@
+# main/src/training/ADS_SSL_train.py
+
+from torchvision import transforms
+from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
+import torchvision.models as models
+from torch.optim.sgd import SGD
+from torch.optim.adam import Adam
+import time
+import torch
+import os
+from tqdm import tqdm
+import numpy as np
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import torch.nn.functional as F
+from typing import Dict, List, Optional, Union
+
+from src.processing.CIFAR10 import CIFAR10_Dataset
+# 1. 導入我們設計的新模組
+from src.module.Semi_Sparse_SimSiam_Module import SparseSimSiam
+
+class ADS_SSL_Model:
+    def __init__(
+        self,
+        pretrained_model_class=models.shufflenet_v2_x0_5,
+        pretrained_weight=None,
+        load_weight: str = "",
+        base_lr=0.03,
+    ) -> None:
+        self.base_lr = base_lr
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.weights = pretrained_weight
+        self.pretrained_model = pretrained_model_class(weights=self.weights)
+
+        # SimSiam 需要的資料增強 (保持不變)
+        self.data_transforms = {
+            "train": transforms.Compose(
+                [
+                    transforms.RandomResizedCrop((224, 224), scale=(0.2, 1)),
+                    transforms.RandomApply(
+                        [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                    ),
+                    transforms.RandomGrayscale(p=0.2),
+                    transforms.RandomHorizontalFlip(p=0.5),
+                    transforms.ToTensor(),
+                ]
+            ),
+            "val": transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                ]
+            ),
+        }
+
+        # 2. 初始化我們的 SparseSimSiam 模型
+        self.model = SparseSimSiam(self.pretrained_model).to(self.device)
+
+        if load_weight != "":
+            print(f"Loading weights from {load_weight}")
+            # 只載入模型的權重，不載入 s_params，除非你確定要這麼做
+            state_dict = torch.load(load_weight)
+            # 過濾掉 s_params，只載入模型的原始參數
+            model_dict = self.model.state_dict()
+            pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict and 's_params' not in k}
+            model_dict.update(pretrained_dict)
+            self.model.load_state_dict(model_dict, strict=False)
+            print("Filtered model weights loaded.")
+
+        print("Loaded pretrained model base:", self.pretrained_model.__class__.__name__)
+        print("Initialized ADS-SSL Model (SparseSimSiam).")
+        print("Use device:", self.device)
+
+    def dataset_initialize(self, DATASET_DIR=".\\LabelTool", BATCH_SIZE=64, WORKERS=0):
+        # (這部分與原程式碼完全相同)
+        self.data_dir = DATASET_DIR
+        self.image_datasets = {
+            x: CIFAR10_Dataset(split=x, transform=self.data_transforms[x])
+            for x in ["train", "val"]
+        }
+        self.dataloaders = {
+            x: DataLoader(
+                self.image_datasets[x],
+                batch_size=BATCH_SIZE,
+                shuffle=True if x == "train" else False,
+                num_workers=WORKERS,
+                pin_memory=True,
+            )
+            for x in ["train", "val"]
+        }
+        self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
+        print("Dataset sizes:", self.dataset_sizes)
+
+    def train(
+        self,
+        num_epochs=25,
+        batch_size=64,
+        workers=0,
+        dataset_dir=".\\LabelTool",
+        # --- ADS-SSL Specific Parameters ---
+        lambda_val: float = 1e-5,          # L1 稀疏正則化權重
+        mask_update_freq: int = 100,      # 遮罩參數 's' 的更新頻率 (T)
+        alpha_initial: float = 1.0,       # Alpha 退火初始值
+        alpha_final: float = 50.0,        # Alpha 退火最終值
+        lr_weights: Optional[float] = None, # 權重優化器的學習率
+        lr_mask: float = 0.01,            # 遮罩優化器的學習率
+    ):
+        # --- Dataset Initialization ---
+        self.dataset_initialize(
+            DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
+        )
+
+        # 如果沒有指定權重學習率，則使用 SimSiam 的標準縮放規則
+        if lr_weights is None:
+            lr_weights = self.base_lr * batch_size / 256
+
+        # --- Optimizer and Scheduler Initialization ---
+        # 3. 創建兩個優化器，分別給權重和遮罩
+        w_params = [p for name, p in self.model.named_parameters() if 's_params' not in name]
+        self.optimizer_w = SGD(
+            w_params,
+            lr=lr_weights,
+            momentum=0.9,
+            weight_decay=5e-4,
+        )
+
+        self.optimizer_s = Adam(
+            self.model.s_params.parameters(),
+            lr=lr_mask
+        )
+        
+        # 權重的學習率調度器
+        self.scheduler_w = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_w, T_max=num_epochs)
+
+        # --- Tensorboard writer initialization ---
+        self.writer = self.save_model(self.model, type="tensorboard_init")
+        assert isinstance(self.writer, SummaryWriter), "TensorBoard writer initialization failed"
+
+        since = time.time()
+        best_knn_accuracy = -1.0
+
+        # --- Hparam Logging ---
+        hparam_dict = {
+            "method": "ADS-SSL",
+            "pretrained_model": self.pretrained_model.__class__.__name__,
+            "num_epochs": num_epochs,
+            "batch_size": batch_size,
+            "lambda_val": lambda_val,
+            "mask_update_freq": mask_update_freq,
+            "alpha_initial": alpha_initial,
+            "alpha_final": alpha_final,
+            "lr_weights": lr_weights,
+            "lr_mask": lr_mask,
+            "optimizer_w": self.optimizer_w.__class__.__name__,
+            "optimizer_s": self.optimizer_s.__class__.__name__,
+        }
+        self.writer.add_hparams(hparam_dict, {})
+        self.writer.flush()
+
+        # --- Training Loop ---
+        total_steps = num_epochs * len(self.dataloaders["train"])
+        
+        for epoch in tqdm(range(num_epochs), unit="epochs", dynamic_ncols=True):
+            for phase in ["train", "val"]:
+                if phase == "train":
+                    self.model.train()
+                else:
+                    self.model.eval()
+                    features = []
+                    labels = []
+
+                running_loss = 0.0
+                running_loss_sim = 0.0
+                running_loss_l1 = 0.0
+
+                for i, (img0, img1, label) in enumerate(
+                    tqdm(self.dataloaders[phase], unit="batchs", leave=False, dynamic_ncols=True)
+                ):
+                    img0, img1 = img0.to(self.device), img1.to(self.device)
+                    label = label.to(self.device)
+
+                    global_step = epoch * len(self.dataloaders["train"]) + i
+                    progress = min(global_step / total_steps, 1.0)
+                    current_alpha = alpha_initial + (alpha_final - alpha_initial) * progress
+
+                    total_mask_elements = 0
+                    for s in self.model.s_params.values():
+                        total_mask_elements += s.numel()
+                    self.total_mask_elements = total_mask_elements # 存起來
+
+                    # --- [修正] 核心訓練/驗證邏輯 ---
+                    if phase == "train":
+                        self.optimizer_w.zero_grad()
+                        self.optimizer_s.zero_grad()
+
+                        # 5a. 模型前向傳播 (V3 版本)
+                        p1, z2 = self.model(img0, img1, alpha=current_alpha)
+                        
+                        # 5b. 手動計算損失
+                        loss_sim = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
+                        
+                        # 將 loss_l1 初始化為一個在正確設備上的 0 維張量
+                        loss_l1 = torch.tensor(0.0, device=self.device)
+                        for s in self.model.s_params.values():
+                            m = torch.sigmoid(current_alpha * s)
+                            loss_l1 += torch.norm(m, p=1)
+                            
+                        # [修正] 歸一化 L1 損失
+                        normalized_loss_l1 = loss_l1 / self.total_mask_elements
+                        total_loss = loss_sim + lambda_val * normalized_loss_l1
+
+                        total_loss.backward()
+                        self.optimizer_w.step()
+                        if global_step % mask_update_freq == 0:
+                            self.optimizer_s.step()
+                        
+                        loss = total_loss
+                        running_loss_sim += loss_sim.item() * img0.size(0)
+                        running_loss_l1 += normalized_loss_l1.item() * img0.size(0)
+
+                    elif phase == "val":
+                        with torch.no_grad():
+                            # 5c. 驗證模式前向傳播 (V3 版本)
+                            p1, z2 = self.model(img0, img1, alpha=alpha_final)
+                            
+                            # 驗證時只計算 sim loss
+                            loss = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
+
+                            y1 = self.model.encoder(img0).mean([2, 3])
+                            features.append(y1.cpu().numpy())
+                            labels.append(label.cpu().numpy())
+
+                    running_loss += loss.item() * img0.size(0)
+
+                # --- Epoch 階段結束的指標和記錄 ---
+                epoch_loss = running_loss / self.dataset_sizes[phase]
+
+                if phase == "train":
+                    epoch_loss_sim = running_loss_sim / self.dataset_sizes[phase]
+                    epoch_loss_l1 = running_loss_l1 / self.dataset_sizes[phase]
+                    
+                    self.writer.add_scalar("training/loss_total", epoch_loss, epoch)
+                    self.writer.add_scalar("training/loss_sim", epoch_loss_sim, epoch)
+                    self.writer.add_scalar("training/loss_l1", epoch_loss_l1, epoch)
+                    self.writer.add_scalar("training/learning_rate_w", self.optimizer_w.param_groups[0]['lr'], epoch)
+                    print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} (Sim: {epoch_loss_sim:.4f}, L1: {epoch_loss_l1:.4f})")
+                
+                elif phase == "val":
+                    # (這部分與原程式碼完全相同)
+                    knn_features = np.concatenate(features, axis=0)
+                    knn_labels = np.concatenate(labels, axis=0)
+                    train_features, test_features, train_labels, test_labels = (
+                        train_test_split(knn_features, knn_labels, test_size=0.5, random_state=0)
+                    )
+                    knn = KNeighborsClassifier(n_neighbors=5)
+                    knn.fit(train_features, train_labels)
+                    predictions = knn.predict(test_features)
+                    knn_accuracy = accuracy_score(test_labels, predictions)
+
+                    self.writer.add_scalar("validation/loss", epoch_loss, epoch)
+                    self.writer.add_scalar("validation/knn_accuracy", knn_accuracy, epoch)
+                    print(f"Epoch {epoch+1}/{num_epochs} - Val Loss: {epoch_loss:.4f} | KNN Accuracy: {knn_accuracy:.4f}")
+
+                    if knn_accuracy > best_knn_accuracy:
+                        best_knn_accuracy = knn_accuracy
+                        self.writer.add_scalar("validation/best_knn_accuracy", best_knn_accuracy, epoch)
+                        print(f"Saving best model at epoch {epoch+1} with KNN Accuracy: {best_knn_accuracy:.4f}")
+                        self.save_model(self.model, type="best")
+
+            # 在每個 epoch 結束後更新權重的學習率
+            self.scheduler_w.step()
+
+            print(f"Saving last model state at epoch {epoch+1}")
+            self.save_model(self.model, type="last")
+            print()
+
+        time_elapsed = time.time() - since
+        print(f"Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
+
+        self.writer.flush()
+        self.writer.close()
+
+    def save_model(
+        self,
+        model_to_save: torch.nn.Module,
+        filename_prefix="ADS_SSL_SimSiam_",
+        directory="./runs",
+        type="best",
+    ):
+        # (這部分與原程式碼基本相同，只修改了前綴)
+        assert type in ["last", "best", "tensorboard_init"], "type an only be 'best', 'last', or 'tensorboard_init'"
+        os.makedirs(directory, exist_ok=True)
+
+        if type == "tensorboard_init":
+            i = 0
+            run_dir_name = filename_prefix
+            while os.path.exists(os.path.join(directory, run_dir_name + str(i))):
+                i += 1
+            final_run_dir = os.path.join(directory, run_dir_name + str(i))
+            os.makedirs(final_run_dir)
+            print(f"TensorBoard log directory created at: {final_run_dir}")
+            return SummaryWriter(final_run_dir)
+
+        if not hasattr(self, "writer") or self.writer is None:
+            print("Warning: TensorBoard writer not initialized. Cannot determine save directory.")
+            filepath = f"{type}.pt"
+        else:
+            filepath = os.path.join(self.writer.log_dir, f"{type}.pt")
+
+        try:
+            # 保存整個模型，包括權重和 s_params
+            torch.save(model_to_save.state_dict(), filepath)
+        except Exception as e:
+            print(f"Error saving model {type} to {filepath}: {e}")
