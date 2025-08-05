@@ -30,7 +30,7 @@ def main():
         batch_size=128,
         workers=0,
         dataset_dir="D:\\Dataset\\train",
-        lambda_val=1e-5,
+        lambda_val=1e-3,
         mask_update_freq=100,
         alpha_initial=1.0,
         alpha_final=50.0,
