@@ -42,7 +42,7 @@ class SparseSimSiam(SimSiam):
                 self.s_params[s_name] = nn.Parameter(torch.ones_like(module.weight)) # [修正] s 初始為1
         
         # 初始化 s 參數
-        self._initialize_s_params(mean=1.0, std=0.01) # [修正] 初始化 s_params 的均值為 1
+        self._initialize_s_params(mean=0.0, std=0.1) # [修正] 初始化 s_params 的均值為 1
 
     def _initialize_s_params(self, mean=1.0, std=0.01):
         """初始化 s 參數。"""
