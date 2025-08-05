@@ -22,7 +22,8 @@ common_train_params = {
 def main():
     model_trainer = ADS_SSL_training_flow.ADS_SSL_Model(
         pretrained_model_class=models.shufflenet_v2_x0_5,
-        base_lr=0.05
+        base_lr=0.05,
+
     )
     model_trainer.train(
         num_epochs=100,
@@ -33,7 +34,8 @@ def main():
         mask_update_freq=100,
         alpha_initial=1.0,
         alpha_final=50.0,
-        lr_mask=0.01
+        lr_mask=0.01,
+        momentum=0.5
     )
 
 

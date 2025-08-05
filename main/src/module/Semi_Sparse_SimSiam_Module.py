@@ -108,7 +108,7 @@ class SparseSimSiam(SimSiam):
                     target_module.weight.data = original_target_weights[s_name_prefix]
 
 
-    def forward(self, x1, x2, alpha):
+    def forward(self, x1, x2, alpha, momentum=None):
         """
         模型的前向傳播。
         
@@ -125,6 +125,8 @@ class SparseSimSiam(SimSiam):
 
         # --- 目標分支 (Target Branch) ---
         # 1. 在前向傳播前，先更新目標網路的 EMA 權重
+        if momentum is not None:
+            self.momentum = momentum
         self._update_target_network_ema()
 
         # 2. 進入稀疏上下文，此時目標網路的權重會被臨時替換為稀疏且 detach 的版本

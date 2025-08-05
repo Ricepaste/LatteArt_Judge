@@ -107,6 +107,7 @@ class ADS_SSL_Model:
         alpha_final: float = 50.0,        # Alpha 退火最終值
         lr_weights: Optional[float] = None, # 權重優化器的學習率
         lr_mask: float = 0.01,            # 遮罩優化器的學習率
+        momentum: float = 0.5,            # 動量編碼器的動量
     ):
         # --- Dataset Initialization ---
         self.dataset_initialize(
@@ -197,7 +198,7 @@ class ADS_SSL_Model:
                         self.optimizer_s.zero_grad()
 
                         # 5a. 模型前向傳播 (V3 版本)
-                        p1, z2 = self.model(img0, img1, alpha=current_alpha)
+                        p1, z2 = self.model(img0, img1, alpha=current_alpha, momentum=momentum)
                         
                         # 5b. 手動計算損失
                         loss_sim = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
