@@ -132,7 +132,7 @@ class ADS_SSL_Model:
             self.model.s_params.parameters(),
             lr=lr_mask
         )
-        
+
         # 權重的學習率調度器
         self.scheduler_w = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_w, T_max=num_epochs)
 
@@ -155,6 +155,7 @@ class ADS_SSL_Model:
             "alpha_final": alpha_final,
             "lr_weights": lr_weights,
             "lr_mask": lr_mask,
+            "momentum_ema": momentum,
             "optimizer_w": self.optimizer_w.__class__.__name__,
             "optimizer_s": self.optimizer_s.__class__.__name__,
         }
@@ -164,43 +165,41 @@ class ADS_SSL_Model:
         # --- Training Loop ---
         total_steps = num_epochs * len(self.dataloaders["train"])
         
+        # [新增] 在初始化時計算一次總參數數量
+        total_mask_elements = 0
+        for s in self.model.s_params.values():
+            total_mask_elements += s.numel()
+        self.total_mask_elements = total_mask_elements
+
         for epoch in tqdm(range(num_epochs), unit="epochs", dynamic_ncols=True):
             for phase in ["train", "val"]:
                 if phase == "train":
                     self.model.train()
                 else:
                     self.model.eval()
-                    features = []
-                    labels = []
+                    # [修正] val_features 和 val_labels 移到循環外
+                    val_features = []
+                    val_labels = []
 
                 running_loss = 0.0
                 running_loss_sim = 0.0
                 running_loss_l1 = 0.0
 
-                for i, (img0, img1, label) in enumerate(
-                    tqdm(self.dataloaders[phase], unit="batchs", leave=False, dynamic_ncols=True)
-                ):
-                    img0, img1 = img0.to(self.device), img1.to(self.device)
-                    label = label.to(self.device)
+                dataloader_iterator = tqdm(self.dataloaders[phase], unit="batchs", leave=False, dynamic_ncols=True)
+                for i, (img0, img1, label) in enumerate(dataloader_iterator):
+                    img0, img1, label = img0.to(self.device), img1.to(self.device), label.to(self.device)
 
-                    global_step = epoch * len(self.dataloaders["train"]) + i
-                    progress = min(global_step / total_steps, 1.0)
-                    current_alpha = alpha_initial + (alpha_final - alpha_initial) * progress
-
-                    total_mask_elements = 0
-                    for s in self.model.s_params.values():
-                        total_mask_elements += s.numel()
-                    self.total_mask_elements = total_mask_elements # 存起來
-
-                    # --- [修正] 核心訓練/驗證邏輯 ---
                     if phase == "train":
-                        self.optimizer_w.zero_grad()
-                        self.optimizer_s.zero_grad()
+                        global_step = epoch * len(self.dataloaders["train"]) + i
+                        progress = min(global_step / total_steps, 1.0)
+                        current_alpha = alpha_initial + (alpha_final - alpha_initial) * progress
 
-                        # 5a. 模型前向傳播 (V3 版本)
+                        self.optimizer_w.zero_grad()
+
+                        # 模型前向傳播
                         p1, z2 = self.model(img0, img1, alpha=current_alpha, momentum=momentum)
                         
-                        # 5b. 手動計算損失
+                        # 手動計算損失
                         loss_sim = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
                         
                         # 將 loss_l1 初始化為一個在正確設備上的 0 維張量
@@ -217,6 +216,7 @@ class ADS_SSL_Model:
                         self.optimizer_w.step()
                         if global_step % mask_update_freq == 0:
                             self.optimizer_s.step()
+                            self.optimizer_s.zero_grad()
                         
                         loss = total_loss
                         running_loss_sim += loss_sim.item() * img0.size(0)
@@ -224,15 +224,18 @@ class ADS_SSL_Model:
 
                     elif phase == "val":
                         with torch.no_grad():
-                            # 5c. 驗證模式前向傳播 (V3 版本)
-                            p1, z2 = self.model(img0, img1, alpha=alpha_final)
+                            # [修正] 分兩步執行：先計算損失，再提取特徵
                             
-                            # 驗證時只計算 sim loss
-                            loss = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
+                            # 1. 計算驗證損失
+                            # 調用訓練時的 forward 方法來獲取 p1 和 z2
+                            p1_val, z2_val = self.model(img0, img1, alpha=alpha_final, momentum=momentum)
+                            loss = -(F.normalize(p1_val, dim=1) * F.normalize(z2_val, dim=1)).sum(dim=1).mean()
 
-                            y1 = self.model.encoder(img0).mean([2, 3])
-                            features.append(y1.cpu().numpy())
-                            labels.append(label.cpu().numpy())
+                            # 2. 提取用於 KNN 的特徵
+                            # 調用 inference 方法
+                            features_batch = self.model.inference(img0, use_hard_mask=True)
+                            val_features.append(features_batch.cpu().numpy())
+                            val_labels.append(label.cpu().numpy())
 
                     running_loss += loss.item() * img0.size(0)
 
@@ -242,26 +245,43 @@ class ADS_SSL_Model:
                 if phase == "train":
                     epoch_loss_sim = running_loss_sim / self.dataset_sizes[phase]
                     epoch_loss_l1 = running_loss_l1 / self.dataset_sizes[phase]
-                    
+
                     self.writer.add_scalar("training/loss_total", epoch_loss, epoch)
                     self.writer.add_scalar("training/loss_sim", epoch_loss_sim, epoch)
                     self.writer.add_scalar("training/loss_l1", epoch_loss_l1, epoch)
                     self.writer.add_scalar("training/learning_rate_w", self.optimizer_w.param_groups[0]['lr'], epoch)
+
+                    # [可選] 在每個 epoch 結束時也記錄一次最終的稀疏度
+                    # 這可以提供一個更平滑的 epoch-level 視圖
+                    with torch.no_grad():
+                        total_elements_epoch = 0
+                        non_zero_elements_epoch = 0
+                        for s in self.model.s_params.values():
+                            m = torch.sigmoid(current_alpha * s) # 使用該 epoch 最後的 alpha
+                            hard_mask = (m > 0.5).float()
+                            total_elements_epoch += hard_mask.numel()
+                            non_zero_elements_epoch += hard_mask.sum().item()
+                        
+                        if total_elements_epoch > 0:
+                            epoch_sparsity = 1.0 - (non_zero_elements_epoch / total_elements_epoch)
+                        else:
+                            epoch_sparsity = 0.0
+                        
+                        self.writer.add_scalar("training/epoch_sparsity", epoch_sparsity, epoch)
+                        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} | Sparsity: {epoch_sparsity:.4f}")
+
                     print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} (Sim: {epoch_loss_sim:.4f}, L1: {epoch_loss_l1:.4f})")
                 
                 elif phase == "val":
-                    # (這部分與原程式碼完全相同)
-                    knn_features = np.concatenate(features, axis=0)
-                    knn_labels = np.concatenate(labels, axis=0)
-                    train_features, test_features, train_labels, test_labels = (
-                        train_test_split(knn_features, knn_labels, test_size=0.5, random_state=0)
-                    )
+                    knn_features = np.concatenate(val_features, axis=0)
+                    knn_labels = np.concatenate(val_labels, axis=0)
+                    train_features, test_features, train_labels, test_labels = train_test_split(knn_features, knn_labels, test_size=0.5, random_state=0)
                     knn = KNeighborsClassifier(n_neighbors=5)
                     knn.fit(train_features, train_labels)
                     predictions = knn.predict(test_features)
                     knn_accuracy = accuracy_score(test_labels, predictions)
 
-                    self.writer.add_scalar("validation/loss", epoch_loss, epoch)
+                    self.writer.add_scalar("validation/loss", epoch_loss, epoch) 
                     self.writer.add_scalar("validation/knn_accuracy", knn_accuracy, epoch)
                     print(f"Epoch {epoch+1}/{num_epochs} - Val Loss: {epoch_loss:.4f} | KNN Accuracy: {knn_accuracy:.4f}")
 

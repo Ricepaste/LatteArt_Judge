@@ -141,3 +141,56 @@ class SparseSimSiam(SimSiam):
         # SimSiam 損失的計算將在訓練腳本中進行
         # 返回 p1 和 z2_target
         return p1, z2_target
+    
+     # [新增] 用於推論和評估的專用方法
+    @torch.no_grad()
+    def inference(self, x, use_hard_mask=True, threshold=0.5):
+        """
+        使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。
+
+        Args:
+            x (Tensor): 輸入圖像。
+            use_hard_mask (bool): 是否使用硬性的二元遮罩 (0/1)。
+                                  若為 False，則使用 sigmoid 產生的軟遮罩。
+            threshold (float): 將軟遮罩轉換為硬遮罩時的閾值。
+
+        Returns:
+            Tensor: 稀疏編碼器提取的特徵。
+        """
+        # 這個方法的核心是臨時修改 *線上網路* 的 encoder 權重
+        
+        original_online_weights = {}
+        try:
+            # 進入一個臨時的稀疏模式：替換線上 encoder 的權重
+            for name, module in self.encoder.named_modules():
+                s_name = name.replace('.', '_')
+                if isinstance(module, (nn.Conv2d, nn.Linear)) and s_name in self.s_params:
+                    # 1. 保存線上網路的原始權重
+                    original_online_weights[name] = module.weight.data
+                    
+                    # 2. 計算稀疏權重
+                    w_online = module.weight.data # 這次使用線上權重，不是 detach 的
+                    s = self.s_params[s_name]
+                    # Alpha 在這裡不再需要，因為我們直接生成硬遮罩
+                    m = torch.sigmoid(s) # 可以用一個大的 alpha，或直接用 s 的符號，但 sigmoid(s) 更直接
+                    
+                    if use_hard_mask:
+                        mask = (m > threshold).float()
+                    else:
+                        mask = m # 使用軟遮罩
+                    
+                    sparse_weight = w_online * mask
+                    
+                    # 3. 直接替換模組的權重
+                    module.weight.data = sparse_weight
+            
+            # 執行前向傳播
+            features = self.encoder(x).mean([2, 3])
+
+        finally:
+            # 退出：恢復線上 encoder 的原始權重
+            for name, module in self.encoder.named_modules():
+                 if name in original_online_weights:
+                    module.weight.data = original_online_weights[name]
+        
+        return features
