@@ -184,6 +184,7 @@ class ADS_SSL_Model:
                 running_loss = 0.0
                 running_loss_sim = 0.0
                 running_loss_l1 = 0.0
+                running_loss_struct = 0.0
 
                 dataloader_iterator = tqdm(self.dataloaders[phase], unit="batchs", leave=False, dynamic_ncols=True)
                 for i, (img0, img1, label) in enumerate(dataloader_iterator):
@@ -197,10 +198,13 @@ class ADS_SSL_Model:
                         self.optimizer_w.zero_grad()
 
                         # 模型前向傳播
-                        p1, z2 = self.model(img0, img1, alpha=current_alpha, momentum=momentum)
+                        p1, z2, z2_dense = self.model(img0, img1, alpha=current_alpha, momentum=momentum)
                         
                         # 手動計算損失
                         loss_sim = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
+
+                        # 密集結構損失
+                        loss_struct = -(F.normalize(z2, dim=1) * F.normalize(z2_dense.detach(), dim=1)).sum(dim=1).mean()
                         
                         # 將 loss_l1 初始化為一個在正確設備上的 0 維張量
                         loss_l1 = torch.tensor(0.0, device=self.device)
@@ -210,7 +214,7 @@ class ADS_SSL_Model:
                             
                         # [修正] 歸一化 L1 損失
                         normalized_loss_l1 = loss_l1 / self.total_mask_elements
-                        total_loss = loss_sim + lambda_val * normalized_loss_l1
+                        total_loss = loss_sim + lambda_val * normalized_loss_l1 + 0.5 * loss_struct
 
                         total_loss.backward()
                         self.optimizer_w.step()
@@ -221,6 +225,7 @@ class ADS_SSL_Model:
                         loss = total_loss
                         running_loss_sim += loss_sim.item() * img0.size(0)
                         running_loss_l1 += normalized_loss_l1.item() * img0.size(0)
+                        running_loss_struct += loss_struct.item() * img0.size(0)
 
                     elif phase == "val":
                         with torch.no_grad():
@@ -228,7 +233,7 @@ class ADS_SSL_Model:
                             
                             # 1. 計算驗證損失
                             # 調用訓練時的 forward 方法來獲取 p1 和 z2
-                            p1_val, z2_val = self.model(img0, img1, alpha=alpha_final, momentum=momentum)
+                            p1_val, z2_val, _ = self.model(img0, img1, alpha=alpha_final, momentum=momentum)
                             loss = -(F.normalize(p1_val, dim=1) * F.normalize(z2_val, dim=1)).sum(dim=1).mean()
 
                             # 2. 提取用於 KNN 的特徵
@@ -245,10 +250,12 @@ class ADS_SSL_Model:
                 if phase == "train":
                     epoch_loss_sim = running_loss_sim / self.dataset_sizes[phase]
                     epoch_loss_l1 = running_loss_l1 / self.dataset_sizes[phase]
+                    epoch_loss_struct = running_loss_struct / self.dataset_sizes[phase]
 
                     self.writer.add_scalar("training/loss_total", epoch_loss, epoch)
                     self.writer.add_scalar("training/loss_sim", epoch_loss_sim, epoch)
                     self.writer.add_scalar("training/loss_l1", epoch_loss_l1, epoch)
+                    self.writer.add_scalar("training/loss_struct", epoch_loss_struct, epoch)
                     self.writer.add_scalar("training/learning_rate_w", self.optimizer_w.param_groups[0]['lr'], epoch)
 
                     # [可選] 在每個 epoch 結束時也記錄一次最終的稀疏度
@@ -270,7 +277,7 @@ class ADS_SSL_Model:
                         self.writer.add_scalar("training/epoch_sparsity", epoch_sparsity, epoch)
                         print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} | Sparsity: {epoch_sparsity:.4f}")
 
-                    print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} (Sim: {epoch_loss_sim:.4f}, L1: {epoch_loss_l1:.4f})")
+                    print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} (Sim: {epoch_loss_sim:.4f}, L1: {epoch_loss_l1:.4f}, struct: {epoch_loss_struct:.4f})")
                 
                 elif phase == "val":
                     knn_features = np.concatenate(val_features, axis=0)

@@ -1,196 +1,222 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import copy # 用於深度複製模型
-from contextlib import contextmanager
-from src.module.SimSiam_Module import SimSiam, SimSiamLoss_unsymmetric
+import copy
+from src.module.SimSiam_Module import SimSiam
+
+# 為了讓 isinstance 能夠工作，我們需要從 torchvision 導入這些類
+# 請確保您的環境中安裝了 torchvision
+try:
+    from torchvision.models.shufflenetv2 import InvertedResidual, channel_shuffle # type: ignore
+except ImportError:
+    print("Warning: Could not import InvertedResidual or channel_shuffle from torchvision.")
+    print("The model may not work correctly with ShuffleNetV2.")
+    # 定義一個假的類，以防導入失敗，避免程序崩潰，但功能會受限
+    class InvertedResidual(nn.Module): pass
+    def channel_shuffle(x, groups): return x
+
 
 class SparseSimSiam(SimSiam):
     def __init__(self, *args, **kwargs):
         super(SparseSimSiam, self).__init__(*args, **kwargs)
 
-        # s_params 的創建和初始化 (為線上網路服務)
         self.s_params = nn.ParameterDict()
-        self._create_s_params_for_online() # [修正] s_params 現在只關聯線上網路的結構
-
-        # [新增] 目標網路的 EMA 權重副本
-        # 這些是普通的 nn.Module，它們的權重將透過 EMA 更新，不參與梯度計算
-        self.target_encoder = copy.deepcopy(self.encoder)
-        self.target_projector = copy.deepcopy(self.projector)
+        # 遞歸地為 self.encoder 和 self.projector 創建 s_params
+        self._create_s_params_recursively(self.encoder, "encoder")
+        self._create_s_params_recursively(self.projector, "projector")
         
-        # 將目標網路的權重設置為不可訓練，它們只通過 EMA 更新
-        for param in self.target_encoder.parameters():
+        # 初始化 s_params 的均值為 1，以確保初始時為準密集模型
+        self._initialize_s_params(mean=0.5, std=0.01)
+
+        # 創建目標網路的 EMA 權重副本
+        self.sparse_target_encoder = copy.deepcopy(self.encoder)
+        self.sparse_target_projector = copy.deepcopy(self.projector)
+
+        self.dense_target_encoder = copy.deepcopy(self.encoder)
+        self.dense_target_projector = copy.deepcopy(self.projector)
+        
+        # 將目標網路的權重設置為不可訓練
+        for param in self.sparse_target_encoder.parameters():
             param.requires_grad = False
-        for param in self.target_projector.parameters():
+        for param in self.sparse_target_projector.parameters():
+            param.requires_grad = False
+        for param in self.dense_target_encoder.parameters():
+            param.requires_grad = False
+        for param in self.dense_target_projector.parameters():
             param.requires_grad = False
 
-        # [新增] EMA 動量係數
-        self.momentum = 0.5 # 參考 BYOL/DINO 的典型值
+        # 設置預設的 EMA 動量係數
+        self.momentum = 0.996
 
-    def _create_s_params_for_online(self):
-        """為線上網路的 encoder 和 projector 創建 s 參數。"""
-        # 為 encoder 中的卷積層創建 s 參數
-        for name, module in self.encoder.named_modules():
+    def _create_s_params_recursively(self, module_container, prefix):
+        """遞歸地為容器內的所有可稀疏化層創建 s 參數。"""
+        for name, module in module_container.named_children():
+            full_name = f"{prefix}_{name}"
+            s_key = full_name.replace('.', '_')
+            
             if isinstance(module, (nn.Conv2d, nn.Linear)):
-                s_name = name.replace('.', '_')
-                self.s_params[s_name] = nn.Parameter(torch.ones_like(module.weight)) # [修正] s 初始為1
-        
-        # 為 projector 中的線性層創建 s 參數
-        for name, module in self.projector.named_modules():
-             if isinstance(module, nn.Linear):
-                s_name = f"projector_{name.replace('.', '_')}"
-                self.s_params[s_name] = nn.Parameter(torch.ones_like(module.weight)) # [修正] s 初始為1
-        
-        # 初始化 s 參數
-        self._initialize_s_params(mean=0.0, std=0.1) # [修正] 初始化 s_params 的均值為 1
+                self.s_params[s_key] = nn.Parameter(torch.ones_like(module.weight))
+            # 如果子模組仍然是個容器，就遞歸進去
+            elif len(list(module.children())) > 0:
+                self._create_s_params_recursively(module, full_name)
 
     def _initialize_s_params(self, mean=1.0, std=0.01):
         """初始化 s 參數。"""
         for s in self.s_params.values():
             nn.init.normal_(s, mean=mean, std=std)
 
-    # [新增] EMA 更新目標網路權重的方法
     @torch.no_grad()
     def _update_target_network_ema(self):
-        """
-        使用 EMA 更新目標網路的權重。
-        注意：s_params 不在這裡更新，它們通過梯度下降更新。
-        """
-        # 更新 Encoder
-        for param_q, param_k in zip(self.encoder.parameters(), self.target_encoder.parameters()):
+        """使用 EMA 更新目標網路的權重。"""
+        for param_q, param_k in zip(self.encoder.parameters(), self.sparse_target_encoder.parameters()):
             param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
         
-        # 更新 Projector
-        for param_q, param_k in zip(self.projector.parameters(), self.target_projector.parameters()):
+        for param_q, param_k in zip(self.projector.parameters(), self.sparse_target_projector.parameters()):
             param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
 
-    @contextmanager
-    def _sparse_target_weight_context(self, alpha):
+        for param_q, param_k in zip(self.encoder.parameters(), self.dense_target_encoder.parameters()):
+            param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
+        
+        for param_q, param_k in zip(self.projector.parameters(), self.dense_target_projector.parameters()):
+            param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
+    
+    def _forward_sparse_recursively(self, module_container, current_input, prefix, alpha, weights_source, s_params_source):
         """
-        這個上下文管理器現在的作用是：
-        1. 臨時替換目標網路 (target_encoder, target_projector) 的權重。
-        2. 替換後的權重是 EMA 更新後的密集權重，再結合可學習的稀疏遮罩 's'。
-        3. 這些替換後的權重是 'detach' 的，確保不傳遞梯度給原始的 EMA 權重。
-        4. 但是，遮罩 'm' 來自 's_params'，而 's_params' 仍是可訓練的，梯度會流向它。
-        """
-        # 獲取目標網路的模組列表 (與線上網路結構相同)
-        target_modules_and_names = []
-        for name, module in self.target_encoder.named_modules():
-            if isinstance(module, (nn.Conv2d, nn.Linear)):
-                target_modules_and_names.append((f"{name.replace('.', '_')}", module))
-        for name, module in self.target_projector.named_modules():
-            if isinstance(module, nn.Linear):
-                target_modules_and_names.append((f"projector_{name.replace('.', '_')}", module))
-
-        original_target_weights = {}
-        try:
-            for s_name_prefix, target_module in target_modules_and_names:
-                if s_name_prefix in self.s_params: # 確保該層有對應的 s 參數
-                    # 1. 保存目標網路原始（EMA 更新後）的權重
-                    original_target_weights[s_name_prefix] = target_module.weight.data
-                    
-                    # 2. 計算稀疏權重
-                    # 從 target_module 獲取權重（EMA 更新後的），然後 detach
-                    w_ema_detached = target_module.weight.detach() 
-                    s = self.s_params[s_name_prefix] # 使用線上網路的 s_params
-                    m = torch.sigmoid(alpha * s)
-                    sparse_weight_for_forward = w_ema_detached * m
-                    
-                    # 3. 臨時替換目標模組的權重
-                    target_module.weight.data = sparse_weight_for_forward
-            
-            yield # 執行 with 語句塊中的代碼 (即 target network 的 forward)
-
-        finally:
-            # 退出上下文：恢復目標網路的原始權重（EMA 更新後的）
-            for s_name_prefix, target_module in target_modules_and_names:
-                if s_name_prefix in original_target_weights:
-                    target_module.weight.data = original_target_weights[s_name_prefix]
-
-
-    def forward(self, x1, x2, alpha, momentum=None):
-        """
-        模型的前向傳播。
+        通用的遞歸式稀疏前向傳播函數。
         
         Args:
-            x1 (Tensor): 第一個增強視圖 (用於線上網路)。
-            x2 (Tensor): 第二個增強視圖 (用於目標網路)。
-            alpha (float): Sigmoid 陡峭度係數。
+            module_container: 當前要處理的模組 (例如 self.target_encoder 或 self.encoder)。
+            current_input: 當前的輸入張量。
+            prefix: 用於查找 s_params 的名稱前綴。
+            alpha: Sigmoid 陡峭度係數。
+            weights_source: 包含權重的模組容器 (例如 self.target_encoder 或 self.encoder)。
+            s_params_source: 包含 s 參數的 ParameterDict (總是 self.s_params)。
         """
-        # --- 線上分支 (Online Branch) ---
-        # 線上網路的權重是正常訓練的密集權重
+        # 特殊處理 InvertedResidual 塊
+        if isinstance(module_container, InvertedResidual):
+            if module_container.stride == 1:
+                x1, x2 = current_input.chunk(2, dim=1)
+                # 對 branch2 進行遞歸，並傳入正確的分割後輸入 x2
+                branch2_out = self._forward_sparse_recursively(
+                    module_container.branch2, x2, f"{prefix}_branch2", alpha, weights_source.branch2, s_params_source
+                )
+                out = torch.cat((x1, branch2_out), dim=1)
+            else:
+                # 對兩個分支都進行遞歸
+                branch1_out = self._forward_sparse_recursively(
+                    module_container.branch1, current_input, f"{prefix}_branch1", alpha, weights_source.branch1, s_params_source
+                )
+                branch2_out = self._forward_sparse_recursively(
+                    module_container.branch2, current_input, f"{prefix}_branch2", alpha, weights_source.branch2, s_params_source
+                )
+                out = torch.cat((branch1_out, branch2_out), dim=1)
+            
+            return channel_shuffle(out, 2)
+
+        # 通用遍歷邏輯
+        for name, module in module_container.named_children():
+            full_name = f"{prefix}_{name}"
+            s_key = full_name.replace('.', '_')
+            
+            source_module = getattr(weights_source, name)
+
+            if isinstance(module, (nn.Conv2d, nn.Linear)):
+                weight = source_module.weight
+                bias = source_module.bias
+                
+                if s_key in s_params_source:
+                    s = s_params_source[s_key]
+                    mask = torch.sigmoid(alpha * s)
+                    weight = weight * mask
+                
+                if isinstance(module, nn.Conv2d):
+                    current_input = F.conv2d(current_input, weight, bias, module.stride, 
+                                             module.padding, module.dilation, module.groups)
+                elif isinstance(module, nn.Linear):
+                    current_input = F.linear(current_input, weight, bias)
+            
+            elif len(list(module.children())) > 0:
+                 current_input = self._forward_sparse_recursively(
+                     module, current_input, full_name, alpha, source_module, s_params_source
+                 )
+            
+            else:
+                current_input = module(current_input)
+        return current_input
+
+    def forward(self, x1, x2, alpha, momentum=None):
+        """訓練時使用的前向傳播方法。"""
+        # --- 線上分支 ---
         y1_online = self.encoder(x1).mean([2, 3])
         z1_online = self.projector(y1_online)
         p1 = self.predictor(z1_online)
 
-        # --- 目標分支 (Target Branch) ---
-        # 1. 在前向傳播前，先更新目標網路的 EMA 權重
+        # --- 目標分支 ---
         if momentum is not None:
             self.momentum = momentum
         self._update_target_network_ema()
 
-        # 2. 進入稀疏上下文，此時目標網路的權重會被臨時替換為稀疏且 detach 的版本
-        with self._sparse_target_weight_context(alpha):
-            # 確保整個目標網路的計算都在 torch.no_grad() 中進行
-            # 這是因為 target_encoder 和 target_projector 的 EMA 權重本身就不需要梯度
-            # 而 s_params 的梯度會通過 'm' 得到
-            with torch.no_grad(): # [修正] 確保這裡的 no_grad 覆蓋所有計算
-                y2_target_embedding = self.target_encoder(x2).mean([2, 3])
-                z2_target = self.target_projector(y2_target_embedding)
+        with torch.no_grad():
+            y2_dense = self.dense_target_encoder(x2).mean([2, 3])
+            z2_dense = self.dense_target_projector(y2_dense)
+        
+        # 調用遞歸式稀疏前向傳播
+        y2_embedding = self._forward_sparse_recursively(
+            self.sparse_target_encoder, x2, "encoder", alpha, self.sparse_target_encoder, self.s_params
+        )
+        y2_pooled = y2_embedding.mean([2, 3])
+        z2_target = self._forward_sparse_recursively(
+            self.sparse_target_projector, y2_pooled, "projector", alpha, self.sparse_target_projector, self.s_params
+        )
 
-        # SimSiam 損失的計算將在訓練腳本中進行
-        # 返回 p1 和 z2_target
-        return p1, z2_target
-    
-     # [新增] 用於推論和評估的專用方法
+        return p1, z2_target, z2_dense
+
     @torch.no_grad()
     def inference(self, x, use_hard_mask=True, threshold=0.5):
-        """
-        使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。
+        """使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。"""
+        # 在推論時，我們也使用遞歸函數，但權重來源是線上網路 self.encoder
+        # Alpha 在硬遮罩模式下不起作用，但我們傳入一個值以滿足函數簽名
+        inference_alpha = 100.0 # 一個大 alpha 值可以讓 sigmoid 更接近 0/1
 
-        Args:
-            x (Tensor): 輸入圖像。
-            use_hard_mask (bool): 是否使用硬性的二元遮罩 (0/1)。
-                                  若為 False，則使用 sigmoid 產生的軟遮罩。
-            threshold (float): 將軟遮罩轉換為硬遮罩時的閾值。
+        def inference_recursive(module_container, current_input, prefix):
+            if isinstance(module_container, InvertedResidual):
+                if module_container.stride == 1:
+                    x1, x2 = current_input.chunk(2, dim=1)
+                    branch2_out = inference_recursive(module_container.branch2, x2, f"{prefix}_branch2")
+                    out = torch.cat((x1, branch2_out), dim=1)
+                else:
+                    branch1_out = inference_recursive(module_container.branch1, current_input, f"{prefix}_branch1")
+                    branch2_out = inference_recursive(module_container.branch2, current_input, f"{prefix}_branch2")
+                    out = torch.cat((branch1_out, branch2_out), dim=1)
+                return channel_shuffle(out, 2)
 
-        Returns:
-            Tensor: 稀疏編碼器提取的特徵。
-        """
-        # 這個方法的核心是臨時修改 *線上網路* 的 encoder 權重
-        
-        original_online_weights = {}
-        try:
-            # 進入一個臨時的稀疏模式：替換線上 encoder 的權重
-            for name, module in self.encoder.named_modules():
-                s_name = name.replace('.', '_')
-                if isinstance(module, (nn.Conv2d, nn.Linear)) and s_name in self.s_params:
-                    # 1. 保存線上網路的原始權重
-                    original_online_weights[name] = module.weight.data
+            for name, module in module_container.named_children():
+                full_name = f"{prefix}_{name}"
+                s_key = full_name.replace('.', '_')
+                
+                if isinstance(module, (nn.Conv2d, nn.Linear)):
+                    weight = module.weight
+                    bias = module.bias
                     
-                    # 2. 計算稀疏權重
-                    w_online = module.weight.data # 這次使用線上權重，不是 detach 的
-                    s = self.s_params[s_name]
-                    # Alpha 在這裡不再需要，因為我們直接生成硬遮罩
-                    m = torch.sigmoid(s) # 可以用一個大的 alpha，或直接用 s 的符號，但 sigmoid(s) 更直接
+                    if s_key in self.s_params:
+                        s = self.s_params[s_key]
+                        m = torch.sigmoid(inference_alpha * s) # 使用大 alpha 得到接近 0/1 的軟遮罩
+                        mask = (m > threshold).float() if use_hard_mask else m
+                        weight = weight * mask
                     
-                    if use_hard_mask:
-                        mask = (m > threshold).float()
-                    else:
-                        mask = m # 使用軟遮罩
-                    
-                    sparse_weight = w_online * mask
-                    
-                    # 3. 直接替換模組的權重
-                    module.weight.data = sparse_weight
-            
-            # 執行前向傳播
-            features = self.encoder(x).mean([2, 3])
+                    if isinstance(module, nn.Conv2d):
+                        current_input = F.conv2d(current_input, weight, bias, module.stride, 
+                                                 module.padding, module.dilation, module.groups)
+                    elif isinstance(module, nn.Linear):
+                        current_input = F.linear(current_input, weight, bias)
+                
+                elif len(list(module.children())) > 0:
+                     current_input = inference_recursive(module, current_input, full_name)
+                
+                else:
+                    current_input = module(current_input)
+            return current_input
 
-        finally:
-            # 退出：恢復線上 encoder 的原始權重
-            for name, module in self.encoder.named_modules():
-                 if name in original_online_weights:
-                    module.weight.data = original_online_weights[name]
-        
-        return features
+        # 執行推論
+        features = inference_recursive(self.encoder, x, "encoder")
+        return features.mean([2, 3])
