@@ -29,17 +29,10 @@ class SparseSimSiam(SimSiam):
         self._initialize_s_params(mean=0.5, std=0.01)
 
         # 創建目標網路的 EMA 權重副本
-        self.sparse_target_encoder = copy.deepcopy(self.encoder)
-        self.sparse_target_projector = copy.deepcopy(self.projector)
-
         self.dense_target_encoder = copy.deepcopy(self.encoder)
         self.dense_target_projector = copy.deepcopy(self.projector)
         
         # 將目標網路的權重設置為不可訓練
-        for param in self.sparse_target_encoder.parameters():
-            param.requires_grad = False
-        for param in self.sparse_target_projector.parameters():
-            param.requires_grad = False
         for param in self.dense_target_encoder.parameters():
             param.requires_grad = False
         for param in self.dense_target_projector.parameters():
@@ -68,12 +61,6 @@ class SparseSimSiam(SimSiam):
     @torch.no_grad()
     def _update_target_network_ema(self):
         """使用 EMA 更新目標網路的權重。"""
-        for param_q, param_k in zip(self.encoder.parameters(), self.sparse_target_encoder.parameters()):
-            param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
-        
-        for param_q, param_k in zip(self.projector.parameters(), self.sparse_target_projector.parameters()):
-            param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
-
         for param_q, param_k in zip(self.encoder.parameters(), self.dense_target_encoder.parameters()):
             param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
         
@@ -147,8 +134,12 @@ class SparseSimSiam(SimSiam):
     def forward(self, x1, x2, alpha, momentum=None):
         """訓練時使用的前向傳播方法。"""
         # --- 線上分支 ---
-        y1_online = self.encoder(x1).mean([2, 3])
-        z1_online = self.projector(y1_online)
+        y1_online = self._forward_sparse_recursively(
+            self.encoder, x1, "encoder", alpha, self.encoder, self.s_params
+        ).mean([2, 3])
+        z1_online = self._forward_sparse_recursively(
+            self.projector, y1_online, "projector", alpha, self.projector, self.s_params
+        )
         p1 = self.predictor(z1_online)
 
         # --- 目標分支 ---
@@ -157,19 +148,10 @@ class SparseSimSiam(SimSiam):
         self._update_target_network_ema()
 
         with torch.no_grad():
-            y2_dense = self.dense_target_encoder(x2).mean([2, 3])
-            z2_dense = self.dense_target_projector(y2_dense)
-        
-        # 調用遞歸式稀疏前向傳播
-        y2_embedding = self._forward_sparse_recursively(
-            self.sparse_target_encoder, x2, "encoder", alpha, self.sparse_target_encoder, self.s_params
-        )
-        y2_pooled = y2_embedding.mean([2, 3])
-        z2_target = self._forward_sparse_recursively(
-            self.sparse_target_projector, y2_pooled, "projector", alpha, self.sparse_target_projector, self.s_params
-        )
+            y2_target = self.dense_target_encoder(x2).mean([2, 3])
+            z2_target = self.dense_target_projector(y2_target)
 
-        return p1, z2_target, z2_dense
+        return p1, z2_target
 
     @torch.no_grad()
     def inference(self, x, use_hard_mask=True, threshold=0.5):
