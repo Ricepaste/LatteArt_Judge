@@ -31,7 +31,7 @@ def main():
         workers=0,
         dataset_dir="D:\\Dataset\\train",
         # lambda_val=-5e-2,
-        lambda_val=1e-2,
+        lambda_val=5e-3,
         mask_update_freq=100,
         alpha_initial=10.0,
         alpha_final=10.0,
