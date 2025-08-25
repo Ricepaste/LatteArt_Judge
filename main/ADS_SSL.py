@@ -36,7 +36,8 @@ def main():
         alpha_initial=10.0,
         alpha_final=10.0,
         lr_mask=1e-2, #-3不會有明顯學習
-        momentum=0.996
+        # momentum=0.996
+        momentum=0.0
     )
 
 

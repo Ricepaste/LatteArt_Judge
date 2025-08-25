@@ -48,6 +48,7 @@ class SparseSimSiam(SimSiam):
 
         # 設置預設的 EMA 動量係數
         self.momentum = 0.996
+        self.mask_momentum = 0.996
 
     def _create_s_params_recursively(self, module_container, prefix):
         """遞歸地為容器內的所有可稀疏化層創建 s 參數。"""
@@ -80,7 +81,7 @@ class SparseSimSiam(SimSiam):
         for key in self.s_params.keys():
             s_q = self.s_params[key]         # 線上網路的 s 參數
             s_k = self.target_s_params[key]  # 目標網路的 s 參數
-            s_k.data.mul_(self.momentum).add_(s_q.data, alpha=1 - self.momentum)
+            s_k.data.mul_(self.mask_momentum).add_(s_q.data, alpha=1 - self.mask_momentum)
         # --- 新增結束 ---
     
     def _forward_sparse_recursively(self, module_container, current_input, prefix, alpha, weights_source, s_params_source):
