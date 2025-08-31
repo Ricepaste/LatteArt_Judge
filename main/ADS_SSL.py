@@ -26,12 +26,12 @@ def main():
 
     )
     model_trainer.train(
-        num_epochs=100,
+        num_epochs=150,
         batch_size=128,
         workers=0,
         dataset_dir="D:\\Dataset\\train",
         # lambda_val=-5e-2,
-        lambda_val=5e-3,
+        lambda_val=1e-4,
         mask_update_freq=100,
         alpha_initial=10.0,
         alpha_final=10.0,
