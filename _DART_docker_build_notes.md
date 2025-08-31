@@ -1,4 +1,4 @@
-# \_DART Docker Build Notes
+# \_DART Docker Build Note
 
 以下內容僅限在 DART 的 server 上 build 的過程筆記，若非 DART 成員請不要按照以下建議來 build container
 
