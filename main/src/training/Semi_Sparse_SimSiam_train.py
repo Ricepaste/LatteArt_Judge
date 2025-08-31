@@ -178,7 +178,8 @@ class ADS_SSL_Model:
                 else:
                     self.model.eval()
                     # [修正] val_features 和 val_labels 移到循環外
-                    val_features = []
+                    val_features_hardmask = []
+                    val_features_softmask = []
                     val_labels = []
 
                 running_loss = 0.0
@@ -217,6 +218,8 @@ class ADS_SSL_Model:
                         if global_step % mask_update_freq == 0:
                             self.optimizer_s.step()
                             self.optimizer_s.zero_grad()
+                            # # [新增] 更新遮罩 EMA
+                            # self.model.update_target_network_mask_ema()
                         
                         loss = total_loss
                         running_loss_sim += loss_sim.item() * img0.size(0)
@@ -233,8 +236,10 @@ class ADS_SSL_Model:
 
                             # 2. 提取用於 KNN 的特徵
                             # 調用 inference 方法
-                            features_batch = self.model.inference(img0, use_hard_mask=True)
-                            val_features.append(features_batch.cpu().numpy())
+                            features_batch_hardmask = self.model.inference(img0, use_hard_mask=True)
+                            features_batch_softmask = self.model.inference(img0, use_hard_mask=False, dense=True)
+                            val_features_hardmask.append(features_batch_hardmask.cpu().numpy())
+                            val_features_softmask.append(features_batch_softmask.cpu().numpy())
                             val_labels.append(label.cpu().numpy())
 
                     running_loss += loss.item() * img0.size(0)
@@ -273,23 +278,32 @@ class ADS_SSL_Model:
                     print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} (Sim: {epoch_loss_sim:.4f}, L1: {epoch_loss_l1:.4f})")
                 
                 elif phase == "val":
-                    knn_features = np.concatenate(val_features, axis=0)
+                    knn_features_hardmask = np.concatenate(val_features_hardmask, axis=0)
+                    knn_features_softmask = np.concatenate(val_features_softmask, axis=0)
+                    knn_features_dict = {"hard": knn_features_hardmask, "soft": knn_features_softmask}
                     knn_labels = np.concatenate(val_labels, axis=0)
-                    train_features, test_features, train_labels, test_labels = train_test_split(knn_features, knn_labels, test_size=0.5, random_state=0)
-                    knn = KNeighborsClassifier(n_neighbors=5)
-                    knn.fit(train_features, train_labels)
-                    predictions = knn.predict(test_features)
-                    knn_accuracy = accuracy_score(test_labels, predictions)
 
-                    self.writer.add_scalar("validation/loss", epoch_loss, epoch) 
-                    self.writer.add_scalar("validation/knn_accuracy", knn_accuracy, epoch)
-                    print(f"Epoch {epoch+1}/{num_epochs} - Val Loss: {epoch_loss:.4f} | KNN Accuracy: {knn_accuracy:.4f}")
+                    for mask_type, knn_features in knn_features_dict.items():
+                        train_features, test_features, train_labels, test_labels = train_test_split(knn_features, knn_labels, test_size=0.5, random_state=0)
+                        knn = KNeighborsClassifier(n_neighbors=5)
+                        knn.fit(train_features, train_labels)
+                        predictions = knn.predict(test_features)
+                        knn_accuracy = accuracy_score(test_labels, predictions)
 
-                    if knn_accuracy > best_knn_accuracy:
-                        best_knn_accuracy = knn_accuracy
-                        self.writer.add_scalar("validation/best_knn_accuracy", best_knn_accuracy, epoch)
-                        print(f"Saving best model at epoch {epoch+1} with KNN Accuracy: {best_knn_accuracy:.4f}")
-                        self.save_model(self.model, type="best")
+                        if mask_type == "hard":
+                            self.writer.add_scalar("validation/loss", epoch_loss, epoch) 
+                            self.writer.add_scalar("validation/knn_accuracy", knn_accuracy, epoch)
+                            print(f"Epoch {epoch+1}/{num_epochs} - Val Loss: {epoch_loss:.4f} | KNN Accuracy: {knn_accuracy:.4f}")
+
+                            if knn_accuracy > best_knn_accuracy:
+                                best_knn_accuracy = knn_accuracy
+                                self.writer.add_scalar("validation/best_knn_accuracy", best_knn_accuracy, epoch)
+                                print(f"Saving best model at epoch {epoch+1} with KNN Accuracy: {best_knn_accuracy:.4f}")
+                                self.save_model(self.model, type="best")
+
+                        elif mask_type == "soft":
+                            self.writer.add_scalar("validation/soft_knn_accuracy", knn_accuracy, epoch)
+                            print(f"Epoch {epoch+1}/{num_epochs} - Val Loss: {epoch_loss:.4f} | dense KNN Accuracy: {knn_accuracy:.4f}")
 
             # 在每個 epoch 結束後更新權重的學習率
             self.scheduler_w.step()
