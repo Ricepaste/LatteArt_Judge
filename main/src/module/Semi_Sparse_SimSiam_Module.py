@@ -77,6 +77,15 @@ class SparseSimSiam(SimSiam):
         for param_q, param_k in zip(self.projector.parameters(), self.dense_target_projector.parameters()):
             param_k.data.mul_(self.momentum).add_(param_q.data, alpha=1 - self.momentum)
 
+        # # --- 新增: 使用 EMA 更新目標網路的稀疏參數 (s_params) ---
+        # for key in self.s_params.keys():
+        #     s_q = self.s_params[key]         # 線上網路的 s 參數
+        #     s_k = self.target_s_params[key]  # 目標網路的 s 參數
+        #     s_k.data.mul_(self.mask_momentum).add_(s_q.data, alpha=1 - self.mask_momentum)
+        # # --- 新增結束 ---
+
+    @torch.no_grad()
+    def update_target_network_mask_ema(self):
         # --- 新增: 使用 EMA 更新目標網路的稀疏參數 (s_params) ---
         for key in self.s_params.keys():
             s_q = self.s_params[key]         # 線上網路的 s 參數
@@ -178,6 +187,7 @@ class SparseSimSiam(SimSiam):
         if momentum is not None:
             self.momentum = momentum
         self._update_target_network_ema() # 此方法現在會更新 dense_target_weights 和 target_s_params
+        self.update_target_network_mask_ema() # 會更新target network的mask
 
         with torch.no_grad(): # 目標分支不參與梯度計算
             # 目標編碼器使用 EMA 權重 (self.dense_target_encoder) 和 EMA 稀疏參數 (self.target_s_params)
@@ -192,12 +202,12 @@ class SparseSimSiam(SimSiam):
         return p1, z2_target
 
     @torch.no_grad()
-    def inference(self, x, use_hard_mask=True, threshold=0.5):
+    def inference(self, x, use_hard_mask=True, threshold=0.5, dense=False):
         """使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。"""
         # 推論時，我們使用線上網路的最終權重和學到的 s_params。
         # 目標網路及其 EMA 參數僅用於訓練過程。
         
-        inference_alpha = 100.0 # 一個大 alpha 值可以讓 sigmoid 更接近 0/1
+        inference_alpha = 10.0 # 一個大 alpha 值可以讓 sigmoid 更接近 0/1
 
         def inference_recursive(module_container, current_input, prefix):
             if isinstance(module_container, InvertedResidual):
@@ -242,5 +252,8 @@ class SparseSimSiam(SimSiam):
             return temp_input
 
         # 執行推論
-        features = inference_recursive(self.encoder, x, "encoder")
+        if dense:
+            features = self.encoder(x)
+        else:
+            features = inference_recursive(self.encoder, x, "encoder")
         return features.mean([2, 3])
