@@ -33,11 +33,11 @@ def main():
         # lambda_val=-5e-2,
         lambda_val=1e-4,
         mask_update_freq=100,
-        alpha_initial=10.0,
-        alpha_final=10.0,
+        alpha_initial=100.0,
+        alpha_final=100.0,
         lr_mask=1e-2, #-3不會有明顯學習
         # momentum=0.996
-        momentum=0.0
+        momentum=0.996
     )
 
 
