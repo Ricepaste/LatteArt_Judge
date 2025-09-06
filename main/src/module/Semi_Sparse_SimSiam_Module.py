@@ -26,7 +26,7 @@ class SparseSimSiam(SimSiam):
         self._create_s_params_recursively(self.projector, "projector")
         
         # 初始化 s_params 的均值為 1，以確保初始時為準密集模型
-        self._initialize_s_params(mean=0.5, std=0.01)
+        self._initialize_s_params(mean=1.0, std=0.01)
 
         # 創建目標網路的 EMA 權重副本
         self.dense_target_encoder = copy.deepcopy(self.encoder)
@@ -186,6 +186,7 @@ class SparseSimSiam(SimSiam):
         # --- 目標分支 (Target Branch) ---
         if momentum is not None:
             self.momentum = momentum
+            self.mask_momentum = momentum
         self._update_target_network_ema() # 此方法現在會更新 dense_target_weights 和 target_s_params
         self.update_target_network_mask_ema() # 會更新target network的mask
 
@@ -202,14 +203,14 @@ class SparseSimSiam(SimSiam):
         return p1, z2_target
 
     @torch.no_grad()
-    def inference(self, x, use_hard_mask=True, threshold=0.5, dense=False):
+    def inference(self, x, use_hard_mask=True, threshold=0.5, dense=False, alpha=10.0):
         """使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。"""
         # 推論時，我們使用線上網路的最終權重和學到的 s_params。
         # 目標網路及其 EMA 參數僅用於訓練過程。
         
-        inference_alpha = 10.0 # 一個大 alpha 值可以讓 sigmoid 更接近 0/1
+        inference_alpha = alpha # 一個大 alpha 值可以讓 sigmoid 更接近 0/1
 
-        def inference_recursive(module_container, current_input, prefix):
+        def inference_recursive(module_container, current_input, prefix, threshold=threshold, use_hard_mask=use_hard_mask):
             if isinstance(module_container, InvertedResidual):
                 if module_container.stride == 1:
                     x1, x2 = current_input.chunk(2, dim=1)
@@ -255,5 +256,5 @@ class SparseSimSiam(SimSiam):
         if dense:
             features = self.encoder(x)
         else:
-            features = inference_recursive(self.encoder, x, "encoder")
+            features = inference_recursive(self.encoder, x, "encoder", threshold, use_hard_mask)
         return features.mean([2, 3])
