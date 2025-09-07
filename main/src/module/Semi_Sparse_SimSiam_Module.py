@@ -93,7 +93,7 @@ class SparseSimSiam(SimSiam):
             s_k.data.mul_(self.mask_momentum).add_(s_q.data, alpha=1 - self.mask_momentum)
         # --- 新增結束 ---
     
-    def _forward_sparse_recursively(self, module_container, current_input, prefix, alpha, weights_source, s_params_source):
+    def _forward_sparse_recursively(self, module_container, current_input, prefix, alpha, weights_source, s_params_source, using_hard_mask=False):
         """
         通用的遞歸式稀疏前向傳播函數。
         
@@ -107,6 +107,7 @@ class SparseSimSiam(SimSiam):
                             實際的權重會從這裡獲取。
             s_params_source: 包含 s 參數的 ParameterDict (例如 self.s_params 或 self.target_s_params)。
                              稀疏遮罩會從這裡計算。
+            using_hard_mask: 是否使用 hard mask。
         """
         # 特殊處理 InvertedResidual 塊 (ShuffleNetV2)
         if isinstance(module_container, InvertedResidual):
@@ -149,7 +150,12 @@ class SparseSimSiam(SimSiam):
                 
                 if s_key in s_params_source:
                     s = s_params_source[s_key]
-                    mask = torch.sigmoid(alpha * s)
+                    if using_hard_mask == False:
+                        # 使用 Sigmoid 函數計算稀疏遮罩
+                        mask = torch.sigmoid(alpha * s)
+                    elif using_hard_mask == True:
+                        # 直接使用s作為0/1的稀疏遮罩，且s不再需要反向傳播
+                        mask = s.detach()
                     weight = weight * mask # 將權重與稀疏遮罩相乘
                 
                 if isinstance(module, nn.Conv2d):
@@ -170,16 +176,16 @@ class SparseSimSiam(SimSiam):
         return temp_input
 
 
-    def forward(self, x1, x2, alpha, momentum=None):
+    def forward(self, x1, x2, alpha, momentum=None, using_hard_mask=False):
         """訓練時使用的前向傳播方法。"""
         # --- 線上分支 (Online Branch) ---
         # 線上編碼器使用自己的可訓練權重 (self.encoder) 和可訓練 s_params (self.s_params)
         y1_online = self._forward_sparse_recursively(
-            self.encoder, x1, "encoder", alpha, self.encoder, self.s_params
+            self.encoder, x1, "encoder", alpha, self.encoder, self.s_params, using_hard_mask
         ).mean([2, 3])
         # 線上投影器使用自己的可訓練權重 (self.projector) 和可訓練 s_params (self.s_params)
         z1_online = self._forward_sparse_recursively(
-            self.projector, y1_online, "projector", alpha, self.projector, self.s_params
+            self.projector, y1_online, "projector", alpha, self.projector, self.s_params, using_hard_mask
         )
         p1 = self.predictor(z1_online)
 
@@ -193,11 +199,11 @@ class SparseSimSiam(SimSiam):
         with torch.no_grad(): # 目標分支不參與梯度計算
             # 目標編碼器使用 EMA 權重 (self.dense_target_encoder) 和 EMA 稀疏參數 (self.target_s_params)
             y2_target = self._forward_sparse_recursively(
-                self.encoder, x2, "encoder", alpha, self.dense_target_encoder, self.target_s_params
+                self.encoder, x2, "encoder", alpha, self.dense_target_encoder, self.target_s_params, using_hard_mask
             ).mean([2, 3])
             # 目標投影器使用 EMA 權重 (self.dense_target_projector) 和 EMA 稀疏參數 (self.target_s_params)
             z2_target = self._forward_sparse_recursively(
-                self.projector, y2_target, "projector", alpha, self.dense_target_projector, self.target_s_params
+                self.projector, y2_target, "projector", alpha, self.dense_target_projector, self.target_s_params, using_hard_mask
             )
 
         return p1, z2_target

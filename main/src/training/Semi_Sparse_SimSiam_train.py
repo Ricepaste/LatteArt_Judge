@@ -344,6 +344,7 @@ class ADS_SSL_Model:
         lr_mask: float = 0.01,            # 遮罩優化器的學習率
         momentum: float = 0.0,            # 動量編碼器的動量
         threshold = 0.5,
+        using_hard_mask: bool = False,     # 是否使用硬遮罩
     ):
         '''
         將前面訓練好的稀疏結構重新初始化參數，並重新訓練以驗證是否為彩票模型
@@ -353,6 +354,16 @@ class ADS_SSL_Model:
             DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
         )
         self.sparsity_threshold = threshold
+
+        # 檢查使用硬遮罩時，s是否已經是硬遮罩(0/1)的值，只能是0或1，若有其他值則報錯
+        if using_hard_mask:
+            for s in self.model.s_params.values():
+                s_unique_values = torch.unique(s)
+                if len(s_unique_values) != 2 or not (s_unique_values[0] == 0.0 and s_unique_values[1] == 1.0):
+                    raise ValueError("Using hard mask but s is not 0 or 1")
+            if self.sparsity_threshold != 0.5:
+                print(f"Warning: Using hard mask but sparsity threshold is not 0.5 (instead {self.sparsity_threshold}), threshold set to 0.5")
+                self.sparsity_threshold = 0.5
 
         # 如果沒有指定權重學習率，則使用 SimSiam 的標準縮放規則
         if lr_weights is None:
@@ -430,7 +441,7 @@ class ADS_SSL_Model:
                         self.optimizer_w.zero_grad()
 
                         # 模型前向傳播
-                        p1, z2 = self.model(img0, img1, alpha=current_alpha, momentum=momentum)
+                        p1, z2 = self.model(img0, img1, alpha=current_alpha, momentum=momentum, using_hard_mask=using_hard_mask)
                         
                         # 手動計算損失
                         loss_sim = -(F.normalize(p1, dim=1) * F.normalize(z2, dim=1)).sum(dim=1).mean()
@@ -448,7 +459,7 @@ class ADS_SSL_Model:
                             
                             # 1. 計算驗證損失
                             # 調用訓練時的 forward 方法來獲取 p1 和 z2
-                            p1_val, z2_val = self.model(img0, img1, alpha=alpha_final, momentum=momentum)
+                            p1_val, z2_val = self.model(img0, img1, alpha=alpha_final, momentum=momentum, using_hard_mask=using_hard_mask)
                             loss = -(F.normalize(p1_val, dim=1) * F.normalize(z2_val, dim=1)).sum(dim=1).mean()
 
                             # 2. 提取用於 KNN 的特徵
@@ -597,6 +608,34 @@ class ADS_SSL_Model:
 
                 if mask_type == "hard":
                     print(f"Validation KNN Accuracy (Mask Type: {mask_type}): {knn_accuracy:.5f}, Current Sparsity: {current_sparsity:.9f}, Current Threshold: {self.model.sparsity_threshold}")
+
+    def export_specific_threshold_model(self, threshold):
+        self.model.sparsity_threshold = threshold
+
+        # 將s_params中經過sigmoid大於特定閾值的轉為1, 小於等於的轉為0
+        for s in self.model.s_params.values():
+            m = torch.sigmoid(s)  # 使用該 epoch 最後的 alpha
+            hard_mask = (m > self.model.sparsity_threshold).float()
+            s.data = hard_mask
+
+        # --- Calculate current sparsity ---
+        total_elements = 0
+        non_zero_elements = 0
+        for s in self.model.s_params.values():
+            m = s  
+            hard_mask = (m > 0).float()
+            total_elements += hard_mask.numel()
+            non_zero_elements += hard_mask.sum().item()
+        
+        if total_elements > 0:
+            current_sparsity = 1.0 - (non_zero_elements / total_elements)
+        else:
+            current_sparsity = 0.0
+
+        print(f"Current Sparsity: {current_sparsity:.9f}, Current Threshold: {self.model.sparsity_threshold}")
+
+        self.writer = self.save_model(self.model, type="tensorboard_init")
+        self.save_model(self.model, type="best", filename_prefix=f"export_{current_sparsity:.5f}_ADS_SSL_SimSiam_")
 
     def save_model(
         self,
