@@ -26,7 +26,7 @@ class SparseSimSiam(SimSiam):
         self._create_s_params_recursively(self.projector, "projector")
         
         # 初始化 s_params 的均值為 1，以確保初始時為準密集模型
-        self._initialize_s_params(mean=1.0, std=0.01)
+        self._initialize_s_params(mean=0.0, std=0.01)
 
         # 創建目標網路的 EMA 權重副本
         self.dense_target_encoder = copy.deepcopy(self.encoder)
@@ -61,6 +61,26 @@ class SparseSimSiam(SimSiam):
             # 如果子模組仍然是個容器，就遞歸進去
             elif len(list(module.children())) > 0:
                 self._create_s_params_recursively(module, full_name)
+
+    @torch.no_grad()
+    def _apply_target_s_params_to_online(self):
+        """把目標網路的 s 參數套用到線上網路上面"""
+        for key, target_s_param in self.target_s_params.items():
+            self.s_params[key].data.copy_(target_s_param.data)
+    @torch.no_grad()
+    def _apply_target_w_params_to_online(self):
+        """把目標網路的 w 參數複製到線上網路上面"""
+        for param_q, param_k in zip(self.encoder.parameters(), self.dense_target_encoder.parameters()):
+            param_k.data.copy_(param_q.data)
+        for param_q, param_k in zip(self.projector.parameters(), self.dense_target_projector.parameters()):
+            param_k.data.copy_(param_q.data)
+        
+    @torch.no_grad()
+    def reinitialize_target_s_params(self):
+        for key, s_param in self.s_params.items():
+            # 使用 .data.clone() 複製數據，並設置 requires_grad=False，確保其不可訓練
+            self.target_s_params[key] = nn.Parameter(s_param.data.clone(), requires_grad=False)
+        
 
     def _initialize_s_params(self, mean=1.0, std=0.01):
         """初始化 s 參數。"""
@@ -194,7 +214,8 @@ class SparseSimSiam(SimSiam):
             self.momentum = momentum
             self.mask_momentum = momentum
         self._update_target_network_ema() # 此方法現在會更新 dense_target_weights 和 target_s_params
-        self.update_target_network_mask_ema() # 會更新target network的mask
+        if using_hard_mask is False:
+            self.update_target_network_mask_ema() # 會更新target network的mask
 
         with torch.no_grad(): # 目標分支不參與梯度計算
             # 目標編碼器使用 EMA 權重 (self.dense_target_encoder) 和 EMA 稀疏參數 (self.target_s_params)
@@ -209,14 +230,25 @@ class SparseSimSiam(SimSiam):
         return p1, z2_target
 
     @torch.no_grad()
-    def inference(self, x, use_hard_mask=True, threshold=0.5, dense=False, alpha=10.0):
-        """使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。"""
+    def inference(self, x, already_hard_mask=True, threshold=0.5, dense=False, alpha=10.0):
+        """使用訓練好的線上網路權重和學到的稀疏結構來提取特徵。
+        
+        Parameters:
+            x (torch.Tensor): Input tensor.
+            already_hard_mask (bool, optional): Is the mask already hard (1/0)? Defaults to True.
+            threshold (float, optional): Threshold value for generating sparse mask. Defaults to 0.5.
+            dense (bool, optional): Whether to use dense mask when generating sparse mask. Defaults to False.
+            alpha (float, optional): Alpha value for generating sparse mask. Defaults to 10.0.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
         # 推論時，我們使用線上網路的最終權重和學到的 s_params。
         # 目標網路及其 EMA 參數僅用於訓練過程。
         
         inference_alpha = alpha # 一個大 alpha 值可以讓 sigmoid 更接近 0/1
 
-        def inference_recursive(module_container, current_input, prefix, threshold=threshold, use_hard_mask=use_hard_mask):
+        def inference_recursive(module_container, current_input, prefix, threshold=threshold, already_hard_mask=already_hard_mask):
             if isinstance(module_container, InvertedResidual):
                 if module_container.stride == 1:
                     x1, x2 = current_input.chunk(2, dim=1)
@@ -241,8 +273,12 @@ class SparseSimSiam(SimSiam):
                     
                     if s_key in self.s_params:
                         s = self.s_params[s_key]
-                        m = torch.sigmoid(inference_alpha * s) # 使用大 alpha 得到接近 0/1 的軟遮罩
-                        mask = (m > threshold).float() if use_hard_mask else m
+                        if already_hard_mask:
+                            m = s.clone()
+                            mask = (m > 0).float()
+                        else:
+                            m = torch.sigmoid(inference_alpha * s) # 使用大 alpha 得到接近 0/1 的軟遮罩
+                            mask = (m > threshold).float()
                         weight = weight * mask
                     
                     if isinstance(module, nn.Conv2d):
@@ -262,5 +298,5 @@ class SparseSimSiam(SimSiam):
         if dense:
             features = self.encoder(x)
         else:
-            features = inference_recursive(self.encoder, x, "encoder", threshold, use_hard_mask)
+            features = inference_recursive(self.encoder, x, "encoder", threshold, already_hard_mask)
         return features.mean([2, 3])

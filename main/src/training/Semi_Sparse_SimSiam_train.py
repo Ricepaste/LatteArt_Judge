@@ -151,6 +151,9 @@ class ADS_SSL_Model:
         self.writer = self.save_model(self.model, type="tensorboard_init")
         assert isinstance(self.writer, SummaryWriter), "TensorBoard writer initialization failed"
 
+        # --- save model init weight for later lottery rewinding ---
+        self.save_model(self.model, type="init")
+
         since = time.time()
         best_knn_accuracy = -1.0
 
@@ -207,6 +210,7 @@ class ADS_SSL_Model:
                         current_alpha = alpha_initial + (alpha_final - alpha_initial) * progress
 
                         self.optimizer_w.zero_grad()
+                        self.optimizer_s.zero_grad()
 
                         # 模型前向傳播
                         p1, z2 = self.model(img0, img1, alpha=current_alpha, momentum=momentum)
@@ -226,12 +230,17 @@ class ADS_SSL_Model:
 
                         total_loss.backward()
                         self.optimizer_w.step()
+                        self.optimizer_s.step()
+                        '''
+                        # 將目標網路的權重更新到線上網路上
+
                         if global_step % mask_update_freq == 0:
-                            self.optimizer_s.step()
-                            self.optimizer_s.zero_grad()
+                            # self.optimizer_s.step()
+                            # self.optimizer_s.zero_grad()
+                            self.model._apply_target_w_params_to_online()
                             # # [新增] 更新遮罩 EMA
                             # self.model.update_target_network_mask_ema()
-                        
+                        '''
                         loss = total_loss
                         running_loss_sim += loss_sim.item() * img0.size(0)
                         running_loss_l1 += normalized_loss_l1.item() * img0.size(0)
@@ -247,8 +256,8 @@ class ADS_SSL_Model:
 
                             # 2. 提取用於 KNN 的特徵
                             # 調用 inference 方法
-                            features_batch_hardmask = self.model.inference(img0, use_hard_mask=True)
-                            features_batch_softmask = self.model.inference(img0, use_hard_mask=False, dense=True)
+                            features_batch_hardmask = self.model.inference(img0, already_hard_mask=False, dense=False)
+                            features_batch_softmask = self.model.inference(img0, already_hard_mask=False, dense=True)
                             val_features_hardmask.append(features_batch_hardmask.cpu().numpy())
                             val_features_softmask.append(features_batch_softmask.cpu().numpy())
                             val_labels.append(label.cpu().numpy())
@@ -306,6 +315,10 @@ class ADS_SSL_Model:
                             self.writer.add_scalar("validation/knn_accuracy", knn_accuracy, epoch)
                             print(f"Epoch {epoch+1}/{num_epochs} - Val Loss: {epoch_loss:.4f} | KNN Accuracy: {knn_accuracy:.4f}")
 
+                            if epoch == 6:
+                                print(f"Saving early rewinding model at epoch {epoch+1}")
+                                self.save_model(self.model, type="early")
+
                             if knn_accuracy > best_knn_accuracy:
                                 best_knn_accuracy = knn_accuracy
                                 self.writer.add_scalar("validation/best_knn_accuracy", best_knn_accuracy, epoch)
@@ -336,6 +349,7 @@ class ADS_SSL_Model:
         workers=0,
         dataset_dir=".\\LabelTool",
         # --- ADS-SSL Specific Parameters ---
+        load_rewind_weight = "",
         lambda_val: float = 1e-5,          # L1 稀疏正則化權重
         mask_update_freq: int = 100,      # 遮罩參數 's' 的更新頻率 (T)
         alpha_initial: float = 9999.0,       # Alpha 退火初始值
@@ -354,6 +368,20 @@ class ADS_SSL_Model:
             DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
         )
         self.sparsity_threshold = threshold
+        
+        self.model.reinitialize_target_s_params()
+
+        # --- load rewinding weight ---
+        if load_rewind_weight != "":
+            print(f"Loading rewinding weights from {load_rewind_weight}")
+            state_dict = torch.load(load_rewind_weight)
+            # 過濾掉 s_params，只載入模型的原始參數
+            model_dict = self.model.state_dict()
+            pretrained_dict = {k: v for k, v in state_dict.items() if 's_params' not in k}
+            model_dict.update(pretrained_dict)
+            self.model.load_state_dict(model_dict, strict=False)
+
+            print("Filtered model weights loaded.")
 
         # 檢查使用硬遮罩時，s是否已經是硬遮罩(0/1)的值，只能是0或1，若有其他值則報錯
         if using_hard_mask:
@@ -464,7 +492,7 @@ class ADS_SSL_Model:
 
                             # 2. 提取用於 KNN 的特徵
                             # 調用 inference 方法
-                            features_batch_hardmask = self.model.inference(img0, use_hard_mask=True)
+                            features_batch_hardmask = self.model.inference(img0, already_hard_mask=True)
                             val_features_hardmask.append(features_batch_hardmask.cpu().numpy())
                             val_labels.append(label.cpu().numpy())
 
@@ -588,8 +616,8 @@ class ADS_SSL_Model:
                 for img0, img1, label in self.dataloaders["val"]:
                     img0, img1, label = img0.to(self.device), img1.to(self.device), label.to(self.device)
                     
-                    features_batch_hardmask = self.model.inference(img0, use_hard_mask=True, threshold=self.model.sparsity_threshold, alpha=self.alpha)
-                    features_batch_softmask = self.model.inference(img0, use_hard_mask=False, dense=True)
+                    features_batch_hardmask = self.model.inference(img0, already_hard_mask=False, threshold=self.model.sparsity_threshold, alpha=self.alpha)
+                    features_batch_softmask = self.model.inference(img0, already_hard_mask=False, dense=True)
                     val_features_hardmask.append(features_batch_hardmask.cpu().numpy())
                     val_features_softmask.append(features_batch_softmask.cpu().numpy())
                     val_labels.append(label.cpu().numpy())
@@ -611,6 +639,7 @@ class ADS_SSL_Model:
 
     def export_specific_threshold_model(self, threshold):
         self.model.sparsity_threshold = threshold
+        # self.model._apply_target_s_params_to_online()
 
         # 將s_params中經過sigmoid大於特定閾值的轉為1, 小於等於的轉為0
         for s in self.model.s_params.values():
@@ -644,8 +673,17 @@ class ADS_SSL_Model:
         directory="./runs",
         type="best",
     ):
+        """
+        保存模型权重到指定目录，或初始化 tensorboard writer。
+
+        Args:
+            models: 要保存的模型 (可以是单个模型或模型列表)。
+            filename_prefix: 文件名前缀。
+            directory: 保存目录。
+            type: "init", "early", "last", "best", or "tensorboard_init"。
+        """
         # (這部分與原程式碼基本相同，只修改了前綴)
-        assert type in ["last", "best", "tensorboard_init"], "type an only be 'best', 'last', or 'tensorboard_init'"
+        assert type in ["init", "early", "last", "best", "tensorboard_init"], "type an only be 'init', 'best', 'last', or 'tensorboard_init'"
         os.makedirs(directory, exist_ok=True)
 
         if type == "tensorboard_init":

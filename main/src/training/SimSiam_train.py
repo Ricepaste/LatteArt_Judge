@@ -38,6 +38,7 @@ class SimSiam_Model:
         load_weight: str = "",
         base_lr=0.03,
     ) -> None:
+        
         self.base_lr = base_lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.weights = pretrained_weight
@@ -47,6 +48,7 @@ class SimSiam_Model:
             self.preprocess = self.weights.transforms()
         else:
             self.preprocess = None
+        self._is_lottery_validating = False
 
         # TODO: 這裡的 transform 需要再確認，尤其是 for SimSiam
         # SimSiam 通常需要更強的 Augmentation
@@ -128,6 +130,79 @@ class SimSiam_Model:
 
         self.dataset_sizes = {x: len(self.image_datasets[x]) for x in ["train", "val"]}
         print("Dataset sizes:", self.dataset_sizes)
+
+    def Lottery_validation(self, sparse_model_state_dict_path: str, rewind_weight_prams_path: str):
+        """
+        執行彩票假說的驗證設置。
+        將模型權重重置為倒帶點的權重，並應用從稀疏模型中提取的彩票結構。
+
+        Args:
+            sparse_model_state_dict_path (str): 最終稀疏模型 state_dict 的檔案路徑。
+                                                從中提取「彩票」結構 (非零連接的二元遮罩)。
+            rewind_weight_prams_path (str): 倒帶權重檔案的路徑。
+                                            預期是模型在倒帶點的 state_dict (通常是密集模型)。
+
+        Returns:
+            torch.nn.Module: 一個新的模型實例，其權重已根據彩票假說重新初始化：
+                             只有從稀疏模型中提取的「彩票」結構部分使用倒帶權重，
+                             其他部分則為零。
+        """
+        print(f"開始彩票假說驗證設置...")
+        print(f"載入倒帶權重來自: {rewind_weight_prams_path}")
+        print(f"載入稀疏模型 state_dict 來自: {sparse_model_state_dict_path}")
+
+        # 1. 創建一個新的模型實例，以避免修改原始 self.model
+        # 確保模型結構與訓練時一致
+        lottery_ticket_model = type(self.model)(self.pretrained_model) # 創建與 self.model 相同類型的新實例
+        lottery_ticket_model.to(self.device)
+
+        # 2. 載入倒帶權重 (Rewind Weights)
+        # 這些是你在訓練早期某個檢查點保存的權重 (通常是密集的)
+        rewind_state_dict = torch.load(rewind_weight_prams_path, map_location=self.device)
+        lottery_ticket_model.load_state_dict(rewind_state_dict)
+        print("倒帶權重載入成功。")
+
+        # 3. 載入最終稀疏模型的 state_dict，並從中提取二元遮罩
+        # 這個 state_dict 應該已經包含 0 值表示剪枝的連接
+        final_sparse_model_state_dict = torch.load(sparse_model_state_dict_path, map_location=self.device)
+        self.sparse_model_template = final_sparse_model_state_dict
+        print("最終稀疏模型 state_dict 載入成功。")
+
+        # 4. 套用彩票假說
+        lottery_ticket_model = self.apply_sparse_mask(lottery_ticket_model)
+        self._is_lottery_validating = True
+
+        return lottery_ticket_model
+
+    def apply_sparse_mask(self, lottery_ticket_model):
+        print("開始套用彩票假說...") if self._is_lottery_validating is False else None
+
+        # 提取彩票結構 (二元遮罩)
+        lottery_ticket_masks = {}
+        for name, param in lottery_ticket_model.named_parameters():
+            if "weight" in name and name in self.sparse_model_template:
+                # 從最終稀疏模型的權重中，提取出非零的部分作為遮罩
+                # 1 代表保留，0 代表剪枝
+                mask = (self.sparse_model_template[name] != 0).float()
+                lottery_ticket_masks[name] = mask
+                print(f"從 '{name}' 提取彩票遮罩。保留了 {mask.sum().item()}/{mask.numel()} 個連接。") if self._is_lottery_validating is False else None
+            elif "weight" in name:
+                print(f"警告: 權重 '{name}' 在最終稀疏模型 state_dict 中沒有找到，無法提取遮罩。") if self._is_lottery_validating is False else None
+                lottery_ticket_masks[name] = torch.ones_like(param.data) # 默認保留所有連接
+
+        # 4. 將提取出的二元遮罩應用到倒帶權重上
+        # 只有在彩票遮罩中為1的連接會保留其倒帶權重，為0的連接將被設置為零。
+        with torch.no_grad(): # 在此操作中不計算梯度
+            for name, param in lottery_ticket_model.named_parameters():
+                if "weight" in name and name in lottery_ticket_masks:
+                    mask = lottery_ticket_masks[name]
+                    # 應用遮罩：非零部分保持原樣 (倒帶權重)，零部分變成零
+                    param.data.mul_(mask) # 等同於 param.data = param.data * mask
+                # bias 通常不進行稀疏化，保持其倒帶值
+
+        print("模型已成功初始化為彩票子網路的倒帶權重。") if self._is_lottery_validating is False else None
+        self.model = lottery_ticket_model
+        return lottery_ticket_model
 
     def train(
         self,
@@ -663,6 +738,9 @@ class SimSiam_Model:
                                     raise RuntimeError(
                                         "Optimizer is None in standard training mode."
                                     )
+                                
+                                if self._is_lottery_validating is True:
+                                    self.apply_sparse_mask(self.model)
 
                         else:
                             # 應在函數開始時被捕捉，這裡作為防護
@@ -741,6 +819,9 @@ class SimSiam_Model:
                                 self.scheduler[1].step()
                         elif self.scheduler is not None:  # 標準模式的單一 scheduler
                             self.scheduler.step()
+                    elif epoch == 7 and rigl_mode == "baseline": # 儲存早期 epoch 的模型權重，以方便彩票驗證
+                        self.save_model(self.model, type="early")
+
                     # RigL 模式假定 LR scheduling 由 RigL 本身處理或不需要
 
                 # --- Epoch 階段結束的指標和記錄 ---
@@ -847,11 +928,12 @@ class SimSiam_Model:
             models: 要保存的模型 (可以是单个模型或模型列表)。
             filename_prefix: 文件名前缀。
             directory: 保存目录。
-            type: "best", "last", or "tensorboard_init"。
+            type: "best", "last", "early", or "tensorboard_init"。
         """
         assert type in [
             "last",
             "best",
+            "early",
             "tensorboard_init",
         ], "type 参数只能是 'best'、'last' 或 'tensorboard_init'"
 
@@ -903,8 +985,9 @@ class SimSiam_Model:
             # Use the log_dir from the initialized writer
             filepath = os.path.join(self.writer.log_dir, f"{type}.pt")
 
-        try:
-            torch.save(model_to_save.state_dict(), filepath)
-            # print(f"Model ({type}) saved to {filepath}")
-        except Exception as e:
-            print(f"Error saving model {type} to {filepath}: {e}")
+        if type == "best" or type == "last" or type == "early":
+            try:
+                torch.save(model_to_save.state_dict(), filepath)
+                # print(f"Model ({type}) saved to {filepath}")
+            except Exception as e:
+                print(f"Error saving model {type} to {filepath}: {e}")

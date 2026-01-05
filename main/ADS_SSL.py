@@ -22,10 +22,10 @@ common_train_params = {
 def main():
     model_trainer = ADS_SSL_training_flow.ADS_SSL_Model(
         pretrained_model_class=models.shufflenet_v2_x0_5,
-        load_weight="runs/ADS_SSL_SimSiam_47/best.pt",
+        load_weight="runs/ADS_SSL_SimSiam_110/best.pt",
         base_lr=0.05,
-        load_w_params=False,
-        load_s_params=True
+        load_w_params=True,
+        load_s_params=True,
     )
     # model_trainer.train(
     #     num_epochs=150,
@@ -34,9 +34,9 @@ def main():
     #     dataset_dir="D:\\Dataset\\train",
     #     # lambda_val=-5e-2,
     #     lambda_val=1e-4,
-    #     mask_update_freq=1,
-    #     alpha_initial=10.0,
-    #     alpha_final=10.0,
+    #     mask_update_freq=10,
+    #     alpha_initial=15.0,
+    #     alpha_final=15.0,
     #     lr_mask=1e-2, #-3不會有明顯學習
     #     # momentum=0.996
     #     momentum=0.996
@@ -44,14 +44,20 @@ def main():
 
     # model_trainer.varience_sparsity_eval()
 
+    # model_trainer.export_specific_threshold_model(threshold=0.5)
+
     model_trainer.rewind_train(
         num_epochs=150,
         batch_size=128,
         workers=0,
         dataset_dir="D:\\Dataset\\train",
+        load_rewind_weight="runs/ADS_SSL_SimSiam_109/early.pt",
         threshold=0.747,
+        using_hard_mask=True,
+        momentum=0.996,
     )
 
 
 if __name__ == "__main__":
+    # TODO: 準備測試剩10%參數的模型(高頻更新的CS)，開彩票
     main()
