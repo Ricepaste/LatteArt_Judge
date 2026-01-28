@@ -7,11 +7,11 @@ import src.training.SimSiam_train as SimSiam_train
 
 # 設置共用的訓練參數
 common_train_params = {
-    "num_epochs": 150,  # 可以設長一點試試
+    "num_epochs": 100,  # 可以設長一點試試
     "batch_size": 128,
     "workers": 0,  # 根據你的設備調整
     "dataset_dir": ".\\LabelTool",  # 你的資料集路徑
-    "rigl_dense_allocation": 0.1,  # RigL 稀疏度 (90% sparse)
+    "rigl_dense_allocation": 0.2,  # RigL 稀疏度 (80% sparse)
     "rigl_delta": 100,
     "rigl_alpha": 0.3,
     "consistency_lambda": 0.107,
@@ -23,15 +23,15 @@ def main():
     model_rigl_baseline = SimSiam_train.SimSiam_Model(
         base_lr=0.03
     )
-    model_rigl_baseline.Lottery_validation(
-        sparse_model_state_dict_path="./runs/shuffleNet_v05_SimSiam__7/best.pt",
-        rewind_weight_prams_path="./runs/shuffleNet_v05_SimSiam__7/early.pt",
-    )
+    # model_rigl_baseline.Lottery_validation(
+    #     sparse_model_state_dict_path="./runs/shuffleNet_v05_SimSiam__7/best.pt",
+    #     rewind_weight_prams_path="./runs/shuffleNet_v05_SimSiam__7/early.pt",
+    # )
     print("\n--- Running Baseline RigL on SimSiam ---")
     model_rigl_baseline.train(
         **common_train_params,
-        rigl_mode="none",  # 設置為 baseline
-        # rigl_mode="baseline",  # 設置為 baseline
+        # rigl_mode="none",  # 設置為 baseline
+        rigl_mode="baseline",  # 設置為 baseline
         grad_cache_chunk_size=0,  # 不使用 GradCache
     )
     # model_rigl_consistency = SimSiam_train.SimSiam_Model(base_lr=0.03)
