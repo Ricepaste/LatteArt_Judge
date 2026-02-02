@@ -47,7 +47,7 @@ class SimSiam(nn.Module):
         predictor_inner_dim = predictor_output_dim // 4
         # build a 2-layer predictor
         self.predictor = nn.Sequential(
-            nn.Linear(projector_inner_dim, predictor_inner_dim, bias=False),
+            nn.Linear(predictor_output_dim, predictor_inner_dim, bias=False),
             nn.BatchNorm1d(predictor_inner_dim),
             nn.ReLU(inplace=True),  # hidden layer
             nn.Linear(predictor_inner_dim, predictor_output_dim),
