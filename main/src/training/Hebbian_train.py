@@ -35,13 +35,28 @@ class Hebbian_SSL_Trainer:
         
         # 1. 準備 Backbone (Dense)
         self.backbone = pretrained_model_class(weights=pretrained_weight)
+        model_type = "shufflenet" if pretrained_model_class == models.shufflenet_v2_x0_5 else "resnet"
 
         # 2. 初始化 Hebbian_SimSiam 模型
         # 這會自動將 conv/linear 層替換為 HebbianSparseLayer
-        self.model = Hebbian_SimSiam(
-            self.backbone, 
-            target_sparsity=target_sparsity
-        ).to(self.device)
+        if model_type == "shufflenet":
+            self.model = Hebbian_SimSiam(
+                self.backbone, 
+                model_type='shufflenet',
+                encoder_output_dim=1024,
+                target_sparsity=target_sparsity
+            ).to(self.device)
+        elif model_type == "resnet":
+            self.model = Hebbian_SimSiam(
+                self.backbone, 
+                model_type='resnet',
+                encoder_output_dim=512,
+                projector_inner_dim=2048,
+                target_sparsity=target_sparsity
+            ).to(self.device)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
+
 
         # 3. 載入權重 (若有)
         if load_weight != "":
