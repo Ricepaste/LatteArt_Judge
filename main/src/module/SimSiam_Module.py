@@ -4,27 +4,56 @@ import torch.nn as nn
 import torch.nn.functional as F
 import copy
 import torch
+import warnings # 引入warnings以便在輸出維度不匹配時發出警告
 
 
 class SimSiam(nn.Module):
     def __init__(
         self,
         pretrained_model,
+        model_type='shufflenet',  # <--- 新增參數：指定模型類型
         encoder_output_dim=1024,
         projector_inner_dim=256,
     ):
         super(SimSiam, self).__init__()
 
-        # create the encoder
-        self.encoder = nn.Sequential(
-            pretrained_model.conv1,
-            pretrained_model.maxpool,
-            pretrained_model.stage2,
-            pretrained_model.stage3,
-            pretrained_model.stage4,
-            pretrained_model.conv5,
-        )
+        # --- 1. 根據 model_type 構建 encoder ---
+        if model_type == 'shufflenet':
+            # 原本的 ShuffleNetV2_0_5 結構
+            # 預期的 encoder_output_dim 可能是 1024
+            if encoder_output_dim != 1024:
+                warnings.warn(f"For 'shufflenet' type, encoder_output_dim is typically 1024. Received: {encoder_output_dim}")
 
+            self.encoder = nn.Sequential(
+                pretrained_model.conv1,
+                pretrained_model.maxpool,
+                pretrained_model.stage2,
+                pretrained_model.stage3,
+                pretrained_model.stage4,
+                pretrained_model.conv5,
+            )
+
+        elif model_type == 'resnet':
+            # ResNet18/34 等標準 PyTorch ResNet 結構
+            # 預期的 encoder_output_dim 應該是 512
+            if encoder_output_dim != 512:
+                warnings.warn(f"For standard 'resnet' type (e.g., resnet18), encoder_output_dim is typically 512. Received: {encoder_output_dim}")
+
+            # 將 ResNet 的所有特徵層組合成 encoder，忽略最後的 avgpool 和 fc 層
+            self.encoder = nn.Sequential(
+                pretrained_model.conv1,
+                pretrained_model.bn1,
+                pretrained_model.relu,
+                pretrained_model.maxpool,
+                pretrained_model.layer1,
+                pretrained_model.layer2,
+                pretrained_model.layer3,
+                pretrained_model.layer4,
+            )
+        else:
+            raise ValueError(f"Unsupported model_type: {model_type}. Must be 'shufflenet' or 'resnet'.")
+
+        # --- 2. 構建 projector (與原先相同) ---
         # build a 3-layer projector
         self.projector = nn.Sequential(
             nn.Flatten(),
@@ -38,6 +67,7 @@ class SimSiam(nn.Module):
             nn.BatchNorm1d(projector_inner_dim, affine=False),  # third layer
         )  # output layer
 
+        # --- 3. 構建 predictor (與原先相同) ---
         """
         according to the original paper, 
         predictor's output and projector's output vector should be the same size to calculate loss.
@@ -54,7 +84,9 @@ class SimSiam(nn.Module):
         )  # output layer
 
     def forward(self, x1, x2):
-        y1 = self.encoder(x1).mean([2, 3])
+        # 這裡的 .mean([2, 3]) 執行了 Global Average Pooling (GAP)
+        # GAP 是 SimSiam 在將特徵圖輸入 Projector 前的標準操作。
+        y1 = self.encoder(x1).mean([2, 3]) 
         y2 = self.encoder(x2).mean([2, 3])
         z1 = self.projector(y1)
         z2 = self.projector(y2)
@@ -66,13 +98,11 @@ class SimSiam(nn.Module):
 class SimSiam_online(SimSiam):
     # 繼承SimSiam類別
     def __init__(self, *args, **kwargs):
-        # temp_proj = kwargs.pop("shared_projector", None)
-        # temp_pred = kwargs.pop("shared_predictor", None)
+        # 確保所有參數正確傳遞給 SimSiam.__init__
         super(SimSiam_online, self).__init__(*args, **kwargs)
-        # self.projector = temp_proj
-        # self.predictor = temp_pred
 
     def forward(self, x1):
+        # ... (其餘部分不變)
         y1 = self.encoder(x1).mean([2, 3])
         z1 = self.projector(y1)
         p1 = self.predictor(z1)
@@ -83,6 +113,7 @@ class SimSiam_target(SimSiam):
     def __init__(self, *args, **kwargs):
         temp_online = kwargs.pop("online")
         assert isinstance(temp_online, SimSiam_online), "online network is required"
+        # 確保所有參數正確傳遞給 SimSiam.__init__ (包括 model_type 和 encoder_output_dim)
         super(SimSiam_target, self).__init__(*args, **kwargs)
         self.target = temp_online  # 直接共享參數
 
@@ -90,7 +121,7 @@ class SimSiam_target(SimSiam):
         with torch.no_grad():  # 確保 target 網路不參與梯度計算
             y1 = self.target.encoder(x1).mean([2, 3])
             z1 = self.target.projector(y1)
-        return z1.detach().requires_grad_()  # 額外 detach() 避免警告
+        return z1.detach() 
 
 
 class SimSiamLoss(nn.Module):
@@ -117,11 +148,6 @@ class SimSiamLoss(nn.Module):
         """計算總損失"""
         l1 = self.calculate_L1(p1, z2)
         l2 = self.calculate_L2(p2, z1)
-
-        # print(
-        #     f"DEBUG Loss: l1_mean = {l1.mean().item():.4f}, l2_mean = {l2.mean().item():.4f}"
-        # )
-
         loss = 0.5 * (l1.mean() + l2.mean())  # 計算平均損失
         return loss
 
