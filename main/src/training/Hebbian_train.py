@@ -24,7 +24,7 @@ from src.module.hebbian_SimSiam_Module import Hebbian_SimSiam
 class Hebbian_SSL_Trainer:
     def __init__(
         self,
-        pretrained_model_class=models.shufflenet_v2_x1_0,
+        pretrained_model_class=models.shufflenet_v2_x0_5,
         pretrained_weight=None,
         load_weight: str = "",
         base_lr=0.03,

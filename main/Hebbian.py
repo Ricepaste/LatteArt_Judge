@@ -4,7 +4,7 @@ import torchvision.models as models
 # --- Main Entry Point Example ---
 if __name__ == "__main__":
     trainer = Hebbian_SSL_Trainer(
-        pretrained_model_class=models.shufflenet_v2_x1_0,
+        pretrained_model_class=models.shufflenet_v2_x0_5,
         target_sparsity=0.8
     )
     
