@@ -9,13 +9,18 @@ class SET_SimSiam(SimSiam):
     def __init__(
         self,
         pretrained_model,
+        model_type='shufflenet', # <--- 新增參數
         encoder_output_dim=1024,
         projector_inner_dim=256,
         target_sparsity=0.8, # 目標稀疏度
         sparsify_projector=False # 通常 SSL 不稀疏化 projector，保持 dense 效果較好
     ):
         # 1. 呼叫原始 SimSiam 的 init，這會建立 self.encoder, self.projector 等
-        super().__init__(pretrained_model, encoder_output_dim, projector_inner_dim)
+        super().__init__(pretrained_model, 
+                         model_type=model_type, 
+                         encoder_output_dim=encoder_output_dim, 
+                         projector_inner_dim=projector_inner_dim
+                         )
         
         self.target_sparsity = target_sparsity
         

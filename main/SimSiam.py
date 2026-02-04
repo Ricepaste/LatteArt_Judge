@@ -21,6 +21,7 @@ common_train_params = {
 # TODO: 刪除無用的dataset_dir參數
 def main():
     model_rigl_baseline = SimSiam_train.SimSiam_Model(
+        pretrained_model=models.shufflenet_v2_x1_0,
         base_lr=0.03
     )
     # model_rigl_baseline.Lottery_validation(
