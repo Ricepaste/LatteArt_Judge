@@ -2,10 +2,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 # --- 1. 基礎赫布稀疏層 (支援 Pearson Correlation 與 Grouped Conv) ---
 class HebbianSparseLayer(nn.Module):
-    def __init__(self, layer, sparsity, hebbian_decay=0.99, subsample_rate=0.1):
+    def __init__(self, layer, sparsity, hebbian_decay=0.9, subsample_rate=0.1):
         """
         args:
             layer: 原始的 nn.Conv2d 或 nn.Linear
@@ -21,6 +22,13 @@ class HebbianSparseLayer(nn.Module):
         # 註冊 buffer (Mask & Score)
         self.register_buffer('mask', torch.ones_like(layer.weight))
         self.register_buffer('hebbian_score', torch.zeros_like(layer.weight))
+        
+        # 新增 Hebbian V3: 輸入特徵啟用率追蹤 (針對每個輸入通道 Firing Rate)
+        if isinstance(layer, nn.Conv2d):
+            in_channels = layer.weight.shape[1] * layer.groups
+        else:
+            in_channels = layer.weight.shape[1]
+        self.register_buffer('input_firing_score', torch.zeros(in_channels))
         
         # 初始化 Mask (Magnitude Pruning)
         self._init_mask()
@@ -50,44 +58,38 @@ class HebbianSparseLayer(nn.Module):
 
     def _compute_pearson_corr(self, x, y):
         """
-        計算 Pearson 相關係數 (含標準化)，支援 Grouped Conv。
-        Input x, y shape: (N_samples, [Groups], Features)
+        計算 Pearson 相關係數，支援 Grouped Conv。
         """
-        # 1. Subsampling (沿著 N_samples 維度)
+        # 1. 快速 Subsampling (使用 Boolean Mask 代替 randperm)
         if self.subsample_rate < 1.0 and self.training:
             num_samples = x.size(0)
-            perm = torch.randperm(num_samples, device=x.device)[:int(num_samples * self.subsample_rate)]
-            x = x[perm]
-            y = y[perm]
+            mask = torch.rand(num_samples, device=x.device) < self.subsample_rate
+            x = x[mask]
+            y = y[mask]
 
-        # 2. 標準化 (Center & Scale) over dim=0 (Batch)
-        # 加上極小值 1e-8 避免除以零
+        if x.size(0) < 2: return torch.zeros_like(self.layer.weight)
+
+        # 2. 標準化 (Center & Scale)
         x_centered = x - x.mean(dim=0, keepdim=True)
         y_centered = y - y.mean(dim=0, keepdim=True)
         
-        x_norm = x_centered / (x.std(dim=0, keepdim=True) + 1e-8)
-        y_norm = y_centered / (y.std(dim=0, keepdim=True) + 1e-8)
+        # 使用更有利的 GPU 計算標準差
+        x_std = torch.sqrt((x_centered**2).mean(dim=0, keepdim=True) + 1e-8)
+        y_std = torch.sqrt((y_centered**2).mean(dim=0, keepdim=True) + 1e-8)
+
+        x_norm = x_centered / x_std
+        y_norm = y_centered / y_std
 
         # 3. 計算相關矩陣
         N = x_norm.size(0)
         
         if x_norm.dim() == 2:
-            # Case 1: Standard Linear / Dense Conv (N, Feat)
-            # Correlation = (Y^T * X) / N
             corr = torch.matmul(y_norm.t(), x_norm) / N
-            
         elif x_norm.dim() == 3:
             # Case 2: Grouped Conv (N, Groups, Feat)
-            # 我們需要對每個 Group 分別做 (Y_g^T * X_g)
-            # Permute to (Groups, N, Feat) 以利用 bmm
             x_g = x_norm.permute(1, 0, 2) # (G, N, Di)
             y_g = y_norm.permute(1, 0, 2) # (G, N, Do)
-            
-            # bmm: (G, N, Do)^T * (G, N, Di) -> (G, Do, N) * (G, N, Di) -> (G, Do, Di)
-            # 注意: transpose(1, 2) 是交換後兩個維度
             corr = torch.bmm(y_g.transpose(1, 2), x_g) / N
-            
-            # 結果是 (Groups, Cout_per_group, Cin_per_group * K * K)
             
         return corr
 
@@ -97,6 +99,12 @@ class HebbianSparseLayer(nn.Module):
         
         x = input[0].detach()
         y = output.detach()
+        
+        # Hebbian V3: 計算 Firing Rate (特徵大於 0 的比例)
+        if x.dim() == 4:
+            firing_rate = (x > 0).float().mean(dim=(0, 2, 3))
+        else:
+            firing_rate = (x > 0).float().mean(dim=0)
 
         if isinstance(self.layer, nn.Conv2d):
             k_size = self.layer.kernel_size
@@ -104,41 +112,22 @@ class HebbianSparseLayer(nn.Module):
             padding = self.layer.padding
             groups = self.layer.groups
             
-            # 使用 unfold 將卷積輸入展平: (B, Cin*K*K, L)
+            # 使用 unfold 展開輸入
             x_unfold = F.unfold(x, k_size, dilation=1, padding=padding, stride=stride)
             
-            # 轉置為 (N_samples, Total_Features) -> (B*L, Cin*K*K)
-            x_flat = x_unfold.permute(0, 2, 1).contiguous().view(-1, x_unfold.size(1))
-            
-            # y: (B, Cout, H, W) -> (B, Cout, L) -> (B, L, Cout) -> (B*L, Cout)
-            y_flat = y.view(y.size(0), y.size(1), -1).permute(0, 2, 1).contiguous().view(-1, y.size(1))
+            # 轉換形狀 (B*H*W, C_total)
+            x_flat = x_unfold.permute(0, 2, 1).reshape(-1, x_unfold.size(1))
+            y_flat = y.permute(0, 2, 3, 1).reshape(-1, y.size(1))
             
             if groups > 1:
-                # --- Grouped Convolution 處理 ---
-                # x_flat: (N, Cin * K * K). 
-                # Cin = groups * Cin_per_group.
-                # Reshape x to (N, groups, Cin_per_group * K * K)
-                
-                # 注意：unfold 的輸出通道順序通常是 (Cin, K, K)。
-                # PyTorch Group Conv 假設 Cin 是按組排列的。
                 cin_per_group = x_unfold.size(1) // groups
-                x_grouped = x_flat.view(x_flat.size(0), groups, cin_per_group)
-                
-                # y_flat: (N, Cout). Cout = groups * Cout_per_group
                 cout_per_group = y_flat.size(1) // groups
+                x_grouped = x_flat.view(x_flat.size(0), groups, cin_per_group)
                 y_grouped = y_flat.view(y_flat.size(0), groups, cout_per_group)
-                
                 corr = self._compute_pearson_corr(x_grouped, y_grouped)
-                
-                # corr shape: (Groups, Cout_pg, Cin_pg * K * K)
-                # Weight shape: (Cout, Cin_pg, K, K) -> (Groups * Cout_pg, Cin_pg, K, K)
-                # 我們可以 Flatten 前兩個維度來匹配
-                
             else:
-                # --- Standard Convolution ---
                 corr = self._compute_pearson_corr(x_flat, y_flat)
             
-            # Reshape 回權重形狀
             current_corr = corr.reshape_as(self.layer.weight)
 
         elif isinstance(self.layer, nn.Linear):
@@ -147,49 +136,116 @@ class HebbianSparseLayer(nn.Module):
             current_corr = self._compute_pearson_corr(x_flat, y_flat)
             current_corr = current_corr.reshape_as(self.layer.weight)
 
-        # 更新動量分數 (取絕對值)
-        self.hebbian_score = self.hebbian_decay * self.hebbian_score + \
-                             (1 - self.hebbian_decay) * torch.abs(current_corr)
+        # 更新動量分數 (Hebbian V3)
+        if hasattr(self, 'hebbian_score') and current_corr is not None:
+            self.hebbian_score = self.hebbian_decay * self.hebbian_score + \
+                                 (1 - self.hebbian_decay) * torch.abs(current_corr)
+        
+        if hasattr(self, 'input_firing_score'):
+            self.input_firing_score = self.hebbian_decay * self.input_firing_score + \
+                                      (1 - self.hebbian_decay) * firing_rate
 
     def update_topology(self, grow_ratio=0.2):
+        """
+        更新拓樸結構 (Hebbian V3)：
+        1. 剪枝：純權重絕對值剪枝。
+        2. 生長 (Dual-Engine)：
+           - 25% 基於反赫布 (Anti-Hebbian)：Pearson 絕對值最小。
+           - 75% 基於資訊熵 (Entropy)：輸入 Firing Rate 最接近 0.5。
+           若剛被剪掉則改為隨機生長。
+        """
         with torch.no_grad():
             num_active = int(self.mask.sum().item())
             num_swap = int(num_active * grow_ratio)
-            if num_swap == 0: return
+            if num_swap <= 0: return
 
-            # 1. Prune (Drop 最小權重) -> 改為 Drop 最小 Pearson Score
-            # active_weights = torch.abs(self.layer.weight) * self.mask
-            # active_weights[self.mask == 0] = float('inf')
-            # threshold_drop = torch.topk(-active_weights.view(-1), num_swap).values[-1]
-            # drop_mask = (active_weights != float('inf')) & (-active_weights >= threshold_drop)
+            # --- 1. 剪枝 (Prune): 純權重強度 ---
+            w_abs = torch.abs(self.layer.weight) * self.mask
+            w_for_pruning = w_abs.clone()
+            w_for_pruning[self.mask == 0] = float('inf')
+            
+            _, drop_idx = torch.topk(-w_for_pruning.view(-1), num_swap)
+            drop_mask = torch.zeros_like(self.mask, dtype=torch.bool)
+            drop_mask.view(-1)[drop_idx] = True
 
-            # --- 1. 改良版 Prune (混合分數) ---
-            # A. 權重分數 (歸一化到 0~1 以便相加)
-            w_abs = torch.abs(self.layer.weight)
-            w_score = w_abs / (w_abs.max() + 1e-8)
-            # B. Hebbian 分數 (本來就在 0~1 之間，因為是 Pearson Correlation)
-            # 注意：hebbian_score 是 buffer，已經是動量平均過的
-            h_score = self.hebbian_score
-            # C. 混合分數 (lambda 可調，例如 0.5)
-            # 如果你希望 Hebbian 影響力大一點，可以設高一點，但不能完全捨棄 w_score
-            hybrid_score = w_score + 0.5 * h_score
-            # 只在 active 的連接中找最小的
-            hybrid_score = hybrid_score * self.mask
-            hybrid_score[self.mask == 0] = float('inf') # 避免選到已經是 0 的
-            threshold_drop = torch.topk(-hybrid_score.view(-1), num_swap).values[-1]
-            drop_mask = (hybrid_score != float('inf')) & (-hybrid_score >= threshold_drop)
+            # --- 2. 生長 (Grow): Hebbian V4 (2D Anti-Hebbian x 1D Entropy Joint Score) ---
+            # 目標：尋找絕對相關性最小 (最正交/新鮮) 且資訊熵最高 (Firing Rate 接近 0.5) 的連接
+            dead_mask = (self.mask == 0)
+            potential_pool = dead_mask | drop_mask
+            
+            proposed_grow_mask = torch.zeros_like(self.mask, dtype=torch.bool)
 
-            # 2. Grow (基於 Pearson Score 復活)
-            candidate_scores = self.hebbian_score * (1 - self.mask)
-            threshold_grow = torch.topk(candidate_scores.view(-1), num_swap).values[-1]
-            grow_mask = (candidate_scores >= threshold_grow)
+            if num_swap > 0:
+                # 1. 取得 1D Entropy 分數 (-abs(FR - 0.5))
+                # 越接近 0 越好 (資訊量大)，越小越差
+                entropy_1d = -torch.abs(self.input_firing_score - 0.5)
+                
+                # 2. 準備 2D 反赫布分數 (-abs(Corr))
+                # 我們目的是找最不相關的，所以相關性絕對值越小越好
+                # hebbian_score 存的是動量平均後的 abs(corr)
+                anti_hebbian_2d = -self.hebbian_score.clone()
+                
+                # 3. 廣播 Entropy 到 2D 並與 Anti-Hebbian 結合
+                # 為了平衡量級，我們可以將兩者標準化到 [0, 1] 或是直接加權
+                # 這裡採用加權聯合成績：Score = Anti_Hebbian + Entropy_Weight * Entropy
+                # 先對 Entropy 做 Broadcasting
+                if isinstance(self.layer, nn.Conv2d):
+                    groups = self.layer.groups
+                    C_out, C_in_pg = self.layer.weight.shape[:2]
+                    C_out_pg = C_out // groups
+                    entropy_2d = entropy_1d.view(groups, 1, C_in_pg, 1, 1).expand(groups, C_out_pg, C_in_pg, *self.layer.weight.shape[2:])
+                    entropy_2d = entropy_2d.reshape_as(self.layer.weight)
+                else:
+                    entropy_2d = entropy_1d.view(1, -1).expand_as(self.layer.weight)
+                
+                # 聯合成績：我們希望反赫布佔據主導(打破同質化)，Entropy 作為體質檢測
+                # 因為 anti_hebbian_2d 範圍在 [-1, 0]，entropy_2d 範圍在 [-0.5, 0]
+                # 加總後，每個連接都會有獨特的分數，且傾向於選高熵通道
+                joint_score = anti_hebbian_2d + 0.1 * entropy_2d
+                
+                # 排除非潛在池
+                joint_score[~potential_pool] = -float('inf')
+                
+                _, grow_idx = torch.topk(joint_score.view(-1), num_swap)
+                proposed_grow_mask.view(-1)[grow_idx] = True
+            
+            # --- 3. 衝突排除與隨機回退 (Just-Pruned Revival) ---
+            revived_mask = proposed_grow_mask & drop_mask
+            num_revived = int(revived_mask.sum().item())
+            
+            final_grow_mask = proposed_grow_mask & (~revived_mask)
+            
+            if num_revived > 0:
+                random_pool_mask = dead_mask & (~proposed_grow_mask)
+                random_indices = torch.where(random_pool_mask.view(-1))[0]
+                
+                if random_indices.numel() > 0:
+                    num_to_grow_randomly = min(num_revived, random_indices.numel())
+                    rand_vals = torch.rand(random_indices.numel(), device=self.mask.device)
+                    _, rand_top_k = torch.topk(rand_vals, num_to_grow_randomly)
+                    final_grow_mask.view(-1)[random_indices[rand_top_k]] = True
 
-            # 3. Apply
+            # --- 4. 應用的變動 ---
             self.mask[drop_mask] = 0
-            self.mask[grow_mask] = 1
-            self.layer.weight.data[grow_mask] = 0.0 # 新生長權重歸零
-            self.hebbian_score[self.mask == 1] = 0.0 # 重置分數
+            self.mask[final_grow_mask] = 1
+            
+            # Hebbian V5: 活化初始化 (Active Init)
+            # 不再設為 0.0，而是給予符合該層標準差的微小隨機值
+            if final_grow_mask.any():
+                # 使用 Kaiming Uniform 邏輯估算標準差
+                fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.layer.weight)
+                std = math.sqrt(2.0 / fan_in) if fan_in > 0 else 0.01
+                
+                # 生成新權重
+                new_weights = torch.randn_like(self.layer.weight) * std * 0.1 # 稍微小一點，避免初期衝擊太大
+                self.layer.weight.data[final_grow_mask] = new_weights[final_grow_mask]
+            
+            # 確保被剪掉的真的歸零
             self.layer.weight.data *= self.mask
+            
+            self.hebbian_score[self.mask == 1] = 0.0
+            
+            return final_grow_mask, drop_mask
 
 # --- 2. ShuffleNet 專用適配層 ---
 def channel_shuffle(x, groups):
