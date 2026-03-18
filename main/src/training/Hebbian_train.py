@@ -29,7 +29,9 @@ class Hebbian_SSL_Trainer:
         pretrained_weight=None,
         load_weight: str = "",
         base_lr=0.03,
-        target_sparsity=0.8,  # [新參數] 目標稀疏度
+        target_sparsity=0.8,
+        use_erk=True,          # Ablation Toggle
+        protect_highway=True   # Ablation Toggle
     ) -> None:
         self.base_lr = base_lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -45,7 +47,9 @@ class Hebbian_SSL_Trainer:
                 self.backbone, 
                 model_type='shufflenet',
                 encoder_output_dim=1024,
-                target_sparsity=target_sparsity
+                target_sparsity=target_sparsity,
+                use_erk=use_erk,
+                protect_highway=protect_highway
             ).to(self.device)
         elif model_type == "resnet":
             self.model = Hebbian_SimSiam(
@@ -53,7 +57,9 @@ class Hebbian_SSL_Trainer:
                 model_type='resnet',
                 encoder_output_dim=512,
                 projector_inner_dim=2048,
-                target_sparsity=target_sparsity
+                target_sparsity=target_sparsity,
+                use_erk=use_erk,
+                protect_highway=protect_highway
             ).to(self.device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")

@@ -1,11 +1,22 @@
 from src.training.Hebbian_train import Hebbian_SSL_Trainer
-import torchvision.models as models
+import torch.nn as nn
+from torchvision import models
 
 # --- Main Entry Point Example ---
 if __name__ == "__main__":
+    
+    # --- Ablation Study Toggles ---
+    # 設為 True : 啟用 V6 特性 (1000 Epoch 可達 ~80%)
+    # 設為 False: 退回 V5 特性 (用來證明 V6 的架構貢獻)
+    USE_ERK = True          
+    PROTECT_HIGHWAY = True  
+    # ------------------------------
+
     trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
-        target_sparsity=0.8
+        target_sparsity=0.8,
+        use_erk=USE_ERK,
+        protect_highway=PROTECT_HIGHWAY
     )
     
     trainer.train(

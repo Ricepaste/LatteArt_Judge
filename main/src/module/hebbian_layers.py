@@ -243,7 +243,9 @@ class HebbianSparseLayer(nn.Module):
             # 確保被剪掉的真的歸零
             self.layer.weight.data *= self.mask
             
-            self.hebbian_score[self.mask == 1] = 0.0
+            # Hebbian V7: 修正 Bug。原本這裡會清空所有 mask=1 的分數，導致分數無法跨 Epoch 累積。
+            # 現在只清空「剛長出來」的連線分數，讓穩定連線的分數能持續積累。
+            self.hebbian_score[final_grow_mask] = 0.0
             
             return final_grow_mask, drop_mask
 

@@ -11,11 +11,13 @@ class Hebbian_SimSiam(SimSiam):
     def __init__(
         self,
         pretrained_model,
-        model_type='shufflenet', # <--- 新增參數
+        model_type='shufflenet',
         encoder_output_dim=1024,
         projector_inner_dim=256,
         target_sparsity=0.8,
-        sparsify_projector=False
+        sparsify_projector=False,
+        use_erk=True,          # Ablation Toggle: ERK 分佈
+        protect_highway=True   # Ablation Toggle: 1x1 與殘差保護
     ):
         # 1. 呼叫 Refactored SimSiam 的 init，傳遞 model_type
         super().__init__(
@@ -26,10 +28,16 @@ class Hebbian_SimSiam(SimSiam):
         )
         
         self.target_sparsity = target_sparsity
+        self.use_erk = use_erk
+        self.protect_highway = protect_highway
         
-        # 2. 替換 Encoder 中的層為 Hebbian Layer (Hebbian V6: 使用 ERK 稀疏度與殘差保護)
-        print(f"Converting Encoder ({model_type}) to Hebbian Sparse (Target Global Sparsity: {target_sparsity})...")
-        self._set_layer_sparsities(self.encoder, target_sparsity)
+        # 2. 替換 Encoder 中的層為 Hebbian Layer
+        if self.use_erk or self.protect_highway:
+            print(f"Converting Encoder ({model_type}) to Hebbian Sparse (Target Global Sparsity: {target_sparsity}, ERK: {use_erk}, Protect Highway: {protect_highway})...")
+            self._set_layer_sparsities(self.encoder, target_sparsity)
+        else:
+            print(f"Converting Encoder ({model_type}) to Hebbian Sparse V5 (Uniform Sparsity: {target_sparsity})...")
+            self._replace_layers_recursively(self.encoder, target_sparsity)
         
         # 3. (選用) 替換 Projector/Predictor
         if sparsify_projector:
@@ -59,40 +67,41 @@ class Hebbian_SimSiam(SimSiam):
                 is_downsample = "downsample" in name
                 
                 # Hebbian V6 核心：保護殘差公路 (1x1 或 downsample 分支)
-                if is_1x1 or is_downsample:
+                if self.protect_highway and (is_1x1 or is_downsample):
                     print(f"  [Guard] Protecting highway layer: {name}")
                     protected_layers.append((name, m))
                 else:
                     sparsifiable_layers.append((name, m))
 
         # 2. 執行 ERK 稀疏度計算 (Erdos-Renyi Kernel)
-        # 對於剩下的層，根據參數規模分配稀疏度
-        total_params = 0
-        erk_scores = []
-        for name, m in sparsifiable_layers:
-            if isinstance(m, nn.Conv2d):
-                n_in, n_out, kh, kw = m.weight.shape
-                total_params += m.weight.numel()
-                # ERK 權重係數 (越高代表越希望能保持密集)
-                score = (n_in + n_out + kh + kw) / (n_in * n_out * kh * kw)
-                erk_scores.append(score)
-            else: # Linear
-                n_out, n_in = m.weight.shape
-                total_params += m.weight.numel()
-                score = (n_in + n_out) / (n_in * n_out)
-                erk_scores.append(score)
-
-        # 簡單化處理：如果只有一層或者沒有層，直接用全局稀疏度
-        # 否則，這裡採用相對參數量的權衡
-        for i, (name, m) in enumerate(sparsifiable_layers):
-            # 基於 ERK 邏輯，小層(score高)應該更密，大層(score低)應該更疏
-            # 這裡我們實作一個簡化版：讓稀疏度圍繞 global_target_sparsity 波動
-            # 越大層，稀疏度越高
-            param_ratio = m.weight.numel() / (total_params / len(sparsifiable_layers))
-            layer_sparsity = global_target_sparsity + (0.05 if param_ratio > 1.2 else -0.05)
-            layer_sparsity = max(0.1, min(0.95, layer_sparsity)) # 限制區間
+        if self.use_erk:
+            # 對於剩下的層，根據參數規模分配稀疏度
+            total_params = 0
+            erk_scores = []
+            for name, m in sparsifiable_layers:
+                if isinstance(m, nn.Conv2d):
+                    n_in, n_out, kh, kw = m.weight.shape
+                    total_params += m.weight.numel()
+                    score = (n_in + n_out + kh + kw) / (n_in * n_out * kh * kw)
+                    erk_scores.append(score)
+                else: # Linear
+                    n_out, n_in = m.weight.shape
+                    total_params += m.weight.numel()
+                    score = (n_in + n_out) / (n_in * n_out)
+                    erk_scores.append(score)
             
-            self._replace_single_layer(root_module, name, m, layer_sparsity)
+            for i, (name, m) in enumerate(sparsifiable_layers):
+                if len(sparsifiable_layers) > 0 and total_params > 0:
+                    param_ratio = m.weight.numel() / (total_params / len(sparsifiable_layers))
+                    layer_sparsity = global_target_sparsity + (0.05 if param_ratio > 1.2 else -0.05)
+                else:
+                    layer_sparsity = global_target_sparsity
+                layer_sparsity = max(0.1, min(0.95, layer_sparsity)) 
+                self._replace_single_layer(root_module, name, m, layer_sparsity)
+        else:
+            # V5 Fallback: Uniform sparsity on sparsifiable layers
+            for name, m in sparsifiable_layers:
+                self._replace_single_layer(root_module, name, m, global_target_sparsity)
 
         # 3. 處理被保護的層 (Dense)
         for name, m in protected_layers:
@@ -110,8 +119,9 @@ class Hebbian_SimSiam(SimSiam):
             parent = root_module
             leaf_name = name
         
-        print(f"  Replacing {name} with Hebbian (Sparsity: {sparsity:.4f})")
-        setattr(parent, leaf_name, HebbianSparseLayer(child, sparsity))
+        # Hebbian V5/V6: 使用 subsample_rate=1.0 確保統計精確度
+        print(f"  Replacing {name} with Hebbian (Sparsity: {sparsity:.4f}, Sample: 1.0)")
+        setattr(parent, leaf_name, HebbianSparseLayer(child, sparsity, subsample_rate=1.0))
 
     def _replace_layers_recursively(self, module, sparsity):
         """ (Legacy) 舊版本的齊頭式替換 """
