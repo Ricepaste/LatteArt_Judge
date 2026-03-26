@@ -5,13 +5,13 @@ import torchvision.models as models
 
 import src.training.SimSiam_train as SimSiam_train
 
-# 設置共用的訓練參數
+# 設置共用的訓練參數 (對標 Hebbian V7)
 common_train_params = {
-    "num_epochs": 100,  # 可以設長一點試試
+    "num_epochs": 1000, 
     "batch_size": 128,
-    "workers": 0,  # 根據你的設備調整
-    "dataset_dir": ".\\LabelTool",  # 你的資料集路徑
-    "rigl_dense_allocation": 0.2,  # RigL 稀疏度 (80% sparse)
+    "workers": 0,
+    "dataset_dir": ".\\LabelTool",
+    "rigl_dense_allocation": 0.2,  # 相對應於 Hebbian 的 target_sparsity=0.8
     "rigl_delta": 100,
     "rigl_alpha": 0.3,
     "consistency_lambda": 0.107,
@@ -21,7 +21,7 @@ common_train_params = {
 # TODO: 刪除無用的dataset_dir參數
 def main():
     model_rigl_baseline = SimSiam_train.SimSiam_Model(
-        pretrained_model=models.shufflenet_v2_x1_0,
+        pretrained_model=models.resnet18,
         base_lr=0.03
     )
     # model_rigl_baseline.Lottery_validation(

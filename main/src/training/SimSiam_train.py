@@ -33,7 +33,7 @@ import src.module.SimSiam_Module as SimSiam_Module
 class SimSiam_Model:
     def __init__(
         self,
-        pretrained_model=models.shufflenet_v2_x0_5,
+        pretrained_model=models.resnet18,
         pretrained_weight=None,
         load_weight: str = "",
         base_lr=0.03,
@@ -76,11 +76,22 @@ class SimSiam_Model:
             ),
         }
 
-        # Initialize SimSiam model - Note: Model might be re-initialized later for GradCache
-        # This initial model is for non-GradCache modes (Standard, RigL Baseline, RigL Consistency)
-        self.model: Union[SimSiam_Module.SimSiam, List[torch.nn.Module]] = (
-            SimSiam_Module.SimSiam(self.pretrained_model).to(self.device)
-        )
+        model_type = "shufflenet" if pretrained_model == models.shufflenet_v2_x0_5 or pretrained_model == models.shufflenet_v2_x1_0 else "resnet"
+        
+        # Initialize SimSiam model
+        if model_type == "shufflenet":
+            self.model: Union[SimSiam_Module.SimSiam, List[torch.nn.Module]] = (
+                SimSiam_Module.SimSiam(self.pretrained_model, model_type='shufflenet', encoder_output_dim=1024).to(self.device)
+            )
+        else:
+            self.model: Union[SimSiam_Module.SimSiam, List[torch.nn.Module]] = (
+                SimSiam_Module.SimSiam(
+                    self.pretrained_model, 
+                    model_type='resnet', 
+                    encoder_output_dim=512,
+                    projector_inner_dim=2048 # ResNet18 typically uses a wider projector in standard implementations, but keeping consistency with Hebbian
+                ).to(self.device)
+            )
 
         if load_weight != "":
             # Note: Loading weight here assumes self.model is NOT a list (i.e., not GradCache mode initially)
