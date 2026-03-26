@@ -101,10 +101,20 @@ class HebbianSparseLayer(nn.Module):
         y = output.detach()
         
         # Hebbian V3: 計算 Firing Rate (特徵大於 0 的比例)
+        # Hebbian V8: 計算特徵方差 (Variance, 用於找出高 SNR 訊號)
         if x.dim() == 4:
             firing_rate = (x > 0).float().mean(dim=(0, 2, 3))
+            x_var = x.var(dim=(0, 2, 3), unbiased=False)
+            y_var = y.var(dim=(0, 2, 3), unbiased=False)
         else:
             firing_rate = (x > 0).float().mean(dim=0)
+            x_var = x.var(dim=0, unbiased=False)
+            y_var = y.var(dim=0, unbiased=False)
+            
+        # 初始化方差追蹤器 (第一次觸發時)
+        if getattr(self, 'input_variance', None) is None:
+            self.register_buffer('input_variance', torch.ones_like(x_var))
+            self.register_buffer('output_variance', torch.ones_like(y_var))
 
         if isinstance(self.layer, nn.Conv2d):
             k_size = self.layer.kernel_size
@@ -144,6 +154,12 @@ class HebbianSparseLayer(nn.Module):
         if hasattr(self, 'input_firing_score'):
             self.input_firing_score = self.hebbian_decay * self.input_firing_score + \
                                       (1 - self.hebbian_decay) * firing_rate
+                                      
+        if hasattr(self, 'input_variance'):
+            self.input_variance = self.hebbian_decay * self.input_variance + \
+                                  (1 - self.hebbian_decay) * x_var
+            self.output_variance = self.hebbian_decay * self.output_variance + \
+                                   (1 - self.hebbian_decay) * y_var
 
     def update_topology(self, grow_ratio=0.2):
         """
@@ -176,32 +192,37 @@ class HebbianSparseLayer(nn.Module):
             proposed_grow_mask = torch.zeros_like(self.mask, dtype=torch.bool)
 
             if num_swap > 0:
-                # 1. 取得 1D Entropy 分數 (-abs(FR - 0.5))
-                # 越接近 0 越好 (資訊量大)，越小越差
-                entropy_1d = -torch.abs(self.input_firing_score - 0.5)
+                # 1. 取得 1D Entropy 分數
+                # 正規化到 [0, 1]，0.5 (最大熵) 時分數為 1，全 0 或全 1 時分數為 0
+                entropy_1d = 1.0 - torch.abs(self.input_firing_score - 0.5) * 2.0
                 
                 # 2. 準備 2D 反赫布分數 (-abs(Corr))
-                # 我們目的是找最不相關的，所以相關性絕對值越小越好
-                # hebbian_score 存的是動量平均後的 abs(corr)
-                anti_hebbian_2d = -self.hebbian_score.clone()
+                # 轉換為正向乘數，1.0 代表「完全不相關/正交」，0.0 代表「完全線性相關」
+                anti_hebbian_2d = 1.0 - self.hebbian_score.clone()
                 
-                # 3. 廣播 Entropy 到 2D 並與 Anti-Hebbian 結合
-                # 為了平衡量級，我們可以將兩者標準化到 [0, 1] 或是直接加權
-                # 這裡採用加權聯合成績：Score = Anti_Hebbian + Entropy_Weight * Entropy
-                # 先對 Entropy 做 Broadcasting
+                # 3. 準備 2D 方差分數 (Variance/SNR Mask) 
                 if isinstance(self.layer, nn.Conv2d):
                     groups = self.layer.groups
                     C_out, C_in_pg = self.layer.weight.shape[:2]
                     C_out_pg = C_out // groups
+                    
                     entropy_2d = entropy_1d.view(groups, 1, C_in_pg, 1, 1).expand(groups, C_out_pg, C_in_pg, *self.layer.weight.shape[2:])
                     entropy_2d = entropy_2d.reshape_as(self.layer.weight)
+                    
+                    x_var_pg = self.input_variance.view(groups, 1, C_in_pg, 1, 1).expand(groups, C_out_pg, C_in_pg, *self.layer.weight.shape[2:])
+                    y_var_pg = self.output_variance.view(groups, C_out_pg, 1, 1, 1).expand(groups, C_out_pg, C_in_pg, *self.layer.weight.shape[2:])
+                    variance_2d = torch.sqrt(x_var_pg * y_var_pg).reshape_as(self.layer.weight)
                 else:
                     entropy_2d = entropy_1d.view(1, -1).expand_as(self.layer.weight)
+                    
+                    x_var_2d = self.input_variance.view(1, -1).expand_as(self.layer.weight)
+                    y_var_2d = self.output_variance.view(-1, 1).expand_as(self.layer.weight)
+                    variance_2d = torch.sqrt(x_var_2d * y_var_2d)
                 
-                # 聯合成績：我們希望反赫布佔據主導(打破同質化)，Entropy 作為體質檢測
-                # 因為 anti_hebbian_2d 範圍在 [-1, 0]，entropy_2d 範圍在 [-0.5, 0]
-                # 加總後，每個連接都會有獨特的分數，且傾向於選高熵通道
-                joint_score = anti_hebbian_2d + 0.1 * entropy_2d
+                # Hebbian V8: 聯合成績 (Variance-Weighted Anti-Hebbian)
+                # 採用連乘設計：必須同時具備【不相關】+【高方差活性】+【高熵】才能拿高分
+                # 這能完美排除那些「雖然很不相關，但根本沒在輸出的死魚雜訊節點」
+                joint_score = anti_hebbian_2d * variance_2d * entropy_2d
                 
                 # 排除非潛在池
                 joint_score[~potential_pool] = -float('inf')
