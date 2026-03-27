@@ -14,13 +14,13 @@ if __name__ == "__main__":
 
     trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
-        target_sparsity=0.8,
+        target_sparsity=0.95,
         use_erk=USE_ERK,
         protect_highway=PROTECT_HIGHWAY
     )
     
     trainer.train(
-        num_epochs=1000, # Hebbian V7: 延長生物探索期
+        num_epochs=400, # Hebbian V7: 延長生物探索期
         batch_size=128, 
         init_grow_ratio=0.2, 
         hebbian_freq=10 # Hebbian V5: 更頻繁地觀察以對抗噪聲

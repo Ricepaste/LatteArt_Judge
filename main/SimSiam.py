@@ -7,11 +7,11 @@ import src.training.SimSiam_train as SimSiam_train
 
 # 設置共用的訓練參數 (對標 Hebbian V7)
 common_train_params = {
-    "num_epochs": 1000, 
+    "num_epochs": 400, 
     "batch_size": 128,
     "workers": 0,
     "dataset_dir": ".\\LabelTool",
-    "rigl_dense_allocation": 0.2,  # 相對應於 Hebbian 的 target_sparsity=0.8
+    "rigl_dense_allocation": 0.05,  # 相對應於 Hebbian 的 target_sparsity=0.8
     "rigl_delta": 100,
     "rigl_alpha": 0.3,
     "consistency_lambda": 0.107,
