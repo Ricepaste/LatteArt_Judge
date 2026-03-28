@@ -194,8 +194,8 @@ def run_eval(classifier, name, epochs):
     print(f"Best Accuracy: {best_acc:.2f}%")
 
 # 1. Cosine Linear Head
-cosine_classifier = CosineLinear(512, 10).to(device)
-run_eval(cosine_classifier, "Cosine Linear Head", EPOCHS)
+# cosine_classifier = CosineLinear(512, 10).to(device)
+# run_eval(cosine_classifier, "Cosine Linear Head", EPOCHS)
 
 # 2. 2-layer MLP Probing
 mlp_classifier = MLPProbing(512, 512, 10).to(device)
