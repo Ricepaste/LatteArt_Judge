@@ -11,7 +11,7 @@ from src.training.SimSiam_train import SimSiam_Model
 
 # -------------------------------------------------------------
 # 替換為您的預訓練權重檔案路徑 (請填入 RigL 跑出來的 run 資料夾中的 best.pt)
-ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__31/best.pt" 
+ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__33/last.pt" 
 
 # -------------------------------------------------------------
 # Linear Probing 設定 (與 Hebbian 完全對齊)
