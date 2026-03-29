@@ -90,6 +90,21 @@ try:
     print(f"Loading weights from {ENCODER_PATH}...")
     simsiam_model.load_state_dict(torch.load(ENCODER_PATH, map_location=device))
     print("Weights loaded successfully!")
+    
+    # 計算並顯示載入模型的 Encoder 真實稀疏度
+    total_params = 0
+    zero_params = 0
+    for name, param in simsiam_model.named_parameters():
+        if 'encoder' in name and 'weight' in name and 'bn' not in name and 'downsample.1' not in name and param.dim() > 1:
+            param_numel = param.numel()
+            param_zeros = (param.data.abs() < 1e-7).sum().item()
+            total_params += param_numel
+            zero_params += param_zeros
+    global_actual_sparsity = zero_params / total_params if total_params > 0 else 0
+    print("-" * 50)
+    print(f"Encoder Real Global Sparsity: {global_actual_sparsity:.4f} ({(global_actual_sparsity*100):.2f}%)")
+    print("-" * 50)
+
 except Exception as e:
     print(f"Failed to load weights: {e}")
 

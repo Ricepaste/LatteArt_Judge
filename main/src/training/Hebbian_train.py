@@ -245,20 +245,33 @@ class Hebbian_SSL_Trainer:
             
             # --- 4. Logging & Validation ---
             avg_loss = running_loss / len(self.dataloaders["train"])
-            self.writer.add_scalar("Train/Loss", avg_loss, epoch)
-            self.writer.add_scalar("Train/LR", optimizer.param_groups[0]['lr'], epoch)
+            self.writer.add_scalar("training/loss", avg_loss, epoch)
+            self.writer.add_scalar("training/learning_rate", optimizer.param_groups[0]['lr'], epoch)
             self.writer.add_scalar("Structure/GrowRatio", current_grow_ratio, epoch)
+
+            # 計算當前 Encoder 真實稀疏度並記錄到 TensorBoard
+            total_params = 0
+            zero_params = 0
+            for name, param in self.model.named_parameters():
+                if 'encoder' in name and 'weight' in name and 'bn' not in name and 'downsample.1' not in name and param.dim() > 1:
+                    param_numel = param.numel()
+                    param_zeros = (param.data.abs() < 1e-7).sum().item()
+                    total_params += param_numel
+                    zero_params += param_zeros
+            global_actual_sparsity = zero_params / total_params if total_params > 0 else 0
+            self.writer.add_scalar("training/epoch_sparsity", global_actual_sparsity, epoch)
 
             # 驗證 KNN Accuracy
             val_acc = self.evaluate_knn(epoch)
-            self.writer.add_scalar("Val/KNN_Acc", val_acc, epoch)
+            self.writer.add_scalar("validation/knn_accuracy", val_acc, epoch)
             
-            print(f"Epoch {epoch+1} | Loss: {avg_loss:.4f} | KNN Acc: {val_acc:.4f} | Grow: {current_grow_ratio:.4f}")
+            print(f"Epoch {epoch+1} | Loss: {avg_loss:.4f} | KNN Acc: {val_acc:.4f} | Grow: {current_grow_ratio:.4f} | Sparsity: {global_actual_sparsity:.4f}")
 
             # Save Models
             self.save_model(self.model, type="last")
             if val_acc > best_knn_acc:
                 best_knn_acc = val_acc
+                self.writer.add_scalar("validation/best_knn_accuracy", best_knn_acc, epoch)
                 self.save_model(self.model, type="best")
                 print(f"New Best Model! Acc: {best_knn_acc:.4f}")
 
