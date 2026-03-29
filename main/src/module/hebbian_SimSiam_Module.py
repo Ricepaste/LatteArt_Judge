@@ -96,7 +96,10 @@ class Hebbian_SimSiam(SimSiam):
                     layer_sparsity = global_target_sparsity + (0.05 if param_ratio > 1.2 else -0.05)
                 else:
                     layer_sparsity = global_target_sparsity
-                layer_sparsity = max(0.1, min(0.95, layer_sparsity)) 
+                # 論文比較用：完全依賴 ERK 與公式，僅確保不會導致整層權重歸零 (層崩潰)
+                # 確保至少保留 1 個參數，且稀疏度不為負
+                max_allowed_sparsity = 1.0 - (1.0 / m.weight.numel())
+                layer_sparsity = max(0.0, min(max_allowed_sparsity, layer_sparsity)) 
                 self._replace_single_layer(root_module, name, m, layer_sparsity)
         else:
             # V5 Fallback: Uniform sparsity on sparsifiable layers
