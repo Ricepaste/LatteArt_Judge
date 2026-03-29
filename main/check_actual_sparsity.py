@@ -22,6 +22,10 @@ def calculate_actual_sparsity(model_path):
     print("-" * 95)
     
     for name, param in state_dict.items():
+        # 只過濾屬於 encoder 的權重
+        if 'encoder' not in name:
+            continue
+            
         # 篩選我們關心的權重，排除 BatchNorm 以及 bias 等通常不剪枝的部分
         # downsample.1 通常是 ResNet 的 BN 層
         if 'weight' in name and 'bn' not in name and 'downsample.1' not in name and param.dim() > 1:
