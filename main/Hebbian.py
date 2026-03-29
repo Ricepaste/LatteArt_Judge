@@ -9,7 +9,7 @@ if __name__ == "__main__":
     # 設為 True : 啟用 V6 特性 (1000 Epoch 可達 ~80%)
     # 設為 False: 退回 V5 特性 (用來證明 V6 的架構貢獻)
     USE_ERK = True          
-    PROTECT_HIGHWAY = True  
+    PROTECT_HIGHWAY = False 
     # ------------------------------
 
     trainer = Hebbian_SSL_Trainer(
