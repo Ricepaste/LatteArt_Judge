@@ -75,29 +75,35 @@ class Hebbian_SimSiam(SimSiam):
 
         # 2. 執行 ERK 稀疏度計算 (Erdos-Renyi Kernel)
         if self.use_erk:
-            # 對於剩下的層，根據參數規模分配稀疏度
-            total_params = 0
-            erk_scores = []
+            # 標準 ERK 公式: sparsity = 1 - (const * (n_in + n_out + k1 + k2) / (n_in * n_out * k1 * k2))
+            # 我們需要找到一個 const，使得總權重數符合目標
+            total_params = sum(m.weight.numel() for _, m in sparsifiable_layers)
+            target_params = total_params * (1.0 - global_target_sparsity)
+            
+            erk_raw_scores = []
             for name, m in sparsifiable_layers:
-                if isinstance(m, nn.Conv2d):
-                    n_in, n_out, kh, kw = m.weight.shape
-                    total_params += m.weight.numel()
+                w = m.weight
+                if w.dim() == 4: # Conv
+                    n_out, n_in, kh, kw = w.shape
                     score = (n_in + n_out + kh + kw) / (n_in * n_out * kh * kw)
-                    erk_scores.append(score)
                 else: # Linear
-                    n_out, n_in = m.weight.shape
-                    total_params += m.weight.numel()
+                    n_out, n_in = w.shape
                     score = (n_in + n_out) / (n_in * n_out)
-                    erk_scores.append(score)
+                erk_raw_scores.append(score)
+            
+            # 使用二分法或比例法找到合適的常數 C
+            # 簡化版 ERK 分配：保持層與層之間的相對比例
+            sum_scores_scaled = sum(s * m.weight.numel() for s, (_, m) in zip(erk_raw_scores, sparsifiable_layers))
+            # 這裡我們採用 RigL 論文中的標準做法
+            # 令 每層保留率為 C * raw_score
+            c = target_params / sum_scores_scaled if sum_scores_scaled > 0 else 0
             
             for i, (name, m) in enumerate(sparsifiable_layers):
-                if len(sparsifiable_layers) > 0 and total_params > 0:
-                    param_ratio = m.weight.numel() / (total_params / len(sparsifiable_layers))
-                    layer_sparsity = global_target_sparsity + (0.05 if param_ratio > 1.2 else -0.05)
-                else:
-                    layer_sparsity = global_target_sparsity
-                # 論文比較用：完全依賴 ERK 與公式，僅確保不會導致整層權重歸零 (層崩潰)
-                # 確保至少保留 1 個參數，且稀疏度不為負
+                # 每層保留的參數比例 = C * ERK_Score
+                keep_ratio = c * erk_raw_scores[i]
+                layer_sparsity = 1.0 - keep_ratio
+                
+                # 論文比較用：確保至少保留 1 個參數，且稀疏度不為負
                 max_allowed_sparsity = 1.0 - (1.0 / m.weight.numel())
                 layer_sparsity = max(0.0, min(max_allowed_sparsity, layer_sparsity)) 
                 self._replace_single_layer(root_module, name, m, layer_sparsity)
