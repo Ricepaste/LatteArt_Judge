@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
-        target_sparsity=0.95,
+        target_sparsity=0.99,
         use_erk=USE_ERK,
         protect_highway=PROTECT_HIGHWAY
     )

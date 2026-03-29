@@ -129,7 +129,7 @@ class CosineLinear(nn.Module):
 
 class MLPProbing(nn.Module):
     def __init__(self, in_features, hidden_features, out_features):
-        super(MLPProbing, self).init__()
+        super(MLPProbing, self).__init__()
         self.net = nn.Sequential(
             nn.BatchNorm1d(in_features),
             nn.Linear(in_features, hidden_features),
