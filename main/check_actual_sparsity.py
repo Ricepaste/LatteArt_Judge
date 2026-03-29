@@ -43,5 +43,5 @@ def calculate_actual_sparsity(model_path):
 
 if __name__ == "__main__":
     # 使用完整的絕對路徑來確保一定能讀到
-    OLD_MODEL_PATH = "/home/sharpaste/repo/LatteArt_Judge/runs/Hebbian_SSL_20260326-174032/last.pt" 
+    OLD_MODEL_PATH = "./runs/Hebbian_SSL_20260326-174032/last.pt" 
     calculate_actual_sparsity(OLD_MODEL_PATH)
