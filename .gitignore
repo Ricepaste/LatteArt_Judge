@@ -1,8 +1,9 @@
 .vscode/
 .env
 
-runs/*
-data/*
+**/runs/
+**/data/
+**/ablation_logs/
 
 **/*/__pycache__/
 **/*/*.zip

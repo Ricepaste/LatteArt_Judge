@@ -125,16 +125,16 @@ if __name__ == "__main__":
     # 1. Ablation Tests (99% Sparsity on CIFAR10)
     for exp in ABLATIONS:
         if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset="cifar10", script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=100)
+            run_experiment(exp["name"], exp["env"], dataset="cifar10", script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400)
         
     # 2. Generalization Tests & Baselines (99% Sparsity)
     for exp in GENERALIZATION:
         if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=100)
+            run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400)
         
     # 3. Sparsity Degradation Curve Tests
     for exp in SPARSITY_CURVE:
         if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar10"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.99), epochs=100)
+            run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar10"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.99), epochs=400)
         
     print(f"\n🎉 All tests for mode '{run_mode.upper()}' finished! Please check ./ablation_logs/ for results.")
