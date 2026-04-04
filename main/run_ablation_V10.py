@@ -4,6 +4,9 @@ import time
 import glob
 import sys
 
+# 取得 main/ 目錄的絕對路徑，確保所有的 relative paths 都不受執行位置的影響
+MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # --- Ablation Tests Configuration ---
 # 1表示啟用, 0表示關閉
 # 第一組: Ablation experiments at Sparsity 0.99
@@ -31,31 +34,34 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
     print(f"\n{'='*50}")
     print(f"🚀 Starting Experiment: {exp_name}")
     print(f"Dataset: {dataset.upper()} | Target Sparsity: {sparsity} | Epochs: {epochs}")
-    print(f"Environment Options: {env_vars}")
-    print(f"{'='*50}\n")
     
-    # 準備環境變數
+    # 準備合併後的環境變數
     run_env = os.environ.copy()
     run_env.update(env_vars)
-    
-    # 組合訓練指令
-    # (假設原本 Hebbian.py 可以接受部分引數，如果不行，我們會直接在 Hebbian.py 內調用)
-    # 我們這裡提供一個乾淨的方法：修改 Hebbian.py 來吃 dataset 參數，或者直接寫訓練邏輯
-    
-    # 將 log 存入專屬資料夾
-    os.makedirs("./ablation_logs", exist_ok=True)
-    log_file = f"./ablation_logs/{exp_name}.log"
-    
-    cmd = ["python", "-u", script]  # 動態指定執行的 Python 腳本
-    
-    # 我們將把 `--dataset` 和 `--target_sparsity` 作為環境變數傳遞，以避免修改 Hebbian.py 的 argparse
     run_env["TARGET_DATASET"] = dataset
     run_env["TARGET_SPARSITY"] = str(sparsity)
     run_env["NUM_EPOCHS"] = str(epochs)
-
+    
+    # 確保 PYTHONPATH 包含 main/ 目錄，避免找不到 src匯入
+    run_env["PYTHONPATH"] = MAIN_DIR + ":" + run_env.get("PYTHONPATH", "")
+    
+    # 印出要被覆蓋設定的追蹤參數
+    override_params = {**env_vars, "TARGET_DATASET": dataset, "TARGET_SPARSITY": sparsity, "NUM_EPOCHS": epochs}
+    print(f"System Overrides: {override_params}")
+    print(f"{'='*50}\n")
+    
+    # 將 log 存入專屬資料夾 (鎖定在 main/ 之下)
+    ablation_log_dir = os.path.join(MAIN_DIR, "ablation_logs")
+    os.makedirs(ablation_log_dir, exist_ok=True)
+    log_file = os.path.join(ablation_log_dir, f"{exp_name}.log")
+    
+    cmd = ["python", "-u", script]  # 動態指定執行的 Python 腳本
+    
+    
     try:
         with open(log_file, "w") as f:
-            process = subprocess.Popen(cmd, env=run_env, stdout=f, stderr=subprocess.STDOUT)
+            # 加入 cwd=MAIN_DIR 確保程式從 main/ 目錄執行
+            process = subprocess.Popen(cmd, env=run_env, stdout=f, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
             
             # 使用一個迴圈可以讓我們隨時按 Ctrl+C 中斷
             while process.poll() is None:
@@ -65,7 +71,8 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
                 print(f"✅ Experiment '{exp_name}' completed! Log saved to: {log_file}")
                 
                 # --- Linear Evaluation Step ---
-                runs = sorted(glob.glob("./runs/*"))
+                runs_dir = os.path.join(MAIN_DIR, "runs")
+                runs = sorted(glob.glob(os.path.join(runs_dir, "*")))
                 if runs:
                     latest_run = runs[-1]
                     # If best.pt exists, use it, else last.pt
@@ -81,7 +88,7 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
                     
                     with open(log_file, "a") as f_eval:
                         f_eval.write(f"\n\n{'='*50}\n--- Starting Linear Evaluation ---\n{'='*50}\n")
-                        subprocess.run(eval_cmd, env=run_env, stdout=f_eval, stderr=subprocess.STDOUT)
+                        subprocess.run(eval_cmd, env=run_env, stdout=f_eval, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
                         f_eval.write(f"\n\n{'='*50}\n--- End Linear Evaluation ---\n{'='*50}\n")
                 
             else:
