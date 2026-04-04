@@ -9,9 +9,12 @@ from tqdm import tqdm
 
 from src.training.SimSiam_train import SimSiam_Model
 
+import os
+
 # -------------------------------------------------------------
-# 替換為您的預訓練權重檔案路徑 (請填入 RigL 跑出來的 run 資料夾中的 best.pt)
-ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__34/last.pt" 
+# 透過環境變數或預設值取得路徑
+ENCODER_PATH = os.environ.get("ENCODER_PATH", "./runs/shuffleNet_v05_SimSiam__34/last.pt")
+TARGET_DATASET = os.environ.get("TARGET_DATASET", "cifar10").lower()
 
 # -------------------------------------------------------------
 # Linear Probing 設定 (與 Hebbian 完全對齊)
@@ -38,13 +41,15 @@ test_transform = transforms.Compose(
     ]
 )
 
-print("Loading CIFAR-10 dataset...")
-train_dataset = datasets.CIFAR10(
-    root="./data", train=True, download=True, transform=train_transform
-)
-test_dataset = datasets.CIFAR10(
-    root="./data", train=False, download=True, transform=test_transform
-)
+print(f"Loading {TARGET_DATASET.upper()} dataset...")
+if TARGET_DATASET == "cifar100":
+    train_dataset = datasets.CIFAR100(root="./data", train=True, download=True, transform=train_transform)
+    test_dataset = datasets.CIFAR100(root="./data", train=False, download=True, transform=test_transform)
+    num_classes = 100
+else:
+    train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=train_transform)
+    test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=test_transform)
+    num_classes = 10
 
 torch.manual_seed(0)
 np.random.seed(0)
@@ -55,7 +60,7 @@ indices = list(range(num_train))
 labels = train_dataset.targets  # 獲取所有標籤
 
 train_idx = []
-for label in range(10):  # CIFAR-10 有 10 個 class
+for label in range(num_classes):  # CIFAR-10 or CIFAR-100 classes
     label_indices = [i for i, x in enumerate(labels) if x == label]
     train_idx.extend(
         np.random.choice(
@@ -152,7 +157,7 @@ class LinearClassifier(nn.Module):
     def forward(self, x):
         return self.linear(self.bn(x))
 
-classifier = LinearClassifier(512, 10).to(device)
+classifier = LinearClassifier(512, num_classes).to(device)
 
 # 訓練線性分類器
 optimizer = optim.Adam(classifier.parameters(), lr=0.001)

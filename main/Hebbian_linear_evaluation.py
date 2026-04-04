@@ -9,13 +9,15 @@ from tqdm import tqdm
 
 from src.training.Hebbian_train import Hebbian_SSL_Trainer
 
-# -------------------------------------------------------------
-# 替換為您的預訓練權重檔案路徑 (請填入最新的 V6 跑出來的 run 資料夾中的 best.pt)
-# 例如: ENCODER_PATH = "./runs/Hebbian_SSL_20260318-120000/best.pt"
-ENCODER_PATH = "./runs/Hebbian_SSL_20260330-181947/last.pt" 
+import os
 
-# Ablation 設定（請確保與您訓練時的設定完全一致，才能正確載入權重）
-TARGET_SPARSITY = 0.99
+# -------------------------------------------------------------
+# 透過環境變數或預設值取得路徑
+ENCODER_PATH = os.environ.get("ENCODER_PATH", "./runs/Hebbian_SSL_20260330-181947/last.pt")
+
+# Ablation 設定
+TARGET_SPARSITY = float(os.environ.get("TARGET_SPARSITY", "0.99"))
+TARGET_DATASET = os.environ.get("TARGET_DATASET", "cifar10").lower()
 USE_ERK = True          
 PROTECT_HIGHWAY = False
 # -------------------------------------------------------------
@@ -39,13 +41,15 @@ test_transform = transforms.Compose(
     ]
 )
 
-print("Loading CIFAR-10 dataset...")
-train_dataset = datasets.CIFAR10(
-    root="./data", train=True, download=True, transform=train_transform
-)
-test_dataset = datasets.CIFAR10(
-    root="./data", train=False, download=True, transform=test_transform
-)
+print(f"Loading {TARGET_DATASET.upper()} dataset...")
+if TARGET_DATASET == "cifar100":
+    train_dataset = datasets.CIFAR100(root="./data", train=True, download=True, transform=train_transform)
+    test_dataset = datasets.CIFAR100(root="./data", train=False, download=True, transform=test_transform)
+    num_classes = 100
+else:
+    train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=train_transform)
+    test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=test_transform)
+    num_classes = 10
 
 # -------------------------------------------------------------
 # Linear Probing 設定
@@ -64,7 +68,7 @@ indices = list(range(num_train))
 labels = train_dataset.targets  # 獲取所有標籤
 
 train_idx = []
-for label in range(10):  # CIFAR-10 有 10 個 class
+for label in range(num_classes):  # CIFAR-10 or CIFAR-100 classes
     label_indices = [i for i, x in enumerate(labels) if x == label]
     train_idx.extend(
         np.random.choice(
@@ -146,7 +150,7 @@ class LinearClassifier(nn.Module):
     def forward(self, x):
         return self.linear(self.bn(x))
 
-classifier = LinearClassifier(512, 10).to(device)
+classifier = LinearClassifier(512, num_classes).to(device)
 
 # 訓練線性分類器
 optimizer = optim.Adam(classifier.parameters(), lr=0.001)

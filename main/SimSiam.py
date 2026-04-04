@@ -2,24 +2,31 @@ from json import load
 from torchvision.io import read_image
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 import torchvision.models as models
+import os
 
 import src.training.SimSiam_train as SimSiam_train
 
-# 設置共用的訓練參數 (對標 Hebbian V7)
-common_train_params = {
-    "num_epochs": 400, 
-    "batch_size": 128,
-    "workers": 0,
-    "dataset_dir": ".\\LabelTool",
-    "rigl_dense_allocation": 0.01,  # 相對應於 Hebbian 的 target_sparsity=0.8
-    "rigl_delta": 100,
-    "rigl_alpha": 0.3,
-    "consistency_lambda": 0.107,
-}
-
-
 # TODO: 刪除無用的dataset_dir參數
 def main():
+    
+    target_sparsity_val = float(os.environ.get("TARGET_SPARSITY", "0.99"))
+    rigl_dense_allocation = 1.0 - target_sparsity_val
+    dataset_name_val = os.environ.get("TARGET_DATASET", "cifar10")
+    num_epochs_val = int(os.environ.get("NUM_EPOCHS", "400"))
+    
+    # 設置共用的訓練參數 (對標 Hebbian V7)
+    common_train_params = {
+        "num_epochs": num_epochs_val, 
+        "batch_size": 128,
+        "workers": 0,
+        "dataset_dir": ".\\LabelTool",
+        "dataset_name": dataset_name_val,
+        "rigl_dense_allocation": rigl_dense_allocation,  # 相對應於 Hebbian 的 target_sparsity
+        "rigl_delta": 100,
+        "rigl_alpha": 0.3,
+        "consistency_lambda": 0.107,
+    }
+
     model_rigl_baseline = SimSiam_train.SimSiam_Model(
         pretrained_model=models.resnet18,
         base_lr=0.03

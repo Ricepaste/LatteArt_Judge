@@ -110,14 +110,18 @@ class SimSiam_Model:
         print("Loaded pretrained model base:", self.pretrained_model.__class__.__name__)
         print("Use device:", self.device)
 
-    def dataset_initialize(self, DATASET_DIR=".\\LabelTool", BATCH_SIZE=64, WORKERS=0):
+    def dataset_initialize(self, DATASET_DIR=".\\LabelTool", BATCH_SIZE=64, WORKERS=0, dataset_name="cifar10"):
 
-        # 使用 CIFAR10_Dataset
+        from src.processing.CIFAR10 import CIFAR10_Dataset
+        from src.processing.CIFAR100 import CIFAR100_Dataset
+        
+        DatasetClass = CIFAR100_Dataset if dataset_name.lower() == "cifar100" else CIFAR10_Dataset
+
         self.data_dir = DATASET_DIR
         self.image_datasets = {
-            x: CIFAR10_Dataset(
+            x: DatasetClass(
                 split=x, transform=self.data_transforms[x]
-            )  # Pass transform
+            )
             for x in ["train", "val"]
         }
 
@@ -221,6 +225,7 @@ class SimSiam_Model:
         batch_size=64,
         workers=0,
         dataset_dir=".\\LabelTool",
+        dataset_name="cifar10",
         # --- RigL Parameters ---
         rigl_mode: str = "none",  # 'none', 'baseline', 'consistency'
         rigl_dense_allocation: float = 0.1,  # 稀疏度比例 (e.g., 0.1 = 90% sparse)
@@ -288,7 +293,7 @@ class SimSiam_Model:
 
         # --- Dataset Initialization ---
         self.dataset_initialize(
-            DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers
+            DATASET_DIR=dataset_dir, BATCH_SIZE=batch_size, WORKERS=workers, dataset_name=dataset_name
         )
 
         # 總迭代次數 for RigL T_end (在初始化 dataset 後計算)

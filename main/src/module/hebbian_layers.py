@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import os
 
 # --- 1. 基礎赫布稀疏層 (支援 Pearson Correlation 與 Grouped Conv) ---
 class HebbianSparseLayer(nn.Module):
@@ -220,9 +221,21 @@ class HebbianSparseLayer(nn.Module):
                     variance_2d = torch.sqrt(x_var_2d * y_var_2d)
                 
                 # Hebbian V8: 聯合成績 (Variance-Weighted Anti-Hebbian)
-                # 採用連乘設計：必須同時具備【不相關】+【高方差活性】+【高熵】才能拿高分
-                # 這能完美排除那些「雖然很不相關，但根本沒在輸出的死魚雜訊節點」
-                joint_score = anti_hebbian_2d * variance_2d * entropy_2d
+                # 預設使用連乘設計，但提供消融實驗 (Ablation Study) 支援
+                
+                # 從環境變數讀取消融設定 (預設全開)
+                use_anti_hebb = os.environ.get("ABLATION_ANTI_HEBB", "1") == "1"
+                use_variance = os.environ.get("ABLATION_VARIANCE", "1") == "1"
+                use_entropy = os.environ.get("ABLATION_ENTROPY", "1") == "1"
+                
+                joint_score = torch.ones_like(anti_hebbian_2d)
+                
+                if use_anti_hebb:
+                    joint_score *= anti_hebbian_2d
+                if use_variance:
+                    joint_score *= variance_2d
+                if use_entropy:
+                    joint_score *= entropy_2d
                 
                 # 排除非潛在池
                 joint_score[~potential_pool] = -float('inf')

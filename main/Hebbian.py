@@ -1,6 +1,7 @@
 from src.training.Hebbian_train import Hebbian_SSL_Trainer
 import torch.nn as nn
 from torchvision import models
+import os
 
 # --- Main Entry Point Example ---
 if __name__ == "__main__":
@@ -12,15 +13,20 @@ if __name__ == "__main__":
     PROTECT_HIGHWAY = False 
     # ------------------------------
 
+    target_sparsity_val = float(os.environ.get("TARGET_SPARSITY", "0.99"))
+    dataset_name_val = os.environ.get("TARGET_DATASET", "cifar10")
+    num_epochs_val = int(os.environ.get("NUM_EPOCHS", "400"))
+
     trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
-        target_sparsity=0.99,
+        target_sparsity=target_sparsity_val,
         use_erk=USE_ERK,
-        protect_highway=PROTECT_HIGHWAY
+        protect_highway=PROTECT_HIGHWAY,
+        dataset_name=dataset_name_val
     )
     
     trainer.train(
-        num_epochs=400, # Hebbian V7: 延長生物探索期
+        num_epochs=num_epochs_val, # Hebbian V10 Automated Epochs
         batch_size=128, 
         init_grow_ratio=0.2, 
         hebbian_freq=10 # Hebbian V5: 更頻繁地觀察以對抗噪聲

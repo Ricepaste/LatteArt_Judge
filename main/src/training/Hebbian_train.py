@@ -17,6 +17,7 @@ from typing import Optional
 
 # 導入資料集處理 (假設路徑不變)
 from src.processing.CIFAR10 import CIFAR10_Dataset
+from src.processing.CIFAR100 import CIFAR100_Dataset
 # 導入我們上一部定義好的 Hebbian Sparse SimSiam
 # 請確保 src/module/hebbian_SimSiam_Module.py 包含我們之前討論的 Hebbian_SimSiam 類別
 from src.module.hebbian_SimSiam_Module import Hebbian_SimSiam
@@ -31,9 +32,11 @@ class Hebbian_SSL_Trainer:
         base_lr=0.03,
         target_sparsity=0.8,
         use_erk=True,          # Ablation Toggle
-        protect_highway=True   # Ablation Toggle
+        protect_highway=True,  # Ablation Toggle
+        dataset_name="cifar10" # 'cifar10' or 'cifar100'
     ) -> None:
         self.base_lr = base_lr
+        self.dataset_name = dataset_name
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # 1. 準備 Backbone (Dense)
@@ -93,11 +96,13 @@ class Hebbian_SSL_Trainer:
 
         print("Initialized Hebbian-SSL Model.")
         print(f"Target Sparsity: {target_sparsity}")
+        print(f"Dataset: {self.dataset_name.upper()}")
         print("Use device:", self.device)
 
     def dataset_initialize(self, DATASET_DIR, BATCH_SIZE, WORKERS):
+        DatasetClass = CIFAR100_Dataset if self.dataset_name.lower() == "cifar100" else CIFAR10_Dataset
         self.image_datasets = {
-            x: CIFAR10_Dataset(split=x, transform=self.data_transforms[x])
+            x: DatasetClass(split=x, transform=self.data_transforms[x])
             for x in ["train", "val"]
         }
         self.dataloaders = {
