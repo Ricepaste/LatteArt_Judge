@@ -12,7 +12,7 @@ from src.training.SimSiam_train import SimSiam_Model
 
 # -------------------------------------------------------------
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__33/last.pt" 
+ENCODER_PATH = "./runs/shuffleNet_v05_SimSiam__34/last.pt" 
 
 # -------------------------------------------------------------
 # Evaluation 設定

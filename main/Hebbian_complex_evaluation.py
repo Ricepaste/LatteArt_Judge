@@ -12,12 +12,12 @@ from src.training.Hebbian_train import Hebbian_SSL_Trainer
 
 # -------------------------------------------------------------
 # 替換為您的預訓練權重檔案路徑
-ENCODER_PATH = "./runs/Hebbian_SSL_20260326-174032/last.pt" 
+ENCODER_PATH = "./runs/Hebbian_SSL_20260330-181947/last.pt" 
 
 # Ablation 設定
-TARGET_SPARSITY = 0.95
+TARGET_SPARSITY = 0.99
 USE_ERK = True          
-PROTECT_HIGHWAY = True  
+PROTECT_HIGHWAY = False
 # -------------------------------------------------------------
 
 # 設定設備
