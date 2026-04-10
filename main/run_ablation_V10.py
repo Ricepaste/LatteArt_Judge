@@ -9,31 +9,37 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- Ablation Tests Configuration ---
 # 1表示啟用, 0表示關閉
-# 第一組: Ablation experiments at Sparsity 0.99
-ABLATIONS = [
-    {"name": "BASE_V4_OnlyAntiHebb_Entropy", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "0", "ABLATION_ENTROPY": "1"}},
-    {"name": "V8_OnlyVariance_Entropy", "env": {"ABLATION_ANTI_HEBB": "0", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
-    {"name": "V8_Full", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}}
-]
 
-# 第二組: Dataset Generalization Tests at Sparsity 0.99
+# --- 🚨 THESIS EMERGENCY PRIORITY MODE 🚨 ---
+# 既然 1 個實驗要 2 天，全面 3-Seed 驗證是不可能的。我們必須把算力集中在「口試委員最會攻擊的地方」！
+
+# 💀 Priority 1: 捍衛主戰場 (CIFAR-100 @ 99%)
+# 這是你論文的大絕招，必須跑滿 3 個 Seed 去堵住教授的嘴。
+# -> [總共 2 個配置 x 3 Seeds = 6 個實驗] -> 分給兩台主機跑，約 6 天完成。
 GENERALIZATION = [
-    {"name": "V8_Full_CIFAR100", "dataset": "cifar100", "script": "Hebbian.py", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
-    {"name": "RigL_Baseline_CIFAR100", "dataset": "cifar100", "script": "SimSiam.py", "env": {}},
-    {"name": "RigL_Baseline_CIFAR10", "dataset": "cifar10", "script": "SimSiam.py", "env": {}}
+    {"name": "V8_Full_CIFAR100_99", "dataset": "cifar100", "script": "Hebbian.py", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
+    {"name": "RigL_Baseline_CIFAR100_99", "dataset": "cifar100", "script": "SimSiam.py", "env": {}}
 ]
 
-# 第三組: Sparsity Degradation Curve (Performance vs Sparsity)
+# ⚔️ Priority 2: 點出衰減交叉點 (CIFAR-100 @ 95%) 
+# 放棄 0.8, 0.9。我們直接在 RigL 會開始崩潰的懸崖邊緣 (95%) 各打一個點！
+# 單純為了畫出「黃金交叉圖」，這兩個點我們只跑 1 個 Seed (Seed 42) 就好。
+# -> [總共 2 個實驗] -> 約 2 天完成。
 SPARSITY_CURVE = []
-for s in [0.8, 0.9, 0.95, 0.99]:
-    SPARSITY_CURVE.append({"name": f"Curve_V8_Full_{s}", "dataset": "cifar10", "script": "Hebbian.py", "sparsity": s, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}})
-    SPARSITY_CURVE.append({"name": f"Curve_RigL_{s}", "dataset": "cifar10", "script": "SimSiam.py", "sparsity": s, "env": {}})
+for s in [0.8, 0.9, 0.95]:
+    SPARSITY_CURVE.append({"name": f"Curve_V8_Full_{s}_C100", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": s, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}})
+    SPARSITY_CURVE.append({"name": f"Curve_RigL_{s}_C100", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": s, "env": {}})
+
+# 🛡️ Priority 3: 舊資料防禦 (Ablation Tests)
+# 表三跟表一的數據你已經有 2 次了！口試時直接用那兩次的數據取平均，不需要再拿寶貴的 GPU 去跑。
+ABLATIONS = []
 
 
-def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", sparsity=0.99, epochs=400):
+def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", sparsity=0.99, epochs=400, seed=42):
+    actual_exp_name = f"{exp_name}_seed{seed}"
     print(f"\n{'='*50}")
-    print(f"🚀 Starting Experiment: {exp_name}")
-    print(f"Dataset: {dataset.upper()} | Target Sparsity: {sparsity} | Epochs: {epochs}")
+    print(f"🚀 Starting Experiment: {actual_exp_name}")
+    print(f"Dataset: {dataset.upper()} | Target Sparsity: {sparsity} | Epochs: {epochs} | Seed: {seed}")
     
     # 準備合併後的環境變數
     run_env = os.environ.copy()
@@ -41,34 +47,29 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
     run_env["TARGET_DATASET"] = dataset
     run_env["TARGET_SPARSITY"] = str(sparsity)
     run_env["NUM_EPOCHS"] = str(epochs)
-    
-    # 確保 PYTHONPATH 包含 main/ 目錄，避免找不到 src匯入
-    run_env["PYTHONPATH"] = MAIN_DIR + ":" + run_env.get("PYTHONPATH", "")
+    run_env["RUN_SEED"] = str(seed)
     
     # 印出要被覆蓋設定的追蹤參數
-    override_params = {**env_vars, "TARGET_DATASET": dataset, "TARGET_SPARSITY": sparsity, "NUM_EPOCHS": epochs}
+    override_params = {**env_vars, "TARGET_DATASET": dataset, "TARGET_SPARSITY": sparsity, "NUM_EPOCHS": epochs, "RUN_SEED": seed}
     print(f"System Overrides: {override_params}")
     print(f"{'='*50}\n")
     
     # 將 log 存入專屬資料夾 (鎖定在 main/ 之下)
     ablation_log_dir = os.path.join(MAIN_DIR, "ablation_logs")
     os.makedirs(ablation_log_dir, exist_ok=True)
-    log_file = os.path.join(ablation_log_dir, f"{exp_name}.log")
+    log_file = os.path.join(ablation_log_dir, f"{actual_exp_name}.log")
     
     cmd = ["python", "-u", script]  # 動態指定執行的 Python 腳本
     
-    
     try:
         with open(log_file, "w") as f:
-            # 加入 cwd=MAIN_DIR 確保程式從 main/ 目錄執行
             process = subprocess.Popen(cmd, env=run_env, stdout=f, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
             
-            # 使用一個迴圈可以讓我們隨時按 Ctrl+C 中斷
             while process.poll() is None:
                 time.sleep(1)
                 
             if process.returncode == 0:
-                print(f"✅ Experiment '{exp_name}' completed! Log saved to: {log_file}")
+                print(f"✅ Experiment '{actual_exp_name}' completed! Log saved to: {log_file}")
                 
                 # --- Linear Evaluation Step ---
                 runs_dir = os.path.join(MAIN_DIR, "runs")
@@ -92,7 +93,7 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
                         f_eval.write(f"\n\n{'='*50}\n--- End Linear Evaluation ---\n{'='*50}\n")
                 
             else:
-                print(f"❌ Experiment '{exp_name}' failed with return code {process.returncode}. Check log: {log_file}")
+                print(f"❌ Experiment '{actual_exp_name}' failed with return code {process.returncode}. Check log: {log_file}")
                 
     except KeyboardInterrupt:
         print("\n⚠️ Experiment interrupted by user.")
@@ -122,19 +123,20 @@ if __name__ == "__main__":
         if run_mode == "rigl" and exp.get("script", "Hebbian.py") == "SimSiam.py": return True
         return False
     
-    # 1. Ablation Tests (99% Sparsity on CIFAR10)
-    for exp in ABLATIONS:
-        if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset="cifar10", script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400)
+    # 1. 捍衛主戰場: 嚴格跑 3 Seeds
+    CORE_DEFENSE_SEEDS = [42, 3407, 114514]
+    for seed in CORE_DEFENSE_SEEDS:
+        print(f"\n>>>>>> STARTING CORE DEFENSE SEED {seed} <<<<<<")
+        for exp in GENERALIZATION:
+            if should_run(exp):
+                run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400, seed=seed)
+            
+    # 2. 曲線交叉點: 先跑 1 個 Seed 搶數據作圖 (未來如果有時間，改成 [42, 3407, 114514] 即可無縫接軌補完)
+    CURVE_SEEDS = [42] 
+    for seed in CURVE_SEEDS:
+        print(f"\n>>>>>> STARTING SPARSITY CURVE CHECKPOINT SEED {seed} <<<<<<")
+        for exp in SPARSITY_CURVE:
+            if should_run(exp):
+                run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.95), epochs=400, seed=seed)
         
-    # 2. Generalization Tests & Baselines (99% Sparsity)
-    for exp in GENERALIZATION:
-        if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400)
-        
-    # 3. Sparsity Degradation Curve Tests
-    for exp in SPARSITY_CURVE:
-        if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar10"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.99), epochs=400)
-        
-    print(f"\n🎉 All tests for mode '{run_mode.upper()}' finished! Please check ./ablation_logs/ for results.")
+    print(f"\n🎉 畢業生存任務 '{run_mode.upper()}' 已全數完成！請檢查 ./ablation_logs/ 並開始撰寫論文！")

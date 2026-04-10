@@ -3,11 +3,20 @@ from torchvision.io import read_image
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 import torchvision.models as models
 import os
-
+import numpy as np
+import torch
+import random
 import src.training.SimSiam_train as SimSiam_train
 
 # TODO: 刪除無用的dataset_dir參數
 def main():
+    # 在程式最前端拉起 Seed 管控，確保 RigL 初始隨機網路拓樸可控
+    run_seed = int(os.environ.get("RUN_SEED", "42"))
+    torch.manual_seed(run_seed)
+    torch.cuda.manual_seed_all(run_seed)
+    np.random.seed(run_seed)
+    random.seed(run_seed)
+    torch.backends.cudnn.deterministic = True
     
     target_sparsity_val = float(os.environ.get("TARGET_SPARSITY", "0.99"))
     rigl_dense_allocation = 1.0 - target_sparsity_val

@@ -3,8 +3,19 @@ import torch.nn as nn
 from torchvision import models
 import os
 
+import numpy as np
+import torch
+import random
 # --- Main Entry Point Example ---
 if __name__ == "__main__":
+    
+    # 在程式最前端拉起 Seed 管控，確保初始遮罩絕對隨機但可復現
+    run_seed = int(os.environ.get("RUN_SEED", "42"))
+    torch.manual_seed(run_seed)
+    torch.cuda.manual_seed_all(run_seed)
+    np.random.seed(run_seed)
+    random.seed(run_seed)
+    torch.backends.cudnn.deterministic = True
     
     # --- Ablation Study Toggles ---
     # 設為 True : 啟用 V6 特性 (1000 Epoch 可達 ~80%)
