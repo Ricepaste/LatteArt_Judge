@@ -13,25 +13,22 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # --- 🚨 THESIS EMERGENCY PRIORITY MODE 🚨 ---
 # 既然 1 個實驗要 2 天，全面 3-Seed 驗證是不可能的。我們必須把算力集中在「口試委員最會攻擊的地方」！
 
-# 💀 Priority 1: 捍衛主戰場 (CIFAR-100 @ 99%)
-# 這是你論文的大絕招，必須跑滿 3 個 Seed 去堵住教授的嘴。
-# -> [總共 2 個配置 x 3 Seeds = 6 個實驗] -> 分給兩台主機跑，約 6 天完成。
-GENERALIZATION = [
-    {"name": "V8_Full_CIFAR100_99", "dataset": "cifar100", "script": "Hebbian.py", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
-    {"name": "RigL_Baseline_CIFAR100_99", "dataset": "cifar100", "script": "SimSiam.py", "env": {}}
+# 💀 Priority 1: 捍衛主戰場 (已完成)
+GENERALIZATION = []
+
+# ⚔️ Priority 2: 點出衰減交叉點 (已完成)
+SPARSITY_CURVE = []
+
+# 🧪 Priority 4: Noise Robustness Challenge (CIFAR-100 @ 99% + 10% Input Noise)
+# 用來模擬「環境惡化」時，誰的拓樸生長更穩健。
+# 我們對 Input 注入 std=0.1 的高斯雜訊 (約 = 10% 數據污染)。
+NOISE_ROBUSTNESS = [
+    {"name": "Robust_V8_Full_C100_Noise0.1", "dataset": "cifar100", "script": "Hebbian.py", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1", "INPUT_NOISE_STD": "0.1"}},
+    {"name": "Robust_RigL_C100_Noise0.1", "dataset": "cifar100", "script": "SimSiam.py", "env": {"INPUT_NOISE_STD": "0.1"}}
 ]
 
-# ⚔️ Priority 2: 點出衰減交叉點 (CIFAR-100 @ 95%) 
-# 放棄 0.8, 0.9。我們直接在 RigL 會開始崩潰的懸崖邊緣 (95%) 各打一個點！
-# 單純為了畫出「黃金交叉圖」，這兩個點我們只跑 1 個 Seed (Seed 42) 就好。
-# -> [總共 2 個實驗] -> 約 2 天完成。
-SPARSITY_CURVE = []
-for s in [0.8, 0.9, 0.95]:
-    SPARSITY_CURVE.append({"name": f"Curve_V8_Full_{s}_C100", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": s, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}})
-    SPARSITY_CURVE.append({"name": f"Curve_RigL_{s}_C100", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": s, "env": {}})
 
 # 🛡️ Priority 3: 舊資料防禦 (Ablation Tests)
-# 表三跟表一的數據你已經有 2 次了！口試時直接用那兩次的數據取平均，不需要再拿寶貴的 GPU 去跑。
 ABLATIONS = []
 
 
@@ -139,4 +136,10 @@ if __name__ == "__main__":
             if should_run(exp):
                 run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.95), epochs=400, seed=seed)
         
-    print(f"\n🎉 畢業生存任務 '{run_mode.upper()}' 已全數完成！請檢查 ./ablation_logs/ 並開始撰寫論文！")
+    # 3. 噪聲韌性挑戰: 只跑 1 個 Seed (42)
+    print(f"\n>>>>>> STARTING NOISE ROBUSTNESS CHALLENGE (SEED 42) <<<<<<")
+    for exp in NOISE_ROBUSTNESS:
+        if should_run(exp):
+            run_experiment(exp["name"], exp["env"], dataset="cifar100", script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400, seed=42)
+            
+    print(f"\n🎉 噪聲對抗實驗 '{run_mode.upper()}' 已全數完成！請檢查 ./ablation_logs/ 並開始撰寫論文！")
