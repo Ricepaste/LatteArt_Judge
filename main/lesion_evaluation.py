@@ -31,24 +31,27 @@ print(f"Model Path: {ENCODER_PATH}")
 print(f"Lesion Ratio: {LESION_RATIO * 100}% of remaining weights")
 print("="*60)
 
-# 動態選擇模組
+# 動態選擇模組與初始化
 if METHOD == "hebbian":
-    import src.module.hebbian_SimSiam_Module as Module
+    import src.training.Hebbian_train as Hebbian_train
+    dummy_trainer = Hebbian_train.Hebbian_Model(
+        pretrained_model=models.resnet18,
+        target_sparsity=0.99, # Sparsity parameter is needed for initialization
+    )
+    simsiam_model = dummy_trainer.model.to(device)
 else:
-    import src.module.SimSiam_Module as Module
+    import src.training.SimSiam_train as SimSiam_train
+    dummy_trainer = SimSiam_train.SimSiam_Model(
+        pretrained_model=models.resnet18,
+    )
+    simsiam_model = dummy_trainer.model.to(device)
 
-# 1. 初始化與載入模型
-pretrained_model = models.resnet18(weights=None)
-simsiam_model = Module.SimSiam(
-    pretrained_model, 
-    model_type='resnet', 
-    encoder_output_dim=512,
-    projector_inner_dim=2048
-).to(device)
-
-print(f"Loading weights...")
-simsiam_model.load_state_dict(torch.load(ENCODER_PATH, map_location=device))
+print(f"Loading weights from {ENCODER_PATH}...")
+state_dict = torch.load(ENCODER_PATH, map_location=device, weights_only=True)
+simsiam_model.load_state_dict(state_dict)
 print("Weights loaded successfully!")
+
+
 
 # 如果是 Hebbian，確保評估時不再觸發生長
 if hasattr(simsiam_model, 'set_hebbian_enable'):
@@ -138,8 +141,8 @@ else:
     test_dataset = CIFAR10_Dataset(split="test", transform=transform)
     num_classes = 10
 
-train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
-test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4)
+train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
 
 # ==================== KNN Evaluation ====================
 print("\n--- Starting KNN Evaluation ---")
