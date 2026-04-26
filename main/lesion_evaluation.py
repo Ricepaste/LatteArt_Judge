@@ -33,9 +33,9 @@ print("="*60)
 
 # 動態選擇模組與初始化
 if METHOD == "hebbian":
-    import src.training.Hebbian_train as Hebbian_train
-    dummy_trainer = Hebbian_train.Hebbian_Model(
-        pretrained_model=models.resnet18,
+    from src.training.Hebbian_train import Hebbian_SSL_Trainer
+    dummy_trainer = Hebbian_SSL_Trainer(
+        pretrained_model_class=models.resnet18,
         target_sparsity=0.99, # Sparsity parameter is needed for initialization
     )
     simsiam_model = dummy_trainer.model.to(device)
@@ -107,16 +107,12 @@ class ResNetEncoderWrapper(nn.Module):
         self.output_dim = 512
 
     def forward(self, x):
-        x = self.encoder.conv1(x)
-        x = self.encoder.bn1(x)
-        x = self.encoder.relu(x)
-        x = self.encoder.maxpool(x)
-        x = self.encoder.layer1(x)
-        x = self.encoder.layer2(x)
-        x = self.encoder.layer3(x)
-        x = self.encoder.layer4(x)
-        x = self.encoder.avgpool(x)
-        x = torch.flatten(x, 1)
+        # 通過 Sparse 模型特徵層
+        x = self.encoder(x)
+        # Global Average Pooling (B, 512, 7, 7) -> (B, 512)
+        if x.dim() == 4:
+            x = x.mean([2, 3])
+        x = x.view(x.size(0), -1)
         return x
 
 encoder = ResNetEncoderWrapper(simsiam_model.encoder).to(device)
