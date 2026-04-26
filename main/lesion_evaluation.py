@@ -1,0 +1,223 @@
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
+from torch.utils.data import DataLoader
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+import os
+import random
+import numpy as np
+from tqdm import tqdm
+
+from src.processing.CIFAR100 import CIFAR100_Dataset
+from src.processing.CIFAR10 import CIFAR10_Dataset
+
+# 環境變數設定
+ENCODER_PATH = os.environ.get("ENCODER_PATH", "")
+METHOD = os.environ.get("METHOD", "hebbian").lower()
+DATASET_NAME = os.environ.get("TARGET_DATASET", "cifar100").lower()
+LESION_RATIO = float(os.environ.get("LESION_RATIO", "0.1"))
+LINEAR_EPOCHS = int(os.environ.get("NUM_EPOCHS", "100"))
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+if not ENCODER_PATH or not os.path.exists(ENCODER_PATH):
+    raise ValueError(f"Invalid ENCODER_PATH: {ENCODER_PATH}")
+
+print("="*60)
+print(f"🏥 Structural Lesion Evaluation (Fault Tolerance Test)")
+print(f"Method: {METHOD.upper()}")
+print(f"Model Path: {ENCODER_PATH}")
+print(f"Lesion Ratio: {LESION_RATIO * 100}% of remaining weights")
+print("="*60)
+
+# 動態選擇模組
+if METHOD == "hebbian":
+    import src.module.hebbian_SimSiam_Module as Module
+else:
+    import src.module.SimSiam_Module as Module
+
+# 1. 初始化與載入模型
+pretrained_model = models.resnet18
+simsiam_model = Module.SimSiam(
+    pretrained_model, 
+    model_type='resnet', 
+    encoder_output_dim=512,
+    projector_inner_dim=2048
+).to(device)
+
+print(f"Loading weights...")
+simsiam_model.load_state_dict(torch.load(ENCODER_PATH, map_location=device))
+print("Weights loaded successfully!")
+
+# 如果是 Hebbian，確保評估時不再觸發生長
+if hasattr(simsiam_model, 'set_hebbian_enable'):
+    simsiam_model.set_hebbian_enable(False)
+
+# 2. 隨機破壞 (Lesion Injection)
+total_params = 0
+zero_before = 0
+zero_after = 0
+lesioned_count = 0
+
+with torch.no_grad():
+    for name, module in simsiam_model.named_modules():
+        if 'encoder' in name and (isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear)):
+            weight = module.weight
+            total_params += weight.numel()
+            
+            # 找到非零的權重 (存活的神經元連線)
+            mask_alive = weight.abs() > 1e-7
+            zero_before += (~mask_alive).sum().item()
+            
+            # 抽出存活權重的索引
+            alive_indices = torch.nonzero(mask_alive, as_tuple=False)
+            num_alive = len(alive_indices)
+            
+            if num_alive > 0:
+                # 決定要殺死多少比例
+                num_to_kill = int(num_alive * LESION_RATIO)
+                lesioned_count += num_to_kill
+                
+                # 隨機選擇受害者
+                victim_idx = torch.randperm(num_alive)[:num_to_kill]
+                victims = alive_indices[victim_idx]
+                
+                # 執行破壞
+                for idx in victims:
+                    idx_tuple = tuple(idx.tolist())
+                    weight[idx_tuple] = 0.0
+                    
+            zero_after += (weight.abs() < 1e-7).sum().item()
+
+print("-" * 50)
+print(f"Sparsity Before Lesion: {zero_before / total_params * 100:.2f}%")
+print(f"Destroyed Connections: {lesioned_count}")
+print(f"Sparsity After Lesion:  {zero_after / total_params * 100:.2f}%")
+print("-" * 50)
+
+# 3. 抽取 Encoder 供評估使用
+class ResNetEncoderWrapper(nn.Module):
+    def __init__(self, encoder):
+        super().__init__()
+        self.encoder = encoder
+        self.output_dim = 512
+
+    def forward(self, x):
+        x = self.encoder.conv1(x)
+        x = self.encoder.bn1(x)
+        x = self.encoder.relu(x)
+        x = self.encoder.maxpool(x)
+        x = self.encoder.layer1(x)
+        x = self.encoder.layer2(x)
+        x = self.encoder.layer3(x)
+        x = self.encoder.layer4(x)
+        x = self.encoder.avgpool(x)
+        x = torch.flatten(x, 1)
+        return x
+
+encoder = ResNetEncoderWrapper(simsiam_model.encoder).to(device)
+encoder.eval()
+
+# 4. 資料集準備 (Linear Probing 專用的乾淨資料，不要 Noise)
+# 覆寫 Noise 以確保公平評估
+os.environ["INPUT_NOISE_STD"] = "0.0"
+
+transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+])
+
+if DATASET_NAME == "cifar100":
+    train_dataset = CIFAR100_Dataset(split="train", transform=transform)
+    test_dataset = CIFAR100_Dataset(split="test", transform=transform)
+    num_classes = 100
+else:
+    train_dataset = CIFAR10_Dataset(split="train", transform=transform)
+    test_dataset = CIFAR10_Dataset(split="test", transform=transform)
+    num_classes = 10
+
+train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4)
+
+# ==================== KNN Evaluation ====================
+print("\n--- Starting KNN Evaluation ---")
+def get_features(loader):
+    features = []
+    labels = []
+    with torch.no_grad():
+        for images1, _, target in tqdm(loader, desc="Extracting features"):
+            images1 = images1.to(device)
+            feat = encoder(images1)
+            features.append(feat.cpu().numpy())
+            labels.append(target.numpy())
+    return np.vstack(features), np.concatenate(labels)
+
+train_features, train_labels = get_features(train_loader)
+test_features, test_labels = get_features(test_loader)
+
+knn = KNeighborsClassifier(n_neighbors=200)
+knn.fit(train_features, train_labels)
+knn_preds = knn.predict(test_features)
+knn_acc = accuracy_score(test_labels, knn_preds)
+print(f"KNN Protocol Accuracy (k=200): {knn_acc:.4f}")
+
+# ==================== Linear Probing ====================
+print("\n--- Starting Linear Probing ---")
+classifier = nn.Linear(encoder.output_dim, num_classes).to(device)
+optimizer = torch.optim.SGD(classifier.parameters(), lr=30.0, momentum=0.9, weight_decay=0)
+criterion = nn.CrossEntropyLoss()
+
+epochs = LINEAR_EPOCHS
+for epoch in range(epochs):
+    classifier.train()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+    
+    for images1, _, labels in train_loader:
+        images1, labels = images1.to(device), labels.to(device)
+        optimizer.zero_grad()
+        
+        with torch.no_grad():
+            features = encoder(images1)
+            
+        outputs = classifier(features)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        
+        running_loss += loss.item()
+        _, predicted = outputs.max(1)
+        total += labels.size(0)
+        correct += predicted.eq(labels).sum().item()
+
+    if (epoch+1) % 10 == 0 or epoch == epochs - 1:
+        train_acc = 100. * correct / total
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}, Train Acc: {train_acc:.2f}%")
+
+# Test phase
+classifier.eval()
+correct = 0
+total = 0
+with torch.no_grad():
+    for images1, _, labels in test_loader:
+        images1, labels = images1.to(device), labels.to(device)
+        features = encoder(images1)
+        outputs = classifier(features)
+        _, predicted = outputs.max(1)
+        total += labels.size(0)
+        correct += predicted.eq(labels).sum().item()
+
+test_acc = correct / total
+print(f"\nFinal Linear Probing Accuracy: {test_acc:.4f}")
+
+# 寫入結果檔案
+result_file = f"lesion_results_{METHOD}_{DATASET_NAME}_{int(LESION_RATIO*100)}percent.txt"
+with open(result_file, "a") as f:
+    f.write(f"Model: {ENCODER_PATH}\n")
+    f.write(f"Lesion Ratio: {LESION_RATIO}\n")
+    f.write(f"KNN Accuracy: {knn_acc:.4f}\n")
+    f.write(f"Linear Probing: {test_acc:.4f}\n")
+    f.write("-" * 30 + "\n")
