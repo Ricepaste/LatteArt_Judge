@@ -38,7 +38,7 @@ else:
     import src.module.SimSiam_Module as Module
 
 # 1. 初始化與載入模型
-pretrained_model = models.resnet18
+pretrained_model = models.resnet18(weights=None)
 simsiam_model = Module.SimSiam(
     pretrained_model, 
     model_type='resnet', 

@@ -11,3 +11,4 @@
 third_party_libs/*
 !third_party_libs/rigl-torch
 third_party_libs/rigl-torch/**/*.pyc
+main/lesion_logs/*
