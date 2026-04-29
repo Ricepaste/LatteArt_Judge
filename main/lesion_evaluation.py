@@ -15,8 +15,7 @@ from src.processing.CIFAR10 import CIFAR10_Dataset
 # 環境變數設定
 ENCODER_PATH = os.environ.get("ENCODER_PATH", "")
 METHOD = os.environ.get("METHOD", "hebbian").lower()
-DATASET_NAME = os.environ.get("TARGET_DATASET", "cifar100").lower()
-LESION_RATIO = float(os.environ.get("LESION_RATIO", "0.1"))
+DATASET_NAME = os.environ.get("TARGET_DATASET", "cifar10").lower()
 LINEAR_EPOCHS = int(os.environ.get("NUM_EPOCHS", "100"))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,10 +24,10 @@ if not ENCODER_PATH or not os.path.exists(ENCODER_PATH):
     raise ValueError(f"Invalid ENCODER_PATH: {ENCODER_PATH}")
 
 print("="*60)
-print(f"🏥 Structural Lesion Evaluation (Fault Tolerance Test)")
+print(f"🌍 Transfer Learning Evaluation (Cross-Dataset Generalization)")
 print(f"Method: {METHOD.upper()}")
-print(f"Model Path: {ENCODER_PATH}")
-print(f"Lesion Ratio: {LESION_RATIO * 100}% of remaining weights")
+print(f"Source Model Path: {ENCODER_PATH}")
+print(f"Target Evaluation Dataset: {DATASET_NAME.upper()}")
 print("="*60)
 
 # 動態選擇模組與初始化
@@ -48,55 +47,25 @@ else:
 
 print(f"Loading weights from {ENCODER_PATH}...")
 state_dict = torch.load(ENCODER_PATH, map_location=device, weights_only=True)
-simsiam_model.load_state_dict(state_dict)
+simsiam_model.load_state_dict(state_dict, strict=False)
 print("Weights loaded successfully!")
-
-
 
 # 如果是 Hebbian，確保評估時不再觸發生長
 if hasattr(simsiam_model, 'set_hebbian_enable'):
     simsiam_model.set_hebbian_enable(False)
 
-# 2. 隨機破壞 (Lesion Injection)
+# --- 2. 稀疏度確認 ---
 total_params = 0
-zero_before = 0
-zero_after = 0
-lesioned_count = 0
-
+zero_params = 0
 with torch.no_grad():
     for name, module in simsiam_model.named_modules():
         if 'encoder' in name and (isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear)):
             weight = module.weight
             total_params += weight.numel()
-            
-            # 找到非零的權重 (存活的神經元連線)
-            mask_alive = weight.abs() > 1e-7
-            zero_before += (~mask_alive).sum().item()
-            
-            # 抽出存活權重的索引
-            alive_indices = torch.nonzero(mask_alive, as_tuple=False)
-            num_alive = len(alive_indices)
-            
-            if num_alive > 0:
-                # 決定要殺死多少比例
-                num_to_kill = int(num_alive * LESION_RATIO)
-                lesioned_count += num_to_kill
-                
-                # 隨機選擇受害者
-                victim_idx = torch.randperm(num_alive)[:num_to_kill]
-                victims = alive_indices[victim_idx]
-                
-                # 執行破壞
-                for idx in victims:
-                    idx_tuple = tuple(idx.tolist())
-                    weight[idx_tuple] = 0.0
-                    
-            zero_after += (weight.abs() < 1e-7).sum().item()
+            zero_params += (weight.abs() < 1e-7).sum().item()
 
 print("-" * 50)
-print(f"Sparsity Before Lesion: {zero_before / total_params * 100:.2f}%")
-print(f"Destroyed Connections: {lesioned_count}")
-print(f"Sparsity After Lesion:  {zero_after / total_params * 100:.2f}%")
+print(f"Encoder Global Sparsity: {zero_params / total_params * 100:.2f}%")
 print("-" * 50)
 
 # 3. 抽取 Encoder 供評估使用
@@ -119,7 +88,6 @@ encoder = ResNetEncoderWrapper(simsiam_model.encoder).to(device)
 encoder.eval()
 
 # 4. 資料集準備 (Linear Probing 專用的乾淨資料，不要 Noise)
-# 覆寫 Noise 以確保公平評估
 os.environ["INPUT_NOISE_STD"] = "0.0"
 
 transform = transforms.Compose([
@@ -213,10 +181,10 @@ test_acc = correct / total
 print(f"\nFinal Linear Probing Accuracy: {test_acc:.4f}")
 
 # 寫入結果檔案
-result_file = f"lesion_results_{METHOD}_{DATASET_NAME}_{int(LESION_RATIO*100)}percent.txt"
+result_file = f"transfer_results_{METHOD}_to_{DATASET_NAME}.txt"
 with open(result_file, "a") as f:
-    f.write(f"Model: {ENCODER_PATH}\n")
-    f.write(f"Lesion Ratio: {LESION_RATIO}\n")
+    f.write(f"Source Model: {ENCODER_PATH}\n")
+    f.write(f"Target Dataset: {DATASET_NAME}\n")
     f.write(f"KNN Accuracy: {knn_acc:.4f}\n")
     f.write(f"Linear Probing: {test_acc:.4f}\n")
     f.write("-" * 30 + "\n")
