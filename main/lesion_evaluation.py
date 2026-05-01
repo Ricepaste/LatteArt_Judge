@@ -132,8 +132,17 @@ print(f"KNN Protocol Accuracy (k=200): {knn_acc:.4f}")
 
 # ==================== Linear Probing ====================
 print("\n--- Starting Linear Probing ---")
-classifier = nn.Linear(encoder.output_dim, num_classes).to(device)
-optimizer = torch.optim.SGD(classifier.parameters(), lr=30.0, momentum=0.9, weight_decay=0)
+class LinearClassifier(nn.Module):
+    def __init__(self, encoder_output_dim, num_classes):
+        super(LinearClassifier, self).__init__()
+        self.bn = nn.BatchNorm1d(encoder_output_dim, affine=False)
+        self.linear = nn.Linear(encoder_output_dim, num_classes)
+
+    def forward(self, x):
+        return self.linear(self.bn(x))
+
+classifier = LinearClassifier(encoder.output_dim, num_classes).to(device)
+optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
 criterion = nn.CrossEntropyLoss()
 
 epochs = LINEAR_EPOCHS
@@ -149,6 +158,7 @@ for epoch in range(epochs):
         
         with torch.no_grad():
             features = encoder(images1)
+            features = torch.nn.functional.normalize(features, dim=1)
             
         outputs = classifier(features)
         loss = criterion(outputs, labels)
@@ -172,6 +182,7 @@ with torch.no_grad():
     for images1, _, labels in test_loader:
         images1, labels = images1.to(device), labels.to(device)
         features = encoder(images1)
+        features = torch.nn.functional.normalize(features, dim=1)
         outputs = classifier(features)
         _, predicted = outputs.max(1)
         total += labels.size(0)
