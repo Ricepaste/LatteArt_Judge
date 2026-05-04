@@ -18,6 +18,8 @@ METHOD = os.environ.get("METHOD", "hebbian").lower()
 DATASET_NAME = os.environ.get("TARGET_DATASET", "cifar10").lower()
 LINEAR_EPOCHS = int(os.environ.get("NUM_EPOCHS", "100"))
 EVAL_FRACTION = float(os.environ.get("EVAL_FRACTION", "1.0"))
+USE_ERK = os.environ.get("USE_ERK", "True") == "True"
+PROTECT_HIGHWAY = os.environ.get("PROTECT_HIGHWAY", "False") == "True" # 預設關閉，符合 99% 極限測試情境
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -38,6 +40,8 @@ if METHOD == "hebbian":
     dummy_trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
         target_sparsity=0.99, # Sparsity parameter is needed for initialization
+        use_erk=USE_ERK,
+        protect_highway=PROTECT_HIGHWAY
     )
     simsiam_model = dummy_trainer.model.to(device)
 else:
