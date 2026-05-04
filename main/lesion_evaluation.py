@@ -17,6 +17,7 @@ ENCODER_PATH = os.environ.get("ENCODER_PATH", "")
 METHOD = os.environ.get("METHOD", "hebbian").lower()
 DATASET_NAME = os.environ.get("TARGET_DATASET", "cifar10").lower()
 LINEAR_EPOCHS = int(os.environ.get("NUM_EPOCHS", "100"))
+EVAL_FRACTION = float(os.environ.get("EVAL_FRACTION", "1.0"))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -28,6 +29,7 @@ print(f"🌍 Transfer Learning Evaluation (Cross-Dataset Generalization)")
 print(f"Method: {METHOD.upper()}")
 print(f"Source Model Path: {ENCODER_PATH}")
 print(f"Target Evaluation Dataset: {DATASET_NAME.upper()}")
+print(f"Evaluation Data Fraction: {EVAL_FRACTION * 100}%")
 print("="*60)
 
 # 動態選擇模組與初始化
@@ -96,6 +98,8 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
+from torch.utils.data import SubsetRandomSampler
+
 if DATASET_NAME == "cifar100":
     train_dataset = CIFAR100_Dataset(split="train", transform=transform)
     test_dataset = CIFAR100_Dataset(split="test", transform=transform)
@@ -105,7 +109,23 @@ else:
     test_dataset = CIFAR10_Dataset(split="test", transform=transform)
     num_classes = 10
 
-train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=0)
+# Few-shot sampling
+num_train = len(train_dataset)
+indices = list(range(num_train))
+# CIFAR datasets directly expose targets. Handle both our custom and torchvision ones.
+labels = train_dataset.targets if hasattr(train_dataset, 'targets') else [train_dataset[i][2] for i in range(num_train)]
+
+train_idx = []
+for label in range(num_classes):
+    label_indices = [i for i, x in enumerate(labels) if x == label]
+    train_idx.extend(
+        np.random.choice(
+            label_indices, size=int(EVAL_FRACTION * len(label_indices)), replace=False
+        )
+    )
+
+train_sampler = SubsetRandomSampler(train_idx)
+train_loader = DataLoader(train_dataset, batch_size=256, sampler=train_sampler, num_workers=0)
 test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
 
 # ==================== KNN Evaluation ====================
@@ -191,11 +211,21 @@ with torch.no_grad():
 test_acc = correct / total
 print(f"\nFinal Linear Probing Accuracy: {test_acc:.4f}")
 
-# 寫入結果檔案
-result_file = f"transfer_results_{METHOD}_to_{DATASET_NAME}.txt"
-with open(result_file, "a") as f:
-    f.write(f"Source Model: {ENCODER_PATH}\n")
-    f.write(f"Target Dataset: {DATASET_NAME}\n")
-    f.write(f"KNN Accuracy: {knn_acc:.4f}\n")
-    f.write(f"Linear Probing: {test_acc:.4f}\n")
-    f.write("-" * 30 + "\n")
+# 寫入結果檔案 (CSV 格式方便收集，可直接丟 Excel)
+summary_file = "transfer_summary_master.csv"
+file_exists = os.path.isfile(summary_file)
+
+with open(summary_file, "a") as f:
+    if not file_exists:
+        f.write("Method,Source_Model,Target_Dataset,Data_Fraction,KNN_Acc,Linear_Acc\n")
+    
+    # 簡化模型名稱 (只保留資料夾名稱)
+    model_name = os.path.basename(os.path.dirname(ENCODER_PATH))
+    f.write(f"{METHOD},{model_name},{DATASET_NAME},{EVAL_FRACTION},{knn_acc:.4f},{test_acc:.4f}\n")
+
+print("\n" + "="*60)
+print(f"📊 FINAL RESULTS for {METHOD.upper()} on {DATASET_NAME.upper()} ({EVAL_FRACTION*100}% labels)")
+print(f"  > KNN Accuracy: {knn_acc*100:.2f}%")
+print(f"  > Linear Probing: {test_acc*100:.2f}%")
+print(f"Results appended to {summary_file}")
+print("="*60 + "\n")

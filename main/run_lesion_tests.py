@@ -1,75 +1,102 @@
 import os
 import subprocess
 import time
+import pandas as pd
+from datetime import datetime
 
 MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # =====================================================================
-# 🌍 Transfer Learning Configuration (跨資料集遷移測試)
+# 🌍 Transfer & Semi-Supervised Configuration
 # =====================================================================
 MODELS_TO_TEST = [
     {
-        "name": "Hebbian_99_C100_Source",
+        "name": "Hebbian_99_C100",
         "method": "hebbian",
         "encoder_path": "/app/main/runs/Hebbian_SSL_20260410-190945/last.pt" 
     },
     {
-        "name": "RigL_99_C100_Source",
+        "name": "RigL_99_C100",
         "method": "rigl",
         "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt" 
     }
 ]
 
-# 我們要遷移到的目標資料集 (例如從 CIFAR-100 訓練，遷移到 CIFAR-10 評估)
-TARGET_DATASETS = ["cifar10"]
+# 測試目標：同資料集半監督 (cifar100) 與 跨資料集遷移 (cifar10)
+TARGET_DATASETS = ["cifar100", "cifar10"]
 
-def run_transfer_evaluation(model_info, target_ds):
-    print(f"\n{'='*60}")
-    print(f"🚀 Starting Transfer Test: {model_info['name']} -> {target_ds.upper()}")
+# 少樣本比例
+EVAL_FRACTIONS = [1.0, 0.1, 0.01] 
+
+def run_evaluation(model_info, target_ds, fraction):
+    print(f"\n>>>> [RUNNING] {model_info['name']} on {target_ds.upper()} ({fraction*100}% labels)")
     
     run_env = os.environ.copy()
     run_env["ENCODER_PATH"] = model_info["encoder_path"]
     run_env["METHOD"] = model_info["method"]
     run_env["TARGET_DATASET"] = target_ds
-    run_env["NUM_EPOCHS"] = "50" # 遷移學習通常只需要較短的 Linear Probing 即可收斂
-    
-    # 強制關閉先前的輸入雜訊
+    run_env["NUM_EPOCHS"] = "50" 
+    run_env["EVAL_FRACTION"] = str(fraction)
     run_env["INPUT_NOISE_STD"] = "0.0"
     
-    script = "lesion_evaluation.py" # 沿用舊檔名，但內容已更新為遷移學習
+    script = "lesion_evaluation.py"
     cmd = ["python", "-u", script]
     
-    # 將 log 存入專屬資料夾
-    transfer_log_dir = os.path.join(MAIN_DIR, "transfer_logs")
-    os.makedirs(transfer_log_dir, exist_ok=True)
-    log_file = os.path.join(transfer_log_dir, f"transfer_{model_info['name']}_to_{target_ds}.log")
+    # 建立時間戳記資料夾，避免 Log 混亂
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    log_dir = os.path.join(MAIN_DIR, "eval_logs", timestamp)
+    os.makedirs(log_dir, exist_ok=True)
+    
+    log_filename = f"{model_info['method']}_{target_ds}_{int(fraction*100)}pct.log"
+    log_path = os.path.join(log_dir, log_filename)
     
     try:
-        with open(log_file, "w") as f:
+        with open(log_path, "w") as f:
             process = subprocess.Popen(cmd, env=run_env, stdout=f, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
+            process.wait()
             
-            while process.poll() is None:
-                time.sleep(1)
-                
-            if process.returncode == 0:
-                print(f"✅ Finished! Log saved to: {log_file}")
-            else:
-                print(f"❌ Failed with return code {process.returncode}. Check log: {log_file}")
+        if process.returncode == 0:
+            print(f"✅ Success. Log: {log_path}")
+        else:
+            print(f"❌ Failed. Check: {log_path}")
                 
     except KeyboardInterrupt:
-        print("\n⚠️ Interrupted by user.")
         process.terminate()
-        process.wait()
+        print("\n⚠️ Interrupted.")
+        return False
+    return True
 
 if __name__ == "__main__":
-    print("🌟 Starting Automated Transfer Learning Generalization Tests 🌟\n")
+    # 清除舊的 Master CSV (若你想重新開始收集)
+    # if os.path.exists("transfer_summary_master.csv"): os.remove("transfer_summary_master.csv")
+    
+    print("\n" + "="*60)
+    print("🚀 AUTOMATED EVALUATION SUITE STARTING")
+    print("="*60)
+    
+    start_time = time.time()
     
     for model in MODELS_TO_TEST:
-        if not os.path.exists(os.path.join(MAIN_DIR, model["encoder_path"])) and not os.path.exists(model["encoder_path"]):
-            print(f"⚠️ 找不到權重檔案: {model['encoder_path']}，跳過 {model['name']}。")
+        if not os.path.exists(model["encoder_path"]):
+            print(f"⚠️ Skip: {model['encoder_path']} not found.")
             continue
             
         for ds in TARGET_DATASETS:
-            run_transfer_evaluation(model, ds)
-            
-    print("\n🎉 All Transfer Tests Finished! 請檢查 main/transfer_results_*.txt 裡的數據！")
+            for frac in EVAL_FRACTIONS:
+                if not run_evaluation(model, ds, frac):
+                    break
+    
+    duration = (time.time() - start_time) / 60
+    print(f"\n🎉 All tests finished in {duration:.1f} minutes.")
+    
+    # --- 讀取並列印總結表格 ---
+    master_csv = os.path.join(MAIN_DIR, "transfer_summary_master.csv")
+    if os.path.exists(master_csv):
+        print("\n" + "📊 MASTER SUMMARY TABLE ".center(80, "="))
+        df = pd.read_csv(master_csv)
+        # 只顯示最後這一輪產生的結果（若 CSV 很大）
+        print(df.tail(len(MODELS_TO_TEST) * len(TARGET_DATASETS) * len(EVAL_FRACTIONS)).to_string(index=False))
+        print("="*80)
+        print(f"Full data saved in: {master_csv}")
+    else:
+        print("\n❌ Error: No results collected in transfer_summary_master.csv")
