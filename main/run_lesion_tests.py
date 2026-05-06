@@ -15,11 +15,11 @@ MODELS_TO_TEST = [
         "method": "hebbian",
         "encoder_path": "/app/main/runs/Hebbian_SSL_20260410-190945/last.pt" 
     },
-    {
-        "name": "RigL_99_C100",
-        "method": "rigl",
-        "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt" 
-    }
+    # {
+    #     "name": "RigL_99_C100",
+    #     "method": "rigl",
+    #     "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt" 
+    # }
 ]
 
 # 測試目標：同資料集半監督 (cifar100) 與 跨資料集遷移 (cifar10)
@@ -39,7 +39,7 @@ def run_evaluation(model_info, target_ds, fraction):
     run_env["EVAL_FRACTION"] = str(fraction)
     run_env["INPUT_NOISE_STD"] = "0.0"
     
-    script = "lesion_evaluation.py"
+    script = "evaluate_model.py"
     cmd = ["python", "-u", script]
     
     # 建立時間戳記資料夾，避免 Log 混亂

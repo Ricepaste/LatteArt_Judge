@@ -80,14 +80,17 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
                         
                     run_env["ENCODER_PATH"] = encoder_path
                     
-                    eval_script = "Hebbian_linear_evaluation.py" if script == "Hebbian.py" else "SimSiam_linear_evaluation.py"
-                    print(f"🚀 Running Linear Evaluation: {eval_script} on {encoder_path}")
+                    # 統一使用新的標準評估腳本 (包含 CenterCrop, k=200 KNN, BatchNorm, L2 Norm)
+                    eval_script = "evaluate_model.py" 
+                    run_env["METHOD"] = "hebbian" if script == "Hebbian.py" else "rigl"
+                    
+                    print(f"🚀 Running Standardized Evaluation: {eval_script} on {encoder_path}")
                     eval_cmd = ["python", "-u", eval_script]
                     
                     with open(log_file, "a") as f_eval:
-                        f_eval.write(f"\n\n{'='*50}\n--- Starting Linear Evaluation ---\n{'='*50}\n")
+                        f_eval.write(f"\n\n{'='*50}\n--- Starting Standardized Evaluation (V8 Upgrade) ---\n{'='*50}\n")
                         subprocess.run(eval_cmd, env=run_env, stdout=f_eval, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
-                        f_eval.write(f"\n\n{'='*50}\n--- End Linear Evaluation ---\n{'='*50}\n")
+                        f_eval.write(f"\n\n{'='*50}\n--- End Evaluation ---\n{'='*50}\n")
                 
             else:
                 print(f"❌ Experiment '{actual_exp_name}' failed with return code {process.returncode}. Check log: {log_file}")

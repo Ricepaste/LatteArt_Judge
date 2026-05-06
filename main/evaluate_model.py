@@ -141,6 +141,8 @@ def get_features(loader):
         for images1, _, target in tqdm(loader, desc="Extracting features"):
             images1 = images1.to(device)
             feat = encoder(images1)
+            # L2 Normalization (Standard for SSL KNN)
+            feat = torch.nn.functional.normalize(feat, dim=1)
             features.append(feat.cpu().numpy())
             labels.append(target.numpy())
     return np.vstack(features), np.concatenate(labels)
@@ -216,7 +218,7 @@ test_acc = correct / total
 print(f"\nFinal Linear Probing Accuracy: {test_acc:.4f}")
 
 # 寫入結果檔案 (CSV 格式方便收集，可直接丟 Excel)
-summary_file = "transfer_summary_master.csv"
+summary_file = os.environ.get("SUMMARY_FILE_OVERRIDE", "transfer_summary_master.csv")
 file_exists = os.path.isfile(summary_file)
 
 with open(summary_file, "a") as f:
