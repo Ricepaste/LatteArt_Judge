@@ -16,8 +16,17 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # 💀 Priority 1: 捍衛主戰場 (已完成)
 GENERALIZATION = []
 
-# ⚔️ Priority 2: 點出衰減交叉點 (已完成)
-SPARSITY_CURVE = []
+# ⚔️ Priority 2: 點出衰減交叉點 (瞄準 95% ~ 99% 的超車區間)
+SPARSITY_CURVE = [
+    {"name": "Sparsity_V8_96", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": 0.96, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
+    {"name": "Sparsity_RigL_96", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": 0.96, "env": {}},
+    
+    {"name": "Sparsity_V8_97", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": 0.97, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
+    {"name": "Sparsity_RigL_97", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": 0.97, "env": {}},
+    
+    {"name": "Sparsity_V8_98", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": 0.98, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
+    {"name": "Sparsity_RigL_98", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": 0.98, "env": {}},
+]
 
 # 🧪 Priority 4: Noise Robustness Challenge (CIFAR-100 @ 99% + 10% Input Noise)
 # 用來模擬「環境惡化」時，誰的拓樸生長更穩健。

@@ -22,11 +22,11 @@ MODELS_TO_TEST = [
     # }
 ]
 
-# 測試目標：同資料集半監督 (cifar100) 與 跨資料集遷移 (cifar10)
-TARGET_DATASETS = ["cifar100", "cifar10"]
+# 測試目標：涵蓋同領域、跨領域、與特殊視覺領域
+TARGET_DATASETS = ["cifar100", "svhn", "stl10", "eurosat"]
 
-# 少樣本比例
-EVAL_FRACTIONS = [1.0, 0.1, 0.01] 
+# 少樣本比例：100% (遷移能力), 10% (資料效率)
+EVAL_FRACTIONS = [1.0, 0.1] 
 
 def run_evaluation(model_info, target_ds, fraction):
     print(f"\n>>>> [RUNNING] {model_info['name']} on {target_ds.upper()} ({fraction*100}% labels)")

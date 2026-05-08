@@ -103,34 +103,68 @@ transform = transforms.Compose([
 ])
 
 from torch.utils.data import SubsetRandomSampler
+import torchvision.datasets as datasets
 
 if DATASET_NAME == "cifar100":
     train_dataset = CIFAR100_Dataset(split="train", transform=transform)
     test_dataset = CIFAR100_Dataset(split="test", transform=transform)
     num_classes = 100
-else:
+elif DATASET_NAME == "cifar10":
     train_dataset = CIFAR10_Dataset(split="train", transform=transform)
     test_dataset = CIFAR10_Dataset(split="test", transform=transform)
     num_classes = 10
+elif DATASET_NAME == "svhn":
+    # SVHN split is 'train' and 'test'
+    train_dataset = datasets.SVHN(root="./data", split='train', download=True, transform=transform)
+    test_dataset = datasets.SVHN(root="./data", split='test', download=True, transform=transform)
+    num_classes = 10
+elif DATASET_NAME == "stl10":
+    # STL10 split is 'train' and 'test'
+    train_dataset = datasets.STL10(root="./data", split='train', download=True, transform=transform)
+    test_dataset = datasets.STL10(root="./data", split='test', download=True, transform=transform)
+    num_classes = 10
+elif DATASET_NAME == "eurosat":
+    # EuroSAT usually needs manual split or use a subset. 
+    # Here we use the full set and split manually for simplicity if torchvision supports it
+    full_dataset = datasets.EuroSAT(root="./data", download=True, transform=transform)
+    train_size = int(0.8 * len(full_dataset))
+    test_size = len(full_dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size])
+    num_classes = 10
+    # EuroSAT doesn't have .targets easily in random_split, handle below
+else:
+    raise ValueError(f"Unknown dataset: {DATASET_NAME}")
 
-# Few-shot sampling
+# Few-shot sampling logic
 num_train = len(train_dataset)
-indices = list(range(num_train))
-# CIFAR datasets directly expose targets. Handle both our custom and torchvision ones.
-labels = train_dataset.targets if hasattr(train_dataset, 'targets') else [train_dataset[i][2] for i in range(num_train)]
+if hasattr(train_dataset, 'targets'):
+    labels = train_dataset.targets
+elif hasattr(train_dataset, 'labels'): # SVHN uses .labels
+    labels = train_dataset.labels
+else:
+    # Fallback for EuroSAT/Split datasets: extract labels manually
+    print(f"Extracting labels for {DATASET_NAME}...")
+    labels = []
+    # If it's a Subset (from random_split), we need to handle it
+    if isinstance(train_dataset, torch.utils.data.Subset):
+        for i in range(len(train_dataset)):
+            labels.append(train_dataset.dataset.targets[train_dataset.indices[i]] if hasattr(train_dataset.dataset, 'targets') else train_dataset[i][1])
+    else:
+        for i in range(num_train):
+            labels.append(train_dataset[i][1])
 
 train_idx = []
 for label in range(num_classes):
     label_indices = [i for i, x in enumerate(labels) if x == label]
-    train_idx.extend(
-        np.random.choice(
-            label_indices, size=int(EVAL_FRACTION * len(label_indices)), replace=False
+    if len(label_indices) > 0:
+        sample_size = max(1, int(EVAL_FRACTION * len(label_indices)))
+        train_idx.extend(
+            np.random.choice(label_indices, size=sample_size, replace=False)
         )
-    )
 
 train_sampler = SubsetRandomSampler(train_idx)
-train_loader = DataLoader(train_dataset, batch_size=256, sampler=train_sampler, num_workers=0)
-test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=0)
+train_loader = DataLoader(train_dataset, batch_size=128, sampler=train_sampler, num_workers=0)
+test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=0)
 
 # ==================== KNN Evaluation ====================
 print("\n--- Starting KNN Evaluation ---")
@@ -178,7 +212,11 @@ for epoch in range(epochs):
     correct = 0
     total = 0
     
-    for images1, _, labels in train_loader:
+    for batch in train_loader:
+        if len(batch) == 3:
+            images1, _, labels = batch
+        else:
+            images1, labels = batch
         images1, labels = images1.to(device), labels.to(device)
         optimizer.zero_grad()
         
@@ -205,7 +243,11 @@ classifier.eval()
 correct = 0
 total = 0
 with torch.no_grad():
-    for images1, _, labels in test_loader:
+    for batch in test_loader:
+        if len(batch) == 3:
+            images1, _, labels = batch
+        else:
+            images1, labels = batch
         images1, labels = images1.to(device), labels.to(device)
         features = encoder(images1)
         features = torch.nn.functional.normalize(features, dim=1)
