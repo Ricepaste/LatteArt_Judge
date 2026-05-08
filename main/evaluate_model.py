@@ -172,7 +172,12 @@ def get_features(loader):
     features = []
     labels = []
     with torch.no_grad():
-        for images1, _, target in tqdm(loader, desc="Extracting features"):
+        for batch in tqdm(loader, desc="Extracting features"):
+            if len(batch) == 3:
+                images1, _, target = batch
+            else:
+                images1, target = batch
+                
             images1 = images1.to(device)
             feat = encoder(images1)
             # L2 Normalization (Standard for SSL KNN)
