@@ -148,10 +148,10 @@ if __name__ == "__main__":
             if should_run(exp):
                 run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.95), epochs=400, seed=seed)
         
-    # 3. 噪聲韌性挑戰: 只跑 1 個 Seed (42)
-    print(f"\n>>>>>> STARTING NOISE ROBUSTNESS CHALLENGE (SEED 42) <<<<<<")
-    for exp in NOISE_ROBUSTNESS:
-        if should_run(exp):
-            run_experiment(exp["name"], exp["env"], dataset="cifar100", script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400, seed=42)
+    # # 3. 噪聲韌性挑戰: 只跑 1 個 Seed (42)
+    # print(f"\n>>>>>> STARTING NOISE ROBUSTNESS CHALLENGE (SEED 42) <<<<<<")
+    # for exp in NOISE_ROBUSTNESS:
+    #     if should_run(exp):
+    #         run_experiment(exp["name"], exp["env"], dataset="cifar100", script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400, seed=42)
             
     print(f"\n🎉 噪聲對抗實驗 '{run_mode.upper()}' 已全數完成！請檢查 ./ablation_logs/ 並開始撰寫論文！")

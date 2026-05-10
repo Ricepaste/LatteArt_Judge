@@ -118,20 +118,22 @@ elif DATASET_NAME == "svhn":
     train_dataset = datasets.SVHN(root="./data", split='train', download=True, transform=transform)
     test_dataset = datasets.SVHN(root="./data", split='test', download=True, transform=transform)
     num_classes = 10
-elif DATASET_NAME == "stl10":
-    # STL10 split is 'train' and 'test'
-    train_dataset = datasets.STL10(root="./data", split='train', download=True, transform=transform)
-    test_dataset = datasets.STL10(root="./data", split='test', download=True, transform=transform)
-    num_classes = 10
+elif DATASET_NAME == "dtd":
+    # DTD (Describable Textures Dataset)
+    train_dataset = datasets.DTD(root="./data", split='train', download=True, transform=transform)
+    test_dataset = datasets.DTD(root="./data", split='test', download=True, transform=transform)
+    num_classes = 47
+elif DATASET_NAME == "pcam":
+    # PCAM (PatchCamelyon Medical Dataset)
+    train_dataset = datasets.PCAM(root="./data", split='train', download=True, transform=transform)
+    test_dataset = datasets.PCAM(root="./data", split='test', download=True, transform=transform)
+    num_classes = 2
 elif DATASET_NAME == "eurosat":
-    # EuroSAT usually needs manual split or use a subset. 
-    # Here we use the full set and split manually for simplicity if torchvision supports it
     full_dataset = datasets.EuroSAT(root="./data", download=True, transform=transform)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
-    train_dataset, test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size])
+    train_dataset, test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42))
     num_classes = 10
-    # EuroSAT doesn't have .targets easily in random_split, handle below
 else:
     raise ValueError(f"Unknown dataset: {DATASET_NAME}")
 
