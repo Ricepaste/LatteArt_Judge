@@ -191,7 +191,8 @@ def get_features(loader):
 train_features, train_labels = get_features(train_loader)
 test_features, test_labels = get_features(test_loader)
 
-knn = KNeighborsClassifier(n_neighbors=200)
+n_neighbors = min(200, len(train_features))
+knn = KNeighborsClassifier(n_neighbors=n_neighbors)
 knn.fit(train_features, train_labels)
 knn_preds = knn.predict(test_features)
 knn_acc = accuracy_score(test_labels, knn_preds)

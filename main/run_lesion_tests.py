@@ -23,7 +23,8 @@ MODELS_TO_TEST = [
 ]
 
 # 測試目標：涵蓋同領域、跨領域、與特殊視覺領域 (Texture, Medical, Satellite)
-TARGET_DATASETS = ["cifar100", "svhn", "dtd", "pcam", "eurosat"]
+# TARGET_DATASETS = ["svhn", "stl10", "eurosat"]
+TARGET_DATASETS = ["dtd", "pcam"]
 
 # 少樣本比例：100% (遷移能力), 10% (資料效率)
 EVAL_FRACTIONS = [1.0, 0.1, 0.01] 
