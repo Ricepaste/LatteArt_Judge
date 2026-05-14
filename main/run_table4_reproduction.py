@@ -11,22 +11,26 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # =====================================================================
 MODELS_TO_TEST = [
     # --- 伺服器一 (RTX 4090) ---
-    {"name": "RigL_80", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__2/last.pt"},
-    {"name": "RigL_90", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__1/last.pt"},
-    {"name": "RigL_95", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam_/last.pt"},
+    {"name": "Hebbian_96", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260508-094600/last.pt"},
+    {"name": "Hebbian_97", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260509-165838/last.pt"},
+    {"name": "Hebbian_98", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260511-003715/last.pt"},
     
-    {"name": "Hebbian_80", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260415-010443/last.pt"},
-    {"name": "Hebbian_90", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260416-091440/last.pt"},
-    {"name": "Hebbian_95", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260417-172310/last.pt"},
+    # {"name": "RigL_80", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__2/last.pt"},
+    # {"name": "RigL_90", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__1/last.pt"},
+    # {"name": "RigL_95", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam_/last.pt"},
     
-    {"name": "Hebbian_99_seed42", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260410-190945/last.pt"},
-    {"name": "Hebbian_99_seed3407", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260412-050458/last.pt"},
-    {"name": "Hebbian_99_seed114514", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260413-163009/last.pt"},
+    # {"name": "Hebbian_80", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260415-010443/last.pt"},
+    # {"name": "Hebbian_90", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260416-091440/last.pt"},
+    # {"name": "Hebbian_95", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260417-172310/last.pt"},
+    
+    # {"name": "Hebbian_99_seed42", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260410-190945/last.pt"},
+    # {"name": "Hebbian_99_seed3407", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260412-050458/last.pt"},
+    # {"name": "Hebbian_99_seed114514", "method": "hebbian", "path": "/app/main/runs/Hebbian_SSL_20260413-163009/last.pt"},
 
-    # --- 伺服器二 (RTX 3090) ---
-    {"name": "RigL_99_seed42", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt"},
-    {"name": "RigL_99_seed3407", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__5/last.pt"},
-    {"name": "RigL_99_seed114514", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__7/last.pt"},
+    # # --- 伺服器二 (RTX 3090) ---
+    # {"name": "RigL_99_seed42", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt"},
+    # {"name": "RigL_99_seed3407", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__5/last.pt"},
+    # {"name": "RigL_99_seed114514", "method": "rigl", "path": "/app/main/runs/shuffleNet_v05_SimSiam__7/last.pt"},
 ]
 
 # 這次重跑是針對 CIFAR-100 (主實驗資料集)
@@ -42,6 +46,14 @@ def run_evaluation(model_info):
     run_env["TARGET_DATASET"] = TARGET_DATASET
     run_env["NUM_EPOCHS"] = "50" 
     run_env["EVAL_FRACTION"] = "1.0"
+    
+    # 自動解析稀疏度 (例如 "RigL_80" -> 0.8)
+    sparsity_val = 0.99
+    for part in model_info['name'].split('_'):
+        if part.isdigit():
+            sparsity_val = float(part) / 100.0
+            break
+    run_env["TARGET_SPARSITY"] = str(sparsity_val)
     
     # 確保 CSV 寫入到我們指定的新檔案
     run_env["SUMMARY_FILE_OVERRIDE"] = MASTER_CSV

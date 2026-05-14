@@ -5,9 +5,20 @@ from torch.utils.data import DataLoader
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score
 import os
-import random
 import numpy as np
 from tqdm import tqdm
+import random
+
+# 強制固定隨機種子，確保評估結果具備 100% 可重複性 (Reproducibility)
+def seed_everything(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+seed_everything(42)
 
 from src.processing.CIFAR100 import CIFAR100_Dataset
 from src.processing.CIFAR10 import CIFAR10_Dataset
@@ -19,7 +30,8 @@ DATASET_NAME = os.environ.get("TARGET_DATASET", "cifar10").lower()
 LINEAR_EPOCHS = int(os.environ.get("NUM_EPOCHS", "100"))
 EVAL_FRACTION = float(os.environ.get("EVAL_FRACTION", "1.0"))
 USE_ERK = os.environ.get("USE_ERK", "True") == "True"
-PROTECT_HIGHWAY = os.environ.get("PROTECT_HIGHWAY", "False") == "True" # 預設關閉，符合 99% 極限測試情境
+PROTECT_HIGHWAY = os.environ.get("PROTECT_HIGHWAY", "False") == "True"
+TARGET_SPARSITY = float(os.environ.get("TARGET_SPARSITY", "0.99"))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,7 +51,7 @@ if METHOD == "hebbian":
     from src.training.Hebbian_train import Hebbian_SSL_Trainer
     dummy_trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
-        target_sparsity=0.99, # Sparsity parameter is needed for initialization
+        target_sparsity=TARGET_SPARSITY, # 動態對齊目標稀疏度
         use_erk=USE_ERK,
         protect_highway=PROTECT_HIGHWAY
     )
@@ -60,18 +72,21 @@ print("Weights loaded successfully!")
 if hasattr(simsiam_model, 'set_hebbian_enable'):
     simsiam_model.set_hebbian_enable(False)
 
-# --- 2. 稀疏度確認 ---
 total_params = 0
 zero_params = 0
+
+# 對齊 Hebbian_train.py 的計算邏輯：排除第一層與 BN 層
 with torch.no_grad():
-    for name, module in simsiam_model.named_modules():
-        if 'encoder' in name and (isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear)):
-            weight = module.weight
-            total_params += weight.numel()
-            zero_params += (weight.abs() < 1e-7).sum().item()
+    for name, param in simsiam_model.named_parameters():
+        # 排除包含 'bn' 的層, 排除 downsample.1 (BN), 排除非權重的 bias 或其他 1D 參數
+        if 'encoder' in name and 'weight' in name and 'bn' not in name and 'downsample.1' not in name and param.dim() > 1:
+            param_numel = param.numel()
+            param_zeros = (param.data.abs() < 1e-7).sum().item()
+            total_params += param_numel
+            zero_params += param_zeros
 
 print("-" * 50)
-print(f"Encoder Global Sparsity: {zero_params / total_params * 100:.2f}%")
+print(f"Encoder Real Global Sparsity: {zero_params / total_params * 100:.2f}% (Consistent with training)")
 print("-" * 50)
 
 # 3. 抽取 Encoder 供評估使用
@@ -148,16 +163,25 @@ else:
     print(f"Extracting labels for {DATASET_NAME}...")
     labels = []
     # If it's a Subset (from random_split), we need to handle it
+    # 自動偵測標籤位置 (有些資料集回傳 2 個元素，有些 3 個)
+    sample_item = train_dataset[0]
+    label_pos = 1 if len(sample_item) == 2 else 2
+    
     if isinstance(train_dataset, torch.utils.data.Subset):
         for i in range(len(train_dataset)):
-            labels.append(train_dataset.dataset.targets[train_dataset.indices[i]] if hasattr(train_dataset.dataset, 'targets') else train_dataset[i][1])
+            # 優先嘗試直接抓 .targets，若無則根據偵測到的位置抓取
+            if hasattr(train_dataset.dataset, 'targets'):
+                labels.append(train_dataset.dataset.targets[train_dataset.indices[i]])
+            else:
+                labels.append(train_dataset[i][label_pos])
     else:
         for i in range(num_train):
-            labels.append(train_dataset[i][1])
+            labels.append(train_dataset[i][label_pos])
 
 train_idx = []
 for label in range(num_classes):
-    label_indices = [i for i, x in enumerate(labels) if x == label]
+    # 使用 int(x) 確保相容 Tensor, Numpy 或純整數標籤
+    label_indices = [i for i, x in enumerate(labels) if int(x) == label]
     if len(label_indices) > 0:
         sample_size = max(1, int(EVAL_FRACTION * len(label_indices)))
         train_idx.extend(

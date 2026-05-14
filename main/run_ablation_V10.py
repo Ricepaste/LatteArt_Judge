@@ -79,27 +79,30 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
                 
                 # --- Linear Evaluation Step ---
                 runs_dir = os.path.join(MAIN_DIR, "runs")
-                runs = sorted(glob.glob(os.path.join(runs_dir, "*")))
+                runs = [os.path.join(runs_dir, d) for d in os.listdir(runs_dir) if os.path.isdir(os.path.join(runs_dir, d))]
                 if runs:
+                    # 改用修改時間 (mtime) 排序，確保抓到的是「剛剛訓練完」的那個資料夾
+                    runs.sort(key=os.path.getmtime)
                     latest_run = runs[-1]
-                    # If best.pt exists, use it, else last.pt
-                    encoder_path = os.path.join(latest_run, "best.pt")
+                    # 按照使用者要求：不使用 best.pt (避免 Data Leakage)，統一使用最後一版 last.pt
+                    encoder_path = os.path.join(latest_run, "last.pt")
+                    
                     if not os.path.exists(encoder_path):
-                        encoder_path = os.path.join(latest_run, "last.pt")
+                        print(f"⚠️ Warning: {encoder_path} not found, skipping evaluation.")
+                    else:
+                        run_env["ENCODER_PATH"] = encoder_path
                         
-                    run_env["ENCODER_PATH"] = encoder_path
-                    
-                    # 統一使用新的標準評估腳本 (包含 CenterCrop, k=200 KNN, BatchNorm, L2 Norm)
-                    eval_script = "evaluate_model.py" 
-                    run_env["METHOD"] = "hebbian" if script == "Hebbian.py" else "rigl"
-                    
-                    print(f"🚀 Running Standardized Evaluation: {eval_script} on {encoder_path}")
-                    eval_cmd = ["python", "-u", eval_script]
-                    
-                    with open(log_file, "a") as f_eval:
-                        f_eval.write(f"\n\n{'='*50}\n--- Starting Standardized Evaluation (V8 Upgrade) ---\n{'='*50}\n")
-                        subprocess.run(eval_cmd, env=run_env, stdout=f_eval, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
-                        f_eval.write(f"\n\n{'='*50}\n--- End Evaluation ---\n{'='*50}\n")
+                        # 統一使用新的標準評估腳本 (包含 CenterCrop, k=200 KNN, BatchNorm, L2 Norm)
+                        eval_script = "evaluate_model.py" 
+                        run_env["METHOD"] = "hebbian" if script == "Hebbian.py" else "rigl"
+                        
+                        print(f"🚀 Running Standardized Evaluation: {eval_script} on {encoder_path}")
+                        eval_cmd = ["python", "-u", eval_script]
+                        
+                        with open(log_file, "a") as f_eval:
+                            f_eval.write(f"\n\n{'='*50}\n--- Starting Standardized Evaluation (V8 Upgrade) ---\n{'='*50}\n")
+                            subprocess.run(eval_cmd, env=run_env, stdout=f_eval, stderr=subprocess.STDOUT, cwd=MAIN_DIR)
+                            f_eval.write(f"\n\n{'='*50}\n--- End Evaluation ---\n{'='*50}\n")
                 
             else:
                 print(f"❌ Experiment '{actual_exp_name}' failed with return code {process.returncode}. Check log: {log_file}")
