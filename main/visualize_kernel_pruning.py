@@ -79,29 +79,74 @@ def get_clean_name(name, backbone):
     """
     將原始的模組名稱轉換為論文中易讀的簡潔名稱 (Paper-friendly names)
     """
-    if "resnet" in backbone.lower():
-        if name == "0" or "conv1" in name:
-            return "Stem Conv"
-        elif "4.0.conv1" in name:
-            return "Stage 1 Block 0 Conv"
-        elif "5.0.conv1" in name:
-            return "Stage 2 Block 0 Conv"
-        elif "6.0.conv1" in name:
-            return "Stage 3 Block 0 Conv"
-        elif "7.0.conv1" in name:
-            return "Stage 4 Block 0 Conv"
-    else: # shufflenet
-        if name == "0.0" or "conv1" in name:
-            return "Stem Conv"
-        elif "2.0.branch2.3" in name:
-            return "Stage 2 Block 0 DW-Conv"
-        elif "3.0.branch2.3" in name:
-            return "Stage 3 Block 0 DW-Conv"
-        elif "4.0.branch2.3" in name:
-            return "Stage 4 Block 0 DW-Conv"
-    return name
+    backbone_lower = backbone.lower()
+    parts = name.split('.')
+    
+    # 支援 "stageX" 或 "X" 這種前綴
+    stage_num = None
+    if parts:
+        first_part = parts[0]
+        if first_part.startswith("stage") and first_part[5:].isdigit():
+            stage_num = int(first_part[5:])
+        elif first_part.isdigit():
+            val = int(first_part)
+            if 2 <= val <= 4:
+                stage_num = val
 
-def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="runs/visualizations", threshold=1e-7):
+    if "resnet" in backbone_lower:
+        if name in ["0", "conv1"] or (name.endswith(".conv1") and "." not in name[:-6]):
+            return "Stem Conv"
+            
+        layer_num = None
+        if parts:
+            first_part = parts[0]
+            if first_part.startswith("layer") and first_part[5:].isdigit():
+                layer_num = int(first_part[5:])
+            elif first_part.isdigit():
+                val = int(first_part)
+                if 4 <= val <= 7:
+                    layer_num = val - 3  # 4->1, 5->2, 6->3, 7->4
+                    
+        if layer_num is not None and len(parts) >= 3:
+            block_num = parts[1]
+            sub_name = ".".join(parts[2:])
+            if sub_name == "conv1":
+                return f"L{layer_num}.{block_num} C1"
+            elif sub_name == "conv2":
+                return f"L{layer_num}.{block_num} C2"
+            elif sub_name == "downsample.0":
+                return f"L{layer_num}.{block_num} DS"
+        return name
+    else: # shufflenet
+        if name in ["0.0", "conv1", "0"]:
+            return "Stem Conv"
+        if name in ["5.0", "conv5"]:
+            return "Conv5"
+            
+        if stage_num is not None and len(parts) >= 3:
+            block_num = parts[1]
+            branch_name = parts[2]
+            sub_idx = parts[3] if len(parts) > 3 else ""
+            
+            if branch_name == "branch1":
+                if sub_idx == "0":
+                    return f"S{stage_num}.{block_num} B1 DW"
+                elif sub_idx == "2":
+                    return f"S{stage_num}.{block_num} B1 PW"
+                else:
+                    return f"S{stage_num}.{block_num} B1.{sub_idx}"
+            elif branch_name == "branch2":
+                if sub_idx == "0":
+                    return f"S{stage_num}.{block_num} B2 PW1"
+                elif sub_idx == "3":
+                    return f"S{stage_num}.{block_num} B2 DW"
+                elif sub_idx == "5":
+                    return f"S{stage_num}.{block_num} B2 PW2"
+                else:
+                    return f"S{stage_num}.{block_num} B2.{sub_idx}"
+        return name
+
+def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="runs/visualizations", threshold=1e-7, layer_type="spatial"):
     """
     遍歷 Encoder 中的卷積層，計算每個卷積核 (Kernel) 是否被剪枝，並繪製論文等級的 2D 對比熱力圖。
     橫軸為從前到後（由左至右）的網路層 (Layers)，縱軸為同一層內部不同卷積核/連接的索引。
@@ -121,39 +166,49 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
             target_layer = module.layer
             
         if isinstance(target_layer, nn.Conv2d):
-            # 排除 1x1 卷積
-            if target_layer.kernel_size != (1, 1) and target_layer.kernel_size != 1:
-                conv_layers.append((name, target_layer))
+            conv_layers.append((name, target_layer))
                 
     print(f"\n--- Conv2d Layers found in {backbone_name} ---")
     for n, l in conv_layers:
         print(f"  - {n} | Shape: {list(l.weight.shape)} | Kernel Size: {l.kernel_size}")
         
-    print(f"\nSelecting representative layers for visualization...")
+    print(f"\nSelecting layers for visualization (Mode: {layer_type})...")
     
     selected_layers = []
     
-    # 1. 挑選 Stem
-    for name, layer in conv_layers:
-        if name == "0" or name == "0.0" or name == "conv1" or name.endswith(".conv1") or (name.endswith(".0") and not ("." in name[:-2])):
-            selected_layers.append((name, layer))
-            break
+    if layer_type == "representative":
+        # 1. 挑選 Stem
+        for name, layer in conv_layers:
+            if layer.kernel_size != 1 and layer.kernel_size != (1, 1):
+                if name in ["0", "0.0", "conv1"] or name.endswith(".conv1") or (name.endswith(".0") and not ("." in name[:-2])):
+                    selected_layers.append((name, layer))
+                    break
             
-    # 2. 挑選不同 Stage 的代表性 3x3 卷積層
-    candidates = [
-        # ResNet-18
-        "4.0.conv1", "5.0.conv1", "6.0.conv1", "7.0.conv1",
-        # ShuffleNet-V2 stage blocks (dw-conv at index 3 of branch2)
-        "2.0.branch2.3", "3.0.branch2.3", "4.0.branch2.3",
-        "stage2.0.branch2.3", "stage3.0.branch2.3", "stage4.0.branch2.3"
-    ]
-    for name, layer in conv_layers:
-        if any(c in name for c in candidates):
-            if not any(selected[0] == name for selected in selected_layers):
+        # 2. 挑選不同 Stage 的代表性 3x3 卷積層
+        candidates = [
+            # ResNet-18
+            "4.0.conv1", "5.0.conv1", "6.0.conv1", "7.0.conv1",
+            # ShuffleNet-V2 stage blocks (dw-conv at index 3 of branch2)
+            "2.0.branch2.3", "3.0.branch2.3", "4.0.branch2.3",
+            "stage2.0.branch2.3", "stage3.0.branch2.3", "stage4.0.branch2.3"
+        ]
+        for name, layer in conv_layers:
+            if any(c in name for c in candidates):
+                if not any(selected[0] == name for selected in selected_layers):
+                    selected_layers.append((name, layer))
+                    
+        if not selected_layers:
+            selected_layers = [cl for cl in conv_layers if cl[1].kernel_size != 1 and cl[1].kernel_size != (1, 1)][:4]
+    elif layer_type == "spatial":
+        # 只挑選空間/3x3等卷積層 (排除 1x1 卷積)
+        for name, layer in conv_layers:
+            if layer.kernel_size != 1 and layer.kernel_size != (1, 1):
                 selected_layers.append((name, layer))
-                
-    if not selected_layers:
-        selected_layers = conv_layers[:4]
+    elif layer_type == "all":
+        # 挑選所有卷積層
+        selected_layers = conv_layers
+    else:
+        raise ValueError(f"Unknown layer_type: {layer_type}")
         
     num_selected = len(selected_layers)
     print(f"Selected {num_selected} layers: {[n for n, _ in selected_layers]}")
@@ -196,7 +251,9 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
     plt.rcParams["font.family"] = "sans-serif"
     plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "Helvetica"]
     
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(11.5, 6.2), dpi=300)
+    # 動態調整畫布寬度以適應層數
+    fig_width = max(11.5, num_selected * 0.55)
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, 6.8), dpi=300)
     
     # 定義填充顏色：偏灰白色，既低調又與 inferno/viridis 區隔
     pad_color = "#e2e8f0"
@@ -230,9 +287,11 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
     ax1.legend(handles=[legend_pad_mag], loc='upper right', fontsize=8, framealpha=0.9)
     
     # --- 軸刻度與標籤美化 ---
+    rot = 45 if num_selected > 6 else 15
+    fsize = 6 if num_selected > 25 else (7 if num_selected > 10 else 8)
     for ax in (ax0, ax1):
         ax.set_xticks(np.arange(num_selected))
-        ax.set_xticklabels(x_tick_labels, fontsize=8, rotation=15, ha='right')
+        ax.set_xticklabels(x_tick_labels, fontsize=fsize, rotation=rot, ha='right')
         ax.set_ylabel("Kernel Index (0 to Max)", fontsize=9)
         ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=9)
         ax.tick_params(labelsize=8)
@@ -241,13 +300,13 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
         ax.spines['right'].set_visible(False)
         
     fig.suptitle(f"Global Kernel-Level Topology & Connection Strength Profile ({model_title})\n"
-                 f"Backbone: {backbone_name} | Threshold: {threshold:.0e}", 
+                 f"Backbone: {backbone_name} | Mode: {layer_type.capitalize()} | Threshold: {threshold:.0e}", 
                  fontsize=12, fontweight='bold', y=0.98)
     
     plt.tight_layout(rect=[0, 0, 1, 0.94])
     
     # 儲存高品質的 PNG 與 PDF (向量圖，方便直接插入 LaTeX 論文)
-    save_name = f"global_kernel_profile_{model_title.replace(' ', '_').lower()}"
+    save_name = f"global_kernel_profile_{layer_type}_{model_title.replace(' ', '_').lower()}"
     save_path_png = os.path.join(output_dir, f"{save_name}.png")
     save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
     
@@ -265,6 +324,10 @@ if __name__ == "__main__":
     parser.add_argument("--sparsity", type=float, default=0.99, help="Target global sparsity (default: 0.99)")
     parser.add_argument("--threshold", type=float, default=1e-7, help="Threshold below which a kernel is considered pruned (default: 1e-7)")
     parser.add_argument("--out_dir", type=str, default="runs/visualizations", help="Output directory for heatmaps")
+    parser.add_argument("--layer_type", type=str, choices=["representative", "spatial", "all"], default="spatial",
+                        help="Which layers to visualize: 'representative' (4 stage-representative layers), "
+                             "'spatial' (all 3x3/spatial convolutional layers, default), "
+                             "or 'all' (all Conv2d layers including 1x1 pointwise convs)")
     
     # Hebbian 設定相關參數
     parser.add_argument("--use_erk", action="store_true", default=True, help="Use ERK sparsity distribution")
@@ -293,7 +356,8 @@ if __name__ == "__main__":
                 f"Hebbian Ours (Sparsity {args.sparsity})", 
                 backbone_name, 
                 args.out_dir,
-                threshold=args.threshold
+                threshold=args.threshold,
+                layer_type=args.layer_type
             )
         except Exception as e:
             traceback.print_exc()
@@ -318,7 +382,8 @@ if __name__ == "__main__":
                 f"RigL Baseline (Sparsity {args.sparsity})", 
                 backbone_name, 
                 args.out_dir,
-                threshold=args.threshold
+                threshold=args.threshold,
+                layer_type=args.layer_type
             )
         except Exception as e:
             traceback.print_exc()
