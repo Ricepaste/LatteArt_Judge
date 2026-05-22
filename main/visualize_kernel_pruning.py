@@ -391,7 +391,7 @@ if __name__ == "__main__":
                 use_erk=args.use_erk,
                 protect_highway=args.protect_highway
             )
-            models_to_compare.append((encoder, "Hebbian Ours"))
+            models_to_compare.append((encoder, "Ours"))
             backbone_name = b_name
         except Exception as e:
             traceback.print_exc()
