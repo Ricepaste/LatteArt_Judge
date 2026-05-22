@@ -32,6 +32,7 @@ EVAL_FRACTION = float(os.environ.get("EVAL_FRACTION", "1.0"))
 USE_ERK = os.environ.get("USE_ERK", "True") == "True"
 PROTECT_HIGHWAY = os.environ.get("PROTECT_HIGHWAY", "False") == "True"
 TARGET_SPARSITY = float(os.environ.get("TARGET_SPARSITY", "0.99"))
+LABEL_NOISE_RATE = float(os.environ.get("LABEL_NOISE_RATE", "0.0"))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -44,6 +45,8 @@ print(f"Method: {METHOD.upper()}")
 print(f"Source Model Path: {ENCODER_PATH}")
 print(f"Target Evaluation Dataset: {DATASET_NAME.upper()}")
 print(f"Evaluation Data Fraction: {EVAL_FRACTION * 100}%")
+if LABEL_NOISE_RATE > 0.0:
+    print(f"Label Noise Flip Rate: {LABEL_NOISE_RATE * 100:.1f}%")
 print("="*60)
 
 # 動態選擇模組與初始化
@@ -151,6 +154,72 @@ elif DATASET_NAME == "eurosat":
     num_classes = 10
 else:
     raise ValueError(f"Unknown dataset: {DATASET_NAME}")
+
+# Label Noise Dataset Wrapper
+class LabelNoiseDatasetWrapper(torch.utils.data.Dataset):
+    def __init__(self, dataset, noise_rate, num_classes, seed=42):
+        self.dataset = dataset
+        self.noise_rate = noise_rate
+        self.num_classes = num_classes
+        
+        num_items = len(dataset)
+        orig_labels = []
+        
+        # 1. 抽取原始標籤，用來做 noisy label 的生成與 sampling 支援
+        if hasattr(dataset, 'targets'):
+            orig_labels = [int(x) for x in dataset.targets]
+        elif hasattr(dataset, 'labels'):
+            orig_labels = [int(x) for x in dataset.labels]
+        else:
+            # Fallback 逐個元素讀取標籤
+            sample_item = dataset[0]
+            label_pos = 1 if len(sample_item) == 2 else 2
+            
+            if isinstance(dataset, torch.utils.data.Subset):
+                for i in range(num_items):
+                    if hasattr(dataset.dataset, 'targets'):
+                        orig_labels.append(int(dataset.dataset.targets[dataset.indices[i]]))
+                    else:
+                        orig_labels.append(int(dataset[i][label_pos]))
+            else:
+                for i in range(num_items):
+                    orig_labels.append(int(dataset[i][label_pos]))
+                    
+        # 2. 引入標籤噪聲 (Symmetric Label Noise)
+        rng = np.random.default_rng(seed)
+        noisy_labels = np.array(orig_labels, dtype=int)
+        
+        if noise_rate > 0.0:
+            num_corrupt = int(noise_rate * num_items)
+            corrupt_indices = rng.choice(num_items, size=num_corrupt, replace=False)
+            
+            for idx in corrupt_indices:
+                orig_l = orig_labels[idx]
+                possible_classes = [c for c in range(num_classes) if c != orig_l]
+                if possible_classes:
+                    noisy_labels[idx] = rng.choice(possible_classes)
+                else:
+                    noisy_labels[idx] = orig_l
+                    
+        self.targets = list(noisy_labels)
+        self.labels = noisy_labels
+        
+    def __len__(self):
+        return len(self.dataset)
+        
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        noisy_lbl = self.targets[idx]
+        if len(item) == 3:
+            return item[0], item[1], noisy_lbl
+        else:
+            return item[0], noisy_lbl
+
+# 套用標籤噪聲包裝器
+if LABEL_NOISE_RATE > 0.0:
+    print(f"Applying Label Noise Wrapper to train_dataset (Flip Rate: {LABEL_NOISE_RATE * 100:.1f}%)")
+    train_dataset = LabelNoiseDatasetWrapper(train_dataset, LABEL_NOISE_RATE, num_classes, seed=42)
+
 
 # Few-shot sampling logic
 num_train = len(train_dataset)
@@ -297,11 +366,11 @@ file_exists = os.path.isfile(summary_file)
 
 with open(summary_file, "a") as f:
     if not file_exists:
-        f.write("Method,Source_Model,Target_Dataset,Data_Fraction,KNN_Acc,Linear_Acc\n")
+        f.write("Method,Source_Model,Target_Dataset,Data_Fraction,Label_Noise_Rate,KNN_Acc,Linear_Acc\n")
     
     # 簡化模型名稱 (只保留資料夾名稱)
     model_name = os.path.basename(os.path.dirname(ENCODER_PATH))
-    f.write(f"{METHOD},{model_name},{DATASET_NAME},{EVAL_FRACTION},{knn_acc:.4f},{test_acc:.4f}\n")
+    f.write(f"{METHOD},{model_name},{DATASET_NAME},{EVAL_FRACTION},{LABEL_NOISE_RATE:.4f},{knn_acc:.4f},{test_acc:.4f}\n")
 
 print("\n" + "="*60)
 print(f"📊 FINAL RESULTS for {METHOD.upper()} on {DATASET_NAME.upper()} ({EVAL_FRACTION*100}% labels)")
