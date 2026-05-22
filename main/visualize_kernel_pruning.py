@@ -213,6 +213,17 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
     num_selected = len(selected_layers)
     print(f"Selected {num_selected} layers: {[n for n, _ in selected_layers]}")
     
+    # 計算整個 Encoder 的實際權重稀疏度 (Weight Sparsity)
+    total_params = 0
+    zero_params = 0
+    for name, module in encoder.named_modules():
+        if isinstance(module, nn.Conv2d):
+            w = module.weight.detach().cpu()
+            total_params += w.numel()
+            zero_params += (w.abs() < threshold).sum().item()
+            
+    global_w_sparsity = (zero_params / total_params) * 100.0 if total_params > 0 else 0.0
+    
     # 找出最大通道/卷積核數以進行對齊
     layer_flat_norms = []
     max_kernels = 0
@@ -240,58 +251,83 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
         # 計算 Log 強度
         magnitude_matrix[:L, idx] = np.log10(flat_norms + 1e-10)
         
-        # 計算剪枝率
+        # 計算剪枝率 (Kernel 級)
         pruned_ratio = np.mean(binary_status) * 100.0
-        paper_name = get_clean_name(name, backbone_name)
-        x_tick_labels.append(f"{paper_name}\n({pruned_ratio:.1f}% pruned)")
         
-        print(f"  Layer {name} | Total Kernels: {L} | Pruned: {pruned_ratio:.2f}%")
+        # 計算實際權重級稀疏度
+        w = layer.weight.detach().cpu()
+        w_sparsity = (w.abs() < threshold).float().mean().item() * 100.0
+        
+        paper_name = get_clean_name(name, backbone_name)
+        # 用更簡短的標誌顯示稀疏度，以防擁擠 (W=Weight Sparsity, K=Kernel Pruning Rate)
+        x_tick_labels.append(f"{paper_name}\n(W:{w_sparsity:.0f}%|K:{pruned_ratio:.0f}%)")
+        
+        print(f"  Layer {name} | Kernels: {L} | Weight Sparsity: {w_sparsity:.2f}% | Kernel Pruned: {pruned_ratio:.2f}%")
         
     # 使用論文標準格式美化畫布 (1 Row, 2 Columns)
     plt.rcParams["font.family"] = "sans-serif"
     plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "Helvetica"]
     
-    # 動態調整畫布寬度以適應層數
-    fig_width = max(11.5, num_selected * 0.55)
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, 6.8), dpi=300)
+    # 動態調整畫布寬度以適應層數，提供更寬敞的橫向排版空間
+    fig_width = max(12.0, num_selected * 0.75)
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, 7.2), dpi=300)
     
-    # 定義填充顏色：偏灰白色，既低調又與 inferno/viridis 區隔
+    # 定義填充顏色：偏灰白色，低調且與 pruned/active 區隔
     pad_color = "#e2e8f0"
     
-    # --- 1. 左圖: Binary Pruning Heatmap (Inferno) ---
-    cmap_binary = plt.colormaps["inferno"].copy()
+    # --- 1. 左圖: Binary Pruning Heatmap (自訂高對比配色：白色為 pruned，深色為 active) ---
+    # 0.0 代表 Active (深色 slate)，1.0 代表 Pruned (純白色)
+    from matplotlib.colors import ListedColormap
+    cmap_binary = ListedColormap(["#0f172a", "#ffffff"])
     cmap_binary.set_bad(color=pad_color)
     
-    im0 = ax0.imshow(binary_matrix, cmap=cmap_binary, aspect='auto', interpolation='nearest')
-    ax0.set_title("Binary Kernel Pruning Profile\n(Bright Yellow = Fully Pruned Kernels)", fontsize=11, fontweight='bold', pad=10)
+    im0 = ax0.imshow(binary_matrix, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest')
+    ax0.set_title("Binary Kernel Pruning Profile\n(White = Fully Pruned Kernels, Dark Slate = Active)", fontsize=11, fontweight='bold', pad=10)
     
     # 建立客製化圖例
-    legend_pruned = mpatches.Patch(color=cmap_binary(1.0), label='Pruned Connection')
-    legend_active = mpatches.Patch(color=cmap_binary(0.0), label='Active Connection')
-    legend_pad = mpatches.Patch(color=pad_color, label='Padded / Non-existent')
+    legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
+    legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
+    legend_pad = mpatches.Patch(facecolor=pad_color, label='Padded / Non-existent')
     ax0.legend(handles=[legend_pruned, legend_active, legend_pad], loc='upper right', fontsize=8, framealpha=0.9)
     
-    # --- 2. 右圖: Continuous Log L1-Norm Strength (Viridis) ---
+    # --- 2. 右圖: Continuous Log L1-Norm Strength (Viridis，剪枝的連接顯示為純白) ---
+    # 找出 active (大於 threshold 且非 NaN) 的最小值與最大值以自訂範圍
+    active_mask = ~np.isnan(magnitude_matrix) & (magnitude_matrix > np.log10(threshold))
+    if np.any(active_mask):
+        vmin = np.min(magnitude_matrix[active_mask])
+        vmax = np.max(magnitude_matrix[active_mask])
+    else:
+        vmin = np.log10(threshold)
+        vmax = 0.0
+        
+    # 確保 vmin < vmax
+    if vmin >= vmax:
+        vmin = vmax - 1.0
+        
     cmap_mag = plt.colormaps["viridis"].copy()
-    cmap_mag.set_bad(color=pad_color)
+    cmap_mag.set_under(color="#ffffff")  # 剪枝掉的連接 (低於 vmin) 顯示為純白
+    cmap_mag.set_bad(color=pad_color)     # Padded 顯示為灰白
     
-    im1 = ax1.imshow(magnitude_matrix, cmap=cmap_mag, aspect='auto', interpolation='nearest')
+    from matplotlib.colors import Normalize
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    
+    im1 = ax1.imshow(magnitude_matrix, cmap=cmap_mag, norm=norm, aspect='auto', interpolation='nearest')
     ax1.set_title("Connection Strength Profile\n(Log10 L1-Norm Magnitude)", fontsize=11, fontweight='bold', pad=10)
     
     # 加上 Colorbar
-    cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04, extend='neither')
     cbar.ax.tick_params(labelsize=7)
     cbar.set_label("log10(Kernel L1-Norm)", fontsize=8)
     
-    legend_pad_mag = mpatches.Patch(color=pad_color, label='Padded / Non-existent')
-    ax1.legend(handles=[legend_pad_mag], loc='upper right', fontsize=8, framealpha=0.9)
+    legend_pad_mag = mpatches.Patch(facecolor=pad_color, label='Padded / Non-existent')
+    legend_pruned_mag = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
+    ax1.legend(handles=[legend_pad_mag, legend_pruned_mag], loc='upper right', fontsize=8, framealpha=0.9)
     
     # --- 軸刻度與標籤美化 ---
-    rot = 45 if num_selected > 6 else 15
-    fsize = 6 if num_selected > 25 else (7 if num_selected > 10 else 8)
     for ax in (ax0, ax1):
         ax.set_xticks(np.arange(num_selected))
-        ax.set_xticklabels(x_tick_labels, fontsize=fsize, rotation=rot, ha='right')
+        # 橫軸不顯示任何文字標籤（直接留空），完全消除擁擠感
+        ax.set_xticklabels([])
         ax.set_ylabel("Kernel Index (0 to Max)", fontsize=9)
         ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=9)
         ax.tick_params(labelsize=8)
@@ -300,10 +336,12 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
         ax.spines['right'].set_visible(False)
         
     fig.suptitle(f"Global Kernel-Level Topology & Connection Strength Profile ({model_title})\n"
-                 f"Backbone: {backbone_name} | Mode: {layer_type.capitalize()} | Threshold: {threshold:.0e}", 
+                 f"Backbone: {backbone_name} | Mode: {layer_type.capitalize()} | Global Conv Sparsity: {global_w_sparsity:.2f}% | Threshold: {threshold:.0e}", 
                  fontsize=12, fontweight='bold', y=0.98)
     
-    plt.tight_layout(rect=[0, 0, 1, 0.94])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    # 調整子圖之間的間距以防止 colorbar 重疊
+    fig.subplots_adjust(wspace=0.25)
     
     # 儲存高品質的 PNG 與 PDF (向量圖，方便直接插入 LaTeX 論文)
     save_name = f"global_kernel_profile_{layer_type}_{model_title.replace(' ', '_').lower()}"
