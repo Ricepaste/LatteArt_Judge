@@ -146,42 +146,44 @@ def get_clean_name(name, backbone):
                     return f"S{stage_num}.{block_num} B2.{sub_idx}"
         return name
 
-def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="runs/visualizations", threshold=1e-7, layer_type="spatial"):
+def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/visualizations", threshold=1e-7, layer_type="spatial"):
     """
-    遍歷 Encoder 中的卷積層，計算每個卷積核 (Kernel) 是否被剪枝，並繪製論文等級的 2D 對比熱力圖。
-    橫軸為從前到後（由左至右）的網路層 (Layers)，縱軸為同一層內部不同卷積核/連接的索引。
-    不同層之間的寬度/通道數差異以中性淺灰色 (NaN Padding) 填充，呈現階梯狀的整體拓樸圖。
-    
-    提供雙面圖表並排：
-      - 左圖：二值剪枝圖 (Binary Map: 亮黃色 = 被剪枝, 暗黑色 = 未剪枝, 灰色 = 無此連接)
-      - 右圖：卷積核 L1-Norm 的連續強度圖 (Log-scaled Magnitude Map: 亮色 = 強連接, 暗色 = 弱/剪枝連接, 灰色 = 無此連接)
+    遍歷每個 Model 的 Encoder 中的卷積層，計算每個卷積核 (Kernel) 是否被剪枝，並繪製論文等級的 2D 對比熱力圖。
+    支援單個模型（1x2 子圖）與雙模型（2x2 子圖對比）排版。
     """
     os.makedirs(output_dir, exist_ok=True)
-    conv_layers = []
+    num_models = len(models_info)
+    if num_models == 0:
+        return
+        
+    # 1. 論文標準字型格式設定
+    plt.rcParams["font.family"] = "serif"
+    plt.rcParams["font.serif"] = ["Times New Roman", "Times", "Liberation Serif", "DejaVu Serif", "serif"]
+    plt.rcParams["mathtext.fontset"] = "stix"
     
-    # 收集有權重且維度為 4 (Conv2d) 的層
-    for name, module in encoder.named_modules():
+    # 2. 確定要選取的網路層名稱列表 (以第一個 model 為基準，並在後續進行比對)
+    first_encoder = models_info[0][0]
+    conv_layers = []
+    for name, module in first_encoder.named_modules():
         target_layer = module
         if hasattr(module, 'layer'):
             target_layer = module.layer
-            
         if isinstance(target_layer, nn.Conv2d):
             conv_layers.append((name, target_layer))
-                
+            
     print(f"\n--- Conv2d Layers found in {backbone_name} ---")
     for n, l in conv_layers:
         print(f"  - {n} | Shape: {list(l.weight.shape)} | Kernel Size: {l.kernel_size}")
         
     print(f"\nSelecting layers for visualization (Mode: {layer_type})...")
-    
-    selected_layers = []
+    selected_layers_names = []
     
     if layer_type == "representative":
         # 1. 挑選 Stem
         for name, layer in conv_layers:
             if layer.kernel_size != 1 and layer.kernel_size != (1, 1):
                 if name in ["0", "0.0", "conv1"] or name.endswith(".conv1") or (name.endswith(".0") and not ("." in name[:-2])):
-                    selected_layers.append((name, layer))
+                    selected_layers_names.append(name)
                     break
             
         # 2. 挑選不同 Stage 的代表性 3x3 卷積層
@@ -194,159 +196,191 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
         ]
         for name, layer in conv_layers:
             if any(c in name for c in candidates):
-                if not any(selected[0] == name for selected in selected_layers):
-                    selected_layers.append((name, layer))
+                if name not in selected_layers_names:
+                    selected_layers_names.append(name)
                     
-        if not selected_layers:
-            selected_layers = [cl for cl in conv_layers if cl[1].kernel_size != 1 and cl[1].kernel_size != (1, 1)][:4]
+        if not selected_layers_names:
+            selected_layers_names = [n for n, l in conv_layers if l.kernel_size != 1 and l.kernel_size != (1, 1)][:4]
     elif layer_type == "spatial":
         # 只挑選空間/3x3等卷積層 (排除 1x1 卷積)
-        for name, layer in conv_layers:
-            if layer.kernel_size != 1 and layer.kernel_size != (1, 1):
-                selected_layers.append((name, layer))
+        selected_layers_names = [n for n, layer in conv_layers if layer.kernel_size != 1 and layer.kernel_size != (1, 1)]
     elif layer_type == "all":
         # 挑選所有卷積層
-        selected_layers = conv_layers
+        selected_layers_names = [n for n, _ in conv_layers]
     else:
         raise ValueError(f"Unknown layer_type: {layer_type}")
         
-    num_selected = len(selected_layers)
-    print(f"Selected {num_selected} layers: {[n for n, _ in selected_layers]}")
+    num_selected = len(selected_layers_names)
+    print(f"Selected {num_selected} layers: {selected_layers_names}")
     
-    # 計算整個 Encoder 的實際權重稀疏度 (Weight Sparsity)
-    total_params = 0
-    zero_params = 0
-    for name, module in encoder.named_modules():
-        if isinstance(module, nn.Conv2d):
-            w = module.weight.detach().cpu()
-            total_params += w.numel()
-            zero_params += (w.abs() < threshold).sum().item()
+    # 3. 收集每個模型的所有層資料與統計資訊
+    model_data_list = []
+    all_active_logs = []
+    
+    for encoder, model_title in models_info:
+        # 計算此模型全局權重稀疏度 (Global Weight Sparsity)
+        total_params = 0
+        zero_params = 0
+        layer_map = {}
+        for name, module in encoder.named_modules():
+            target_layer = module
+            if hasattr(module, 'layer'):
+                target_layer = module.layer
+            if isinstance(target_layer, nn.Conv2d):
+                layer_map[name] = target_layer
+                w = target_layer.weight.detach().cpu()
+                total_params += w.numel()
+                zero_params += (w.abs() < threshold).sum().item()
+        
+        global_w_sparsity = (zero_params / total_params) * 100.0 if total_params > 0 else 0.0
+        print(f"\n>>> Analyzing {model_title} | Global Conv Sparsity: {global_w_sparsity:.2f}%")
+        
+        layer_binary_status = []
+        layer_magnitude_log = []
+        
+        for name in selected_layers_names:
+            if name not in layer_map:
+                continue
+            layer = layer_map[name]
+            weight = layer.weight.detach().cpu()
+            flat_norms = weight.abs().sum(dim=(2, 3)).numpy().flatten()
             
-    global_w_sparsity = (zero_params / total_params) * 100.0 if total_params > 0 else 0.0
-    
-    # 找出最大通道/卷積核數以進行對齊
-    layer_flat_norms = []
-    max_kernels = 0
-    for name, layer in selected_layers:
-        weight = layer.weight.detach().cpu()
-        C_out, C_in_g, Kh, Kw = weight.shape
-        flat_norms = weight.abs().sum(dim=(2, 3)).numpy().flatten()
-        layer_flat_norms.append(flat_norms)
-        if len(flat_norms) > max_kernels:
-            max_kernels = len(flat_norms)
+            # 計算二值剪枝
+            binary_status = (flat_norms < threshold).astype(float)
+            layer_binary_status.append(binary_status)
             
-    # 建立對齊矩陣 (填充 NaN，Matplotlib 會渲染為 bad color)
-    binary_matrix = np.full((max_kernels, num_selected), np.nan)
-    magnitude_matrix = np.full((max_kernels, num_selected), np.nan)
-    
-    x_tick_labels = []
-    for idx, (name, layer) in enumerate(selected_layers):
-        flat_norms = layer_flat_norms[idx]
-        L = len(flat_norms)
+            # 計算 Log 強度
+            magnitude_log = np.log10(flat_norms + 1e-10)
+            layer_magnitude_log.append(magnitude_log)
+            
+            # 統計與印出
+            pruned_ratio = np.mean(binary_status) * 100.0
+            w_sparsity = (weight.abs() < threshold).float().mean().item() * 100.0
+            print(f"  Layer {name} | Kernels: {len(flat_norms)} | Weight Sparsity: {w_sparsity:.2f}% | Kernel Pruned: {pruned_ratio:.2f}%")
+            
+        model_data_list.append({
+            'title': model_title,
+            'binary_status': layer_binary_status,
+            'magnitude_log': layer_magnitude_log,
+            'global_sparsity': global_w_sparsity
+        })
         
-        # 計算二值剪枝
-        binary_status = (flat_norms < threshold).astype(float)
-        binary_matrix[:L, idx] = binary_status
-        
-        # 計算 Log 強度
-        magnitude_matrix[:L, idx] = np.log10(flat_norms + 1e-10)
-        
-        # 計算剪枝率 (Kernel 級)
-        pruned_ratio = np.mean(binary_status) * 100.0
-        
-        # 計算實際權重級稀疏度
-        w = layer.weight.detach().cpu()
-        w_sparsity = (w.abs() < threshold).float().mean().item() * 100.0
-        
-        paper_name = get_clean_name(name, backbone_name)
-        # 用更簡短的標誌顯示稀疏度，以防擁擠 (W=Weight Sparsity, K=Kernel Pruning Rate)
-        x_tick_labels.append(f"{paper_name}\n(W:{w_sparsity:.0f}%|K:{pruned_ratio:.0f}%)")
-        
-        print(f"  Layer {name} | Kernels: {L} | Weight Sparsity: {w_sparsity:.2f}% | Kernel Pruned: {pruned_ratio:.2f}%")
-        
-    # 使用論文標準格式美化畫布 (1 Row, 2 Columns)
-    plt.rcParams["font.family"] = "serif"
-    plt.rcParams["font.serif"] = ["Times New Roman", "Times", "Liberation Serif", "DejaVu Serif", "serif"]
-    plt.rcParams["mathtext.fontset"] = "stix"
-    
-    # 動態調整畫布寬度以適應層數，提供更寬敞的橫向排版空間
-    fig_width = max(12.0, num_selected * 0.75)
-    # 使用 sharey=True 共享 y 軸，隱藏右側子圖的 y 軸刻度，使畫面更加簡潔
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, 6.0), dpi=300, sharey=True)
-    
-    # 定義填充顏色：偏灰白色，低調且與 pruned/active 區隔
-    pad_color = "#e2e8f0"
-    
-    # --- 1. 左圖: Binary Pruning Heatmap (自訂高對比配色：白色為 pruned，深色為 active) ---
-    # 0.0 代表 Active (深色 slate)，1.0 代表 Pruned (純白色)
-    from matplotlib.colors import ListedColormap
-    cmap_binary = ListedColormap(["#0f172a", "#ffffff"])
-    cmap_binary.set_bad(color=pad_color)
-    
-    im0 = ax0.imshow(binary_matrix, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest')
-    ax0.set_title("(a) Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
-    
-    # --- 2. 右圖: Continuous Log L1-Norm Strength (Viridis，剪枝的連接顯示為純白) ---
-    # 找出 active (大於 threshold 且非 NaN) 的最小值與最大值以自訂範圍
-    active_mask = ~np.isnan(magnitude_matrix) & (magnitude_matrix > np.log10(threshold))
-    if np.any(active_mask):
-        vmin = np.min(magnitude_matrix[active_mask])
-        vmax = np.max(magnitude_matrix[active_mask])
+        # 收集非剪枝強度
+        concat_logs = np.concatenate(layer_magnitude_log)
+        active_logs = concat_logs[concat_logs > np.log10(threshold)]
+        if len(active_logs) > 0:
+            all_active_logs.append(active_logs)
+            
+    # 計算全局強度區間 (用於統一 Colorbar 比例尺以便對照)
+    if len(all_active_logs) > 0:
+        combined_logs = np.concatenate(all_active_logs)
+        vmin = np.min(combined_logs)
+        vmax = np.max(combined_logs)
     else:
         vmin = np.log10(threshold)
         vmax = 0.0
         
-    # 確保 vmin < vmax
     if vmin >= vmax:
         vmin = vmax - 1.0
         
+    # 4. 準備繪圖
+    from matplotlib.colors import ListedColormap, Normalize
+    cmap_binary = ListedColormap(["#0f172a", "#ffffff"])
     cmap_mag = plt.colormaps["viridis"].copy()
-    cmap_mag.set_under(color="#ffffff")  # 剪枝掉的連接 (低於 vmin) 顯示為純白
-    cmap_mag.set_bad(color=pad_color)     # Padded 顯示為灰白
-    
-    from matplotlib.colors import Normalize
+    cmap_mag.set_under(color="#ffffff")
     norm = Normalize(vmin=vmin, vmax=vmax)
     
-    im1 = ax1.imshow(magnitude_matrix, cmap=cmap_mag, norm=norm, aspect='auto', interpolation='nearest')
-    ax1.set_title("(b) Connection Strength Map", fontsize=12, fontweight='bold', pad=12)
+    fig_width = max(12.0, num_selected * 0.75)
     
-    # 加上 Colorbar
-    cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04, extend='neither')
+    if num_models == 1:
+        # 單一模型：1 行 2 列
+        fig, axes = plt.subplots(1, 2, figsize=(fig_width, 6.0), dpi=300, sharey=True)
+        # 轉成 2D 方便索引
+        axes = np.expand_dims(axes, axis=0) # shape (1, 2)
+    else:
+        # 多個模型對照：2 行 2 列 (Ours 在第一行，RigL 在第二行)
+        fig, axes = plt.subplots(2, 2, figsize=(fig_width, 10.5), dpi=300, sharey='row')
+        
+    for m_idx, data in enumerate(model_data_list):
+        model_title = data['title']
+        layer_binary_status = data['binary_status']
+        layer_magnitude_log = data['magnitude_log']
+        
+        ax_bin = axes[m_idx, 0]
+        ax_mag = axes[m_idx, 1]
+        
+        # 繪製 Binary Map
+        for idx in range(num_selected):
+            col_data = layer_binary_status[idx].reshape(-1, 1)
+            im_bin = ax_bin.imshow(col_data, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest',
+                                   extent=[idx - 0.5, idx + 0.5, 1, 0])
+                                   
+        # 繪製 Continuous Magnitude Map
+        for idx in range(num_selected):
+            col_data = layer_magnitude_log[idx].reshape(-1, 1)
+            im_mag = ax_mag.imshow(col_data, cmap=cmap_mag, norm=norm, aspect='auto', interpolation='nearest',
+                                   extent=[idx - 0.5, idx + 0.5, 1, 0])
+                                   
+        # 設定子圖標題 (符合學術論文規範)
+        if num_models == 1:
+            ax_bin.set_title("(a) Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
+            ax_mag.set_title("(b) Connection Strength Map", fontsize=12, fontweight='bold', pad=12)
+        else:
+            prefix_bin = "(a)" if m_idx == 0 else "(c)"
+            prefix_mag = "(b)" if m_idx == 0 else "(d)"
+            ax_bin.set_title(f"{prefix_bin} {model_title} - Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
+            ax_mag.set_title(f"{prefix_mag} {model_title} - Connection Strength Map", fontsize=12, fontweight='bold', pad=12)
+            
+        # 軸刻度與標籤美化
+        for ax in (ax_bin, ax_mag):
+            ax.set_xticks(np.arange(num_selected))
+            ax.set_xticklabels([])
+            ax.set_yticks([])
+            ax.set_yticklabels([])
+            ax.set_ylabel("")
+            ax.tick_params(labelsize=9)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            
+            ax.set_xlim(-0.5, num_selected - 0.5)
+            ax.set_ylim(1, 0)
+            
+        # 只有底部的子圖需要 X 軸標籤
+        if m_idx == num_models - 1:
+            ax_bin.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
+            ax_mag.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
+            
+    # 加上統一的 Colorbar (置於右側，高度自動調整)
+    cbar = fig.colorbar(im_mag, ax=axes[:, 1], fraction=0.03 if num_models > 1 else 0.046, pad=0.04, extend='neither')
     cbar.ax.tick_params(labelsize=8)
     cbar.set_label("$\\log_{10}$ (Kernel $L_1$-Norm)", fontsize=10)
     
-    # --- 建立單一、橫向的統一圖例放於下方，避免遮擋數據，並移除子圖中的獨立圖例 ---
+    # 加上統一底部的 Legend
     legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
     legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
-    legend_pad = mpatches.Patch(facecolor=pad_color, label='Padded / Non-existent')
-    fig.legend(handles=[legend_pruned, legend_active, legend_pad], loc='lower center', ncol=3, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.02))
     
-    # --- 軸刻度與標籤美化 ---
-    ax0.set_ylabel("Kernel Index", fontsize=10)
-    for ax in (ax0, ax1):
-        ax.set_xticks(np.arange(num_selected))
-        # 橫軸不顯示任何文字標籤（直接留空），完全消除擁擠感
-        ax.set_xticklabels([])
-        ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
-        ax.tick_params(labelsize=9)
-        # 隱藏上方與右方的邊界線 (Spines)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+    if num_models == 1:
+        fig.legend(handles=[legend_pruned, legend_active], loc='lower center', ncol=2, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.02))
+        plt.tight_layout(rect=[0, 0.08, 1, 1])
+        fig.subplots_adjust(wspace=0.15)
         
-    # 留出底部給統一圖例的空間，並移除學術論文中通常不需要的 suptitle（由 LaTeX 標題/說明文字替代）
-    plt.tight_layout(rect=[0, 0.08, 1, 1])
-    # 由於 sharey=True，子圖可以靠得更近以節省空間
-    fig.subplots_adjust(wspace=0.15)
-    
-    # 儲存高品質的 PNG 與 PDF (向量圖，方便直接插入 LaTeX 論文)
-    save_name = f"global_kernel_profile_{layer_type}_{model_title.replace(' ', '_').lower()}"
+        save_name = f"global_kernel_profile_{layer_type}_{models_info[0][1].replace(' ', '_').lower()}"
+    else:
+        fig.legend(handles=[legend_pruned, legend_active], loc='lower center', ncol=2, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.015))
+        plt.tight_layout(rect=[0, 0.05, 1, 1])
+        fig.subplots_adjust(wspace=0.15, hspace=0.25)
+        
+        save_name = f"comparison_kernel_profile_{layer_type}"
+        
     save_path_png = os.path.join(output_dir, f"{save_name}.png")
     save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
     
     plt.savefig(save_path_png, bbox_inches='tight', dpi=300)
     plt.savefig(save_path_pdf, bbox_inches='tight')
     plt.close()
-    print(f"\n🎉 Scientific figures successfully saved to:")
+    
+    print(f"\n🎉 Scientific comparison figure successfully saved to:")
     print(f"  - PNG (300 DPI): {save_path_png}")
     print(f"  - PDF (Vector):   {save_path_pdf}\n")
 
@@ -370,59 +404,72 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    # 每次執行前清理舊的檔案
+    import shutil
+    out_dir = args.out_dir
+    if os.path.exists(out_dir):
+        print(f"🧹 Clearing old visualization files in {out_dir}...")
+        try:
+            shutil.rmtree(out_dir)
+            print("Successfully cleared old visualizations.")
+        except Exception as e:
+            print(f"Warning: Failed to clear directory {out_dir}: {e}")
+    os.makedirs(out_dir, exist_ok=True)
+    
+    models_to_compare = []
+    backbone_name = None
+    
     # 1. 處理 Hebbian (Ours)
     hebbian_path = args.hebbian_path or os.environ.get("HEBBIAN_PATH", "")
     if hebbian_path and os.path.exists(hebbian_path):
         print("\n" + "="*50)
-        print("🔍 Analyzing Hebbian (Ours) Model Structure...")
+        print("🔍 Loading Hebbian (Ours) Model Structure...")
         print("="*50)
         try:
-            encoder, _, backbone_name = load_sparse_model(
+            encoder, _, b_name = load_sparse_model(
                 "hebbian", 
                 hebbian_path, 
                 target_sparsity=args.sparsity,
                 use_erk=args.use_erk,
                 protect_highway=args.protect_highway
             )
-            analyze_and_plot_kernels(
-                encoder, 
-                f"Hebbian Ours (Sparsity {args.sparsity})", 
-                backbone_name, 
-                args.out_dir,
-                threshold=args.threshold,
-                layer_type=args.layer_type
-            )
+            models_to_compare.append((encoder, "Hebbian Ours"))
+            backbone_name = b_name
         except Exception as e:
             traceback.print_exc()
-            print(f"❌ Failed to visualize Hebbian model: {e}")
+            print(f"❌ Failed to load Hebbian model: {e}")
             
     # 2. 處理 RigL
     rigl_path = args.rigl_path or os.environ.get("RIGL_PATH", "")
     if rigl_path and os.path.exists(rigl_path):
         print("\n" + "="*50)
-        print("🔍 Analyzing RigL Model Structure...")
+        print("🔍 Loading RigL Model Structure...")
         print("="*50)
         try:
-            encoder, _, backbone_name = load_sparse_model(
+            encoder, _, b_name = load_sparse_model(
                 "rigl", 
                 rigl_path, 
                 target_sparsity=args.sparsity,
                 use_erk=args.use_erk,
                 protect_highway=args.protect_highway
             )
-            analyze_and_plot_kernels(
-                encoder, 
-                f"RigL Baseline (Sparsity {args.sparsity})", 
-                backbone_name, 
-                args.out_dir,
-                threshold=args.threshold,
-                layer_type=args.layer_type
-            )
+            models_to_compare.append((encoder, "RigL Baseline"))
+            if backbone_name is None:
+                backbone_name = b_name
         except Exception as e:
             traceback.print_exc()
-            print(f"❌ Failed to visualize RigL model: {e}")
+            print(f"❌ Failed to load RigL model: {e}")
             
-    if not hebbian_path and not rigl_path:
+    # 3. 進行繪圖
+    if len(models_to_compare) > 0:
+        analyze_and_plot_comparison(
+            models_to_compare,
+            backbone_name,
+            args.out_dir,
+            threshold=args.threshold,
+            layer_type=args.layer_type
+        )
+    else:
         print("\n⚠️ No model path provided. Please specify model path via arguments or environment variables.")
         print("Usage Example:")
         print("  python visualize_kernel_pruning.py --hebbian_path runs/Hebbian_SSL_20260508-094600/last.pt --sparsity 0.96 --threshold 1e-6")
