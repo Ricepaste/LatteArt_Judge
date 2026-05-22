@@ -229,6 +229,8 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
     model_data_list = []
     all_active_logs = []
     
+    csv_rows = []
+    
     for encoder, model_title, conv_layers in model_conv_layers:
         # 計算此模型全局權重稀疏度 (Global Weight Sparsity)
         total_params = 0
@@ -260,29 +262,64 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
             w_sparsity = (weight.abs() < threshold).float().mean().item() * 100.0
             print(f"  Layer {name} | Kernels: {len(flat_norms)} | Weight Sparsity: {w_sparsity:.2f}% | Kernel Pruned: {pruned_ratio:.2f}%")
             
+            # 收集 CSV / Markdown 欄位
+            clean_name = get_clean_name(name, backbone_name)
+            csv_rows.append({
+                "Model": model_title,
+                "Layer_Index": idx,
+                "Layer_Name": clean_name,
+                "Original_Name": name,
+                "Total_Kernels": len(flat_norms),
+                "Weight_Sparsity_Pct": f"{w_sparsity:.2f}",
+                "Kernel_Sparsity_Pct": f"{pruned_ratio:.2f}"
+            })
+            
         model_data_list.append({
             'title': model_title,
             'binary_status': layer_binary_status,
             'global_sparsity': global_w_sparsity
         })
+        
+    # 匯出 CSV 和 Markdown 表格
+    import csv
+    csv_fields = ["Model", "Layer_Index", "Layer_Name", "Original_Name", "Total_Kernels", "Weight_Sparsity_Pct", "Kernel_Sparsity_Pct"]
+    csv_path = os.path.join(output_dir, f"kernel_pruning_sparsity_{layer_type}.csv")
+    try:
+        with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=csv_fields)
+            writer.writeheader()
+            writer.writerows(csv_rows)
+        print(f"\n🎉 Sparsity report successfully exported to:")
+        print(f"  - CSV Table:      {csv_path}")
+    except Exception as e:
+        print(f"Warning: Failed to write CSV file: {e}")
+
+    md_path = os.path.join(output_dir, f"kernel_pruning_sparsity_{layer_type}.md")
+    try:
+        with open(md_path, mode="w", encoding="utf-8") as f:
+            f.write(f"# Kernel Pruning and Sparsity Report ({layer_type.capitalize()} Layers)\n\n")
+            f.write("| Model | Layer Index | Layer Name | Original Name | Total Kernels | Weight Sparsity (%) | Kernel Sparsity (%) |\n")
+            f.write("|---|---|---|---|---|---|---|\n")
+            for row in csv_rows:
+                f.write(f"| {row['Model']} | {row['Layer_Index']} | {row['Layer_Name']} | {row['Original_Name']} | {row['Total_Kernels']} | {row['Weight_Sparsity_Pct']}% | {row['Kernel_Sparsity_Pct']}% |\n")
+        print(f"  - Markdown Table: {md_path}")
+    except Exception as e:
+        print(f"Warning: Failed to write Markdown file: {e}")
+
             
     # 4. 準備繪圖
     from matplotlib.colors import ListedColormap
     cmap_binary = ListedColormap(["#0f172a", "#ffffff"])
     
     fig_width = max(8.0, num_selected * 0.5)
-    fig_height = 4.0 if num_models == 1 else 7.5
+    fig_height = 3.5
     
-    fig, axes = plt.subplots(num_models, 1, figsize=(fig_width, fig_height), dpi=300, sharex=True)
-    if num_models == 1:
-        axes = [axes]
-    fig.patch.set_facecolor('white')
-        
     for m_idx, data in enumerate(model_data_list):
         model_title = data['title']
         layer_binary_status = data['binary_status']
         
-        ax = axes[m_idx]
+        fig, ax = plt.subplots(1, 1, figsize=(fig_width, fig_height), dpi=300)
+        fig.patch.set_facecolor('white')
         
         # 繪製 Binary Map
         for idx in range(num_selected):
@@ -290,13 +327,6 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
             im_bin = ax.imshow(col_data, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest',
                                extent=[idx - 0.5, idx + 0.5, 1, 0])
                                    
-        # 設定子圖標題 (符合學術論文規範)
-        if num_models == 1:
-            ax.set_title(f"{model_title} - Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
-        else:
-            prefix = "(a)" if m_idx == 0 else "(b)"
-            ax.set_title(f"{prefix} {model_title} - Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
-            
         # 軸刻度與標籤美化
         ax.set_facecolor('white')
         ax.set_xticks(np.arange(num_selected))
@@ -312,35 +342,28 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
         ax.set_xlim(-0.5, num_selected - 0.5)
         ax.set_ylim(1, 0)
             
-        # 只有底部的子圖需要 X 軸標籤
-        if m_idx == num_models - 1:
-            ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
+        # 設定 X 軸標籤
+        ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
             
-    # 加上統一底部的 Legend
-    legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
-    legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
-    
-    if num_models == 1:
+        # 加上底部的 Legend
+        legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
+        legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
+        
         fig.legend(handles=[legend_pruned, legend_active], loc='lower center', ncol=2, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.02))
         plt.tight_layout(rect=[0, 0.08, 1, 1])
         
-        save_name = f"global_kernel_profile_{layer_type}_{models_info[0][1].replace(' ', '_').lower()}"
-    else:
-        fig.legend(handles=[legend_pruned, legend_active], loc='lower center', ncol=2, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.015))
-        plt.tight_layout(rect=[0, 0.05, 1, 1])
+        save_name = f"kernel_profile_{layer_type}_{model_title.replace(' ', '_').lower()}"
+        save_path_png = os.path.join(output_dir, f"{save_name}.png")
+        save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
         
-        save_name = f"comparison_kernel_profile_{layer_type}"
+        plt.savefig(save_path_png, bbox_inches='tight', dpi=300, facecolor='white')
+        plt.savefig(save_path_pdf, bbox_inches='tight', facecolor='white')
+        plt.close()
         
-    save_path_png = os.path.join(output_dir, f"{save_name}.png")
-    save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
-    
-    plt.savefig(save_path_png, bbox_inches='tight', dpi=300, facecolor='white')
-    plt.savefig(save_path_pdf, bbox_inches='tight', facecolor='white')
-    plt.close()
-    
-    print(f"\n🎉 Scientific comparison figure successfully saved to:")
-    print(f"  - PNG (300 DPI): {save_path_png}")
-    print(f"  - PDF (Vector):   {save_path_pdf}\n")
+        print(f"\n🎉 Scientific figure successfully saved to:")
+        print(f"  - PNG (300 DPI): {save_path_png}")
+        print(f"  - PDF (Vector):   {save_path_pdf}\n")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize Kernel-level Pruning Map using 2D Heatmaps")
