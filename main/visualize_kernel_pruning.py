@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torchvision import models
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import numpy as np
 import traceback
 
@@ -80,18 +81,18 @@ def get_clean_name(name, backbone):
     """
     if "resnet" in backbone.lower():
         if name == "0" or "conv1" in name:
-            return "Stem Conv (7x7)"
+            return "Stem Conv"
         elif "4.0.conv1" in name:
-            return "Stage 1 Block 0 Conv1"
+            return "Stage 1 Block 0 Conv"
         elif "5.0.conv1" in name:
-            return "Stage 2 Block 0 Conv1"
+            return "Stage 2 Block 0 Conv"
         elif "6.0.conv1" in name:
-            return "Stage 3 Block 0 Conv1"
+            return "Stage 3 Block 0 Conv"
         elif "7.0.conv1" in name:
-            return "Stage 4 Block 0 Conv1"
+            return "Stage 4 Block 0 Conv"
     else: # shufflenet
         if name == "0.0" or "conv1" in name:
-            return "Stem Conv (3x3)"
+            return "Stem Conv"
         elif "2.0.branch2.3" in name:
             return "Stage 2 Block 0 DW-Conv"
         elif "3.0.branch2.3" in name:
@@ -103,9 +104,12 @@ def get_clean_name(name, backbone):
 def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="runs/visualizations", threshold=1e-7):
     """
     遍歷 Encoder 中的卷積層，計算每個卷積核 (Kernel) 是否被剪枝，並繪製論文等級的 2D 對比熱力圖。
-    提供雙排對比圖：
-      - 第一排：二值剪枝圖 (Binary Map: 亮色 = 被剪枝, 暗色 = 未剪枝)
-      - 第二排：卷積核 L1-Norm 的連續強度圖 (Log-scaled Magnitude Map: 亮色 = 強連接, 暗色 = 弱/剪枝連接)
+    橫軸為從前到後（由左至右）的網路層 (Layers)，縱軸為同一層內部不同卷積核/連接的索引。
+    不同層之間的寬度/通道數差異以中性淺灰色 (NaN Padding) 填充，呈現階梯狀的整體拓樸圖。
+    
+    提供雙面圖表並排：
+      - 左圖：二值剪枝圖 (Binary Map: 亮黃色 = 被剪枝, 暗黑色 = 未剪枝, 灰色 = 無此連接)
+      - 右圖：卷積核 L1-Norm 的連續強度圖 (Log-scaled Magnitude Map: 亮色 = 強連接, 暗色 = 弱/剪枝連接, 灰色 = 無此連接)
     """
     os.makedirs(output_dir, exist_ok=True)
     conv_layers = []
@@ -154,75 +158,96 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
     num_selected = len(selected_layers)
     print(f"Selected {num_selected} layers: {[n for n, _ in selected_layers]}")
     
-    # 使用論文標準格式美化畫布 (Row 1: Binary, Row 2: Log Magnitude)
+    # 找出最大通道/卷積核數以進行對齊
+    layer_flat_norms = []
+    max_kernels = 0
+    for name, layer in selected_layers:
+        weight = layer.weight.detach().cpu()
+        C_out, C_in_g, Kh, Kw = weight.shape
+        flat_norms = weight.abs().sum(dim=(2, 3)).numpy().flatten()
+        layer_flat_norms.append(flat_norms)
+        if len(flat_norms) > max_kernels:
+            max_kernels = len(flat_norms)
+            
+    # 建立對齊矩陣 (填充 NaN，Matplotlib 會渲染為 bad color)
+    binary_matrix = np.full((max_kernels, num_selected), np.nan)
+    magnitude_matrix = np.full((max_kernels, num_selected), np.nan)
+    
+    x_tick_labels = []
+    for idx, (name, layer) in enumerate(selected_layers):
+        flat_norms = layer_flat_norms[idx]
+        L = len(flat_norms)
+        
+        # 計算二值剪枝
+        binary_status = (flat_norms < threshold).astype(float)
+        binary_matrix[:L, idx] = binary_status
+        
+        # 計算 Log 強度
+        magnitude_matrix[:L, idx] = np.log10(flat_norms + 1e-10)
+        
+        # 計算剪枝率
+        pruned_ratio = np.mean(binary_status) * 100.0
+        paper_name = get_clean_name(name, backbone_name)
+        x_tick_labels.append(f"{paper_name}\n({pruned_ratio:.1f}% pruned)")
+        
+        print(f"  Layer {name} | Total Kernels: {L} | Pruned: {pruned_ratio:.2f}%")
+        
+    # 使用論文標準格式美化畫布 (1 Row, 2 Columns)
     plt.rcParams["font.family"] = "sans-serif"
     plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "Helvetica"]
     
-    fig, axes = plt.subplots(2, num_selected, figsize=(4.2 * num_selected, 7.5), dpi=300)
-    if num_selected == 1:
-        axes = np.expand_dims(axes, axis=1) # 確保為 2D 陣列 (2, 1)
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(11.5, 6.2), dpi=300)
+    
+    # 定義填充顏色：偏灰白色，既低調又與 inferno/viridis 區隔
+    pad_color = "#e2e8f0"
+    
+    # --- 1. 左圖: Binary Pruning Heatmap (Inferno) ---
+    cmap_binary = plt.colormaps["inferno"].copy()
+    cmap_binary.set_bad(color=pad_color)
+    
+    im0 = ax0.imshow(binary_matrix, cmap=cmap_binary, aspect='auto', interpolation='nearest')
+    ax0.set_title("Binary Kernel Pruning Profile\n(Bright Yellow = Fully Pruned Kernels)", fontsize=11, fontweight='bold', pad=10)
+    
+    # 建立客製化圖例
+    legend_pruned = mpatches.Patch(color=cmap_binary(1.0), label='Pruned Connection')
+    legend_active = mpatches.Patch(color=cmap_binary(0.0), label='Active Connection')
+    legend_pad = mpatches.Patch(color=pad_color, label='Padded / Non-existent')
+    ax0.legend(handles=[legend_pruned, legend_active, legend_pad], loc='upper right', fontsize=8, framealpha=0.9)
+    
+    # --- 2. 右圖: Continuous Log L1-Norm Strength (Viridis) ---
+    cmap_mag = plt.colormaps["viridis"].copy()
+    cmap_mag.set_bad(color=pad_color)
+    
+    im1 = ax1.imshow(magnitude_matrix, cmap=cmap_mag, aspect='auto', interpolation='nearest')
+    ax1.set_title("Connection Strength Profile\n(Log10 L1-Norm Magnitude)", fontsize=11, fontweight='bold', pad=10)
+    
+    # 加上 Colorbar
+    cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=7)
+    cbar.set_label("log10(Kernel L1-Norm)", fontsize=8)
+    
+    legend_pad_mag = mpatches.Patch(color=pad_color, label='Padded / Non-existent')
+    ax1.legend(handles=[legend_pad_mag], loc='upper right', fontsize=8, framealpha=0.9)
+    
+    # --- 軸刻度與標籤美化 ---
+    for ax in (ax0, ax1):
+        ax.set_xticks(np.arange(num_selected))
+        ax.set_xticklabels(x_tick_labels, fontsize=8, rotation=15, ha='right')
+        ax.set_ylabel("Kernel Index (0 to Max)", fontsize=9)
+        ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=9)
+        ax.tick_params(labelsize=8)
+        # 隱藏上方與右方的邊界線 (Spines)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         
-    for idx, (name, layer) in enumerate(selected_layers):
-        weight = layer.weight.detach().cpu() # Shape: (C_out, C_in_g, Kh, Kw)
-        C_out, C_in_g, Kh, Kw = weight.shape
-        in_ch = layer.in_channels
-        out_ch = layer.out_channels
-        
-        # 計算每個卷積核 (Kh x Kw) 的 L1 Norm
-        kernel_norms = weight.abs().sum(dim=(2, 3)).numpy()
-        
-        # 1. 二值剪枝矩陣：低於 threshold 視為被剪枝 (1.0 = Pruned, 0.0 = Active)
-        pruned_heatmap = (kernel_norms < threshold).astype(float)
-        pruned_ratio = np.mean(pruned_heatmap) * 100.0
-        print(f"  Layer {name} | Size: {out_ch}x{in_ch} | Pruned Kernels (threshold {threshold}): {pruned_ratio:.2f}%")
-        
-        # 2. 連續強度矩陣 (Log10 縮放以便清晰顯示微小權重差別)
-        log_norms = np.log10(kernel_norms + 1e-10)
-        
-        paper_name = get_clean_name(name, backbone_name)
-        
-        # --- Row 1: Binary Pruning Heatmap (Inferno: 亮黃色為完全剪除，暗色為保留) ---
-        ax0 = axes[0, idx]
-        im0 = ax0.imshow(pruned_heatmap, cmap="inferno", aspect='auto', interpolation='nearest')
-        ax0.set_title(f"{paper_name}\nBinary Pruning Map\n(Pruned: {pruned_ratio:.1f}%)", fontsize=10, fontweight='bold', pad=8)
-        ax0.set_ylabel("Output Channels", fontsize=8)
-        ax0.set_xlabel("Weight Channels (C_in/groups)", fontsize=8)
-        ax0.tick_params(labelsize=7)
-        
-        # 設定刻度，防範單通道/少通道時的除零錯誤
-        x_step = max(1, C_in_g // 4) if C_in_g > 4 else 1
-        y_step = max(1, C_out // 8) if C_out > 8 else 1
-        ax0.set_xticks(np.arange(0, C_in_g, x_step))
-        ax0.set_yticks(np.arange(0, C_out, y_step))
-        
-        # 標示圖例或小字
-        ax0.text(0.02, 0.98, f"Thresh: {threshold:.0e}", transform=ax0.transAxes, color="white",
-                 fontsize=7, verticalalignment='top', bbox=dict(boxstyle='round,pad=0.2', facecolor='black', alpha=0.6))
-        
-        # --- Row 2: Continuous Log L1-Norm Magnitude (Viridis: 亮黃色為大權重，暗紫色為被剪除) ---
-        ax1 = axes[1, idx]
-        im1 = ax1.imshow(log_norms, cmap="viridis", aspect='auto', interpolation='nearest')
-        ax1.set_title("Kernel L1-Norm Strength\n(Log10 Magnitude)", fontsize=10, fontweight='bold', pad=8)
-        ax1.set_ylabel("Output Channels", fontsize=8)
-        ax1.set_xlabel("Weight Channels (C_in/groups)", fontsize=8)
-        ax1.tick_params(labelsize=7)
-        
-        ax1.set_xticks(np.arange(0, C_in_g, x_step))
-        ax1.set_yticks(np.arange(0, C_out, y_step))
-        
-        # 加入美觀的 colorbar
-        cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
-        cbar.ax.tick_params(labelsize=6)
-        cbar.set_label("log10(L1 Norm)", fontsize=7)
-
-    fig.suptitle(f"Kernel-Level Pruning & Weight Strength Visualizations ({model_title})\n"
-                 f"Row 1 (Binary): Bright Yellow = Fully Pruned Kernels  |  Row 2 (Continuous): Bright Yellow = Strong Active Connections", 
+    fig.suptitle(f"Global Kernel-Level Topology & Connection Strength Profile ({model_title})\n"
+                 f"Backbone: {backbone_name} | Threshold: {threshold:.0e}", 
                  fontsize=12, fontweight='bold', y=0.98)
     
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.94])
     
-    # 儲存高品質的 PNG (方便查看) 與 PDF (向量圖，方便直接插入 LaTeX 論文)
-    save_name = f"kernel_pruning_{model_title.replace(' ', '_').lower()}"
+    # 儲存高品質的 PNG 與 PDF (向量圖，方便直接插入 LaTeX 論文)
+    save_name = f"global_kernel_profile_{model_title.replace(' ', '_').lower()}"
     save_path_png = os.path.join(output_dir, f"{save_name}.png")
     save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
     
