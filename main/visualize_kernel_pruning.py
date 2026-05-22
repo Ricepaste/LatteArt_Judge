@@ -255,10 +255,6 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
             binary_status = (flat_norms < threshold).astype(float)
             layer_binary_status.append(binary_status)
             
-            # 計算 Log 強度
-            magnitude_log = np.log10(flat_norms + 1e-10)
-            layer_magnitude_log.append(magnitude_log)
-            
             # 統計與印出
             pruned_ratio = np.mean(binary_status) * 100.0
             w_sparsity = (weight.abs() < threshold).float().mean().item() * 100.0
@@ -267,103 +263,59 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
         model_data_list.append({
             'title': model_title,
             'binary_status': layer_binary_status,
-            'magnitude_log': layer_magnitude_log,
             'global_sparsity': global_w_sparsity
         })
-        
-        # 收集非剪枝強度
-        concat_logs = np.concatenate(layer_magnitude_log)
-        active_logs = concat_logs[concat_logs > np.log10(threshold)]
-        if len(active_logs) > 0:
-            all_active_logs.append(active_logs)
             
-    # 計算全局強度區間 (用於統一 Colorbar 比例尺以便對照)
-    if len(all_active_logs) > 0:
-        combined_logs = np.concatenate(all_active_logs)
-        vmin = np.min(combined_logs)
-        vmax = np.max(combined_logs)
-    else:
-        vmin = np.log10(threshold)
-        vmax = 0.0
-        
-    if vmin >= vmax:
-        vmin = vmax - 1.0
-        
     # 4. 準備繪圖
-    from matplotlib.colors import ListedColormap, Normalize
+    from matplotlib.colors import ListedColormap
     cmap_binary = ListedColormap(["#0f172a", "#ffffff"])
-    cmap_mag = plt.colormaps["viridis"].copy()
-    cmap_mag.set_under(color="#ffffff")
-    norm = Normalize(vmin=vmin, vmax=vmax)
     
-    fig_width = max(12.0, num_selected * 0.75)
+    fig_width = max(8.0, num_selected * 0.5)
+    fig_height = 4.0 if num_models == 1 else 7.5
     
+    fig, axes = plt.subplots(num_models, 1, figsize=(fig_width, fig_height), dpi=300, sharex=True)
     if num_models == 1:
-        # 單一模型：1 行 2 列
-        fig, axes = plt.subplots(1, 2, figsize=(fig_width, 6.0), dpi=300, sharey=True)
-        # 轉成 2D 方便索引
-        axes = np.expand_dims(axes, axis=0) # shape (1, 2)
-    else:
-        # 多個模型對照：2 行 2 列 (Ours 在第一行，RigL 在第二行)
-        fig, axes = plt.subplots(2, 2, figsize=(fig_width, 10.5), dpi=300, sharey='row')
+        axes = [axes]
     fig.patch.set_facecolor('white')
         
     for m_idx, data in enumerate(model_data_list):
         model_title = data['title']
         layer_binary_status = data['binary_status']
-        layer_magnitude_log = data['magnitude_log']
         
-        ax_bin = axes[m_idx, 0]
-        ax_mag = axes[m_idx, 1]
+        ax = axes[m_idx]
         
         # 繪製 Binary Map
         for idx in range(num_selected):
             col_data = layer_binary_status[idx].reshape(-1, 1)
-            im_bin = ax_bin.imshow(col_data, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest',
-                                   extent=[idx - 0.5, idx + 0.5, 1, 0])
-                                   
-        # 繪製 Continuous Magnitude Map
-        for idx in range(num_selected):
-            col_data = layer_magnitude_log[idx].reshape(-1, 1)
-            im_mag = ax_mag.imshow(col_data, cmap=cmap_mag, norm=norm, aspect='auto', interpolation='nearest',
-                                   extent=[idx - 0.5, idx + 0.5, 1, 0])
+            im_bin = ax.imshow(col_data, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest',
+                               extent=[idx - 0.5, idx + 0.5, 1, 0])
                                    
         # 設定子圖標題 (符合學術論文規範)
         if num_models == 1:
-            ax_bin.set_title("(a) Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
-            ax_mag.set_title("(b) Connection Strength Map", fontsize=12, fontweight='bold', pad=12)
+            ax.set_title(f"{model_title} - Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
         else:
-            prefix_bin = "(a)" if m_idx == 0 else "(c)"
-            prefix_mag = "(b)" if m_idx == 0 else "(d)"
-            ax_bin.set_title(f"{prefix_bin} {model_title} - Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
-            ax_mag.set_title(f"{prefix_mag} {model_title} - Connection Strength Map", fontsize=12, fontweight='bold', pad=12)
+            prefix = "(a)" if m_idx == 0 else "(b)"
+            ax.set_title(f"{prefix} {model_title} - Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
             
         # 軸刻度與標籤美化
-        for ax in (ax_bin, ax_mag):
-            ax.set_facecolor('white')
-            ax.set_xticks(np.arange(num_selected))
-            ax.set_xticklabels([])
-            ax.set_yticks([])
-            ax.set_yticklabels([])
-            ax.set_ylabel("")
-            ax.tick_params(labelsize=9)
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            
-            ax.set_xlim(-0.5, num_selected - 0.5)
-            ax.set_ylim(1, 0)
+        ax.set_facecolor('white')
+        ax.set_xticks(np.arange(num_selected))
+        ax.set_xticklabels([])
+        ax.set_yticks([])
+        ax.set_yticklabels([])
+        ax.set_ylabel("")
+        ax.tick_params(labelsize=9)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        
+        ax.set_xlim(-0.5, num_selected - 0.5)
+        ax.set_ylim(1, 0)
             
         # 只有底部的子圖需要 X 軸標籤
         if m_idx == num_models - 1:
-            ax_bin.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
-            ax_mag.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
+            ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
             
-    # 加上統一的 Colorbar (置於右側，高度自動調整)
-    cbar = fig.colorbar(im_mag, ax=axes[:, 1], fraction=0.03 if num_models > 1 else 0.046, pad=0.04, extend='neither')
-    cbar.ax.tick_params(labelsize=8)
-    cbar.set_label("$\\log_{10}$ (Kernel $L_1$-Norm)", fontsize=10)
-    
     # 加上統一底部的 Legend
     legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
     legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
@@ -371,13 +323,11 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
     if num_models == 1:
         fig.legend(handles=[legend_pruned, legend_active], loc='lower center', ncol=2, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.02))
         plt.tight_layout(rect=[0, 0.08, 1, 1])
-        fig.subplots_adjust(wspace=0.15)
         
         save_name = f"global_kernel_profile_{layer_type}_{models_info[0][1].replace(' ', '_').lower()}"
     else:
         fig.legend(handles=[legend_pruned, legend_active], loc='lower center', ncol=2, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.015))
         plt.tight_layout(rect=[0, 0.05, 1, 1])
-        fig.subplots_adjust(wspace=0.15, hspace=0.25)
         
         save_name = f"comparison_kernel_profile_{layer_type}"
         
