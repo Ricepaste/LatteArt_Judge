@@ -162,29 +162,39 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
     plt.rcParams["mathtext.fontset"] = "stix"
     
     # 2. 確定要選取的網路層名稱列表 (以第一個 model 為基準，並在後續進行比對)
-    first_encoder = models_info[0][0]
-    conv_layers = []
-    for name, module in first_encoder.named_modules():
-        target_layer = module
-        if hasattr(module, 'layer'):
-            target_layer = module.layer
-        if isinstance(target_layer, nn.Conv2d):
-            conv_layers.append((name, target_layer))
-            
+    # 我們需要對 nn.Conv2d 模組進行去重，因為 Hebbian 封裝層會導致同一個物理 nn.Conv2d 被 named_modules() 訪問兩次
+    model_conv_layers = []
+    for encoder, model_title in models_info:
+        conv_layers = []
+        visited_modules = set()
+        for name, module in encoder.named_modules():
+            target_layer = module
+            if hasattr(module, 'layer'):
+                target_layer = module.layer
+            if isinstance(target_layer, nn.Conv2d):
+                if target_layer not in visited_modules:
+                    visited_modules.add(target_layer)
+                    conv_layers.append((name, target_layer))
+        model_conv_layers.append((encoder, model_title, conv_layers))
+        
+    first_conv_layers = model_conv_layers[0][2]
     print(f"\n--- Conv2d Layers found in {backbone_name} ---")
-    for n, l in conv_layers:
+    for n, l in first_conv_layers:
         print(f"  - {n} | Shape: {list(l.weight.shape)} | Kernel Size: {l.kernel_size}")
         
     print(f"\nSelecting layers for visualization (Mode: {layer_type})...")
-    selected_layers_names = []
+    selected_indices = []
     
     if layer_type == "representative":
         # 1. 挑選 Stem
-        for name, layer in conv_layers:
+        stem_idx = None
+        for i, (name, layer) in enumerate(first_conv_layers):
             if layer.kernel_size != 1 and layer.kernel_size != (1, 1):
                 if name in ["0", "0.0", "conv1"] or name.endswith(".conv1") or (name.endswith(".0") and not ("." in name[:-2])):
-                    selected_layers_names.append(name)
+                    stem_idx = i
                     break
+        if stem_idx is not None:
+            selected_indices.append(stem_idx)
             
         # 2. 挑選不同 Stage 的代表性 3x3 卷積層
         candidates = [
@@ -194,43 +204,39 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
             "2.0.branch2.3", "3.0.branch2.3", "4.0.branch2.3",
             "stage2.0.branch2.3", "stage3.0.branch2.3", "stage4.0.branch2.3"
         ]
-        for name, layer in conv_layers:
+        for i, (name, layer) in enumerate(first_conv_layers):
             if any(c in name for c in candidates):
-                if name not in selected_layers_names:
-                    selected_layers_names.append(name)
+                if i not in selected_indices:
+                    selected_indices.append(i)
                     
-        if not selected_layers_names:
-            selected_layers_names = [n for n, l in conv_layers if l.kernel_size != 1 and l.kernel_size != (1, 1)][:4]
+        if not selected_indices:
+            selected_indices = [i for i, (n, l) in enumerate(first_conv_layers) if l.kernel_size != 1 and l.kernel_size != (1, 1)][:4]
+            
     elif layer_type == "spatial":
-        # 只挑選空間/3x3等卷積層 (排除 1x1 卷積)
-        selected_layers_names = [n for n, layer in conv_layers if layer.kernel_size != 1 and layer.kernel_size != (1, 1)]
+        selected_indices = [i for i, (n, layer) in enumerate(first_conv_layers) if layer.kernel_size != 1 and layer.kernel_size != (1, 1)]
     elif layer_type == "all":
-        # 挑選所有卷積層
-        selected_layers_names = [n for n, _ in conv_layers]
+        selected_indices = list(range(len(first_conv_layers)))
     else:
         raise ValueError(f"Unknown layer_type: {layer_type}")
         
-    num_selected = len(selected_layers_names)
+    num_selected = len(selected_indices)
+    selected_layers_names = [first_conv_layers[i][0] for i in selected_indices]
+    clean_selected_names = [get_clean_name(name, backbone_name) for name in selected_layers_names]
     print(f"Selected {num_selected} layers: {selected_layers_names}")
+    print(f"Selected {num_selected} layers (Paper-friendly names): {clean_selected_names}")
     
     # 3. 收集每個模型的所有層資料與統計資訊
     model_data_list = []
     all_active_logs = []
     
-    for encoder, model_title in models_info:
+    for encoder, model_title, conv_layers in model_conv_layers:
         # 計算此模型全局權重稀疏度 (Global Weight Sparsity)
         total_params = 0
         zero_params = 0
-        layer_map = {}
-        for name, module in encoder.named_modules():
-            target_layer = module
-            if hasattr(module, 'layer'):
-                target_layer = module.layer
-            if isinstance(target_layer, nn.Conv2d):
-                layer_map[name] = target_layer
-                w = target_layer.weight.detach().cpu()
-                total_params += w.numel()
-                zero_params += (w.abs() < threshold).sum().item()
+        for name, layer in conv_layers:
+            w = layer.weight.detach().cpu()
+            total_params += w.numel()
+            zero_params += (w.abs() < threshold).sum().item()
         
         global_w_sparsity = (zero_params / total_params) * 100.0 if total_params > 0 else 0.0
         print(f"\n>>> Analyzing {model_title} | Global Conv Sparsity: {global_w_sparsity:.2f}%")
@@ -238,10 +244,10 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
         layer_binary_status = []
         layer_magnitude_log = []
         
-        for name in selected_layers_names:
-            if name not in layer_map:
+        for idx in selected_indices:
+            if idx >= len(conv_layers):
                 continue
-            layer = layer_map[name]
+            name, layer = conv_layers[idx]
             weight = layer.weight.detach().cpu()
             flat_norms = weight.abs().sum(dim=(2, 3)).numpy().flatten()
             
@@ -300,6 +306,7 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
     else:
         # 多個模型對照：2 行 2 列 (Ours 在第一行，RigL 在第二行)
         fig, axes = plt.subplots(2, 2, figsize=(fig_width, 10.5), dpi=300, sharey='row')
+    fig.patch.set_facecolor('white')
         
     for m_idx, data in enumerate(model_data_list):
         model_title = data['title']
@@ -333,6 +340,7 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
             
         # 軸刻度與標籤美化
         for ax in (ax_bin, ax_mag):
+            ax.set_facecolor('white')
             ax.set_xticks(np.arange(num_selected))
             ax.set_xticklabels([])
             ax.set_yticks([])
@@ -376,8 +384,8 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
     save_path_png = os.path.join(output_dir, f"{save_name}.png")
     save_path_pdf = os.path.join(output_dir, f"{save_name}.pdf")
     
-    plt.savefig(save_path_png, bbox_inches='tight', dpi=300)
-    plt.savefig(save_path_pdf, bbox_inches='tight')
+    plt.savefig(save_path_png, bbox_inches='tight', dpi=300, facecolor='white')
+    plt.savefig(save_path_pdf, bbox_inches='tight', facecolor='white')
     plt.close()
     
     print(f"\n🎉 Scientific comparison figure successfully saved to:")
