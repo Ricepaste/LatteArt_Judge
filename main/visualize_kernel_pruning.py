@@ -265,12 +265,14 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
         print(f"  Layer {name} | Kernels: {L} | Weight Sparsity: {w_sparsity:.2f}% | Kernel Pruned: {pruned_ratio:.2f}%")
         
     # 使用論文標準格式美化畫布 (1 Row, 2 Columns)
-    plt.rcParams["font.family"] = "sans-serif"
-    plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "Helvetica"]
+    plt.rcParams["font.family"] = "serif"
+    plt.rcParams["font.serif"] = ["Times New Roman", "Times", "Liberation Serif", "DejaVu Serif", "serif"]
+    plt.rcParams["mathtext.fontset"] = "stix"
     
     # 動態調整畫布寬度以適應層數，提供更寬敞的橫向排版空間
     fig_width = max(12.0, num_selected * 0.75)
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, 7.2), dpi=300)
+    # 使用 sharey=True 共享 y 軸，隱藏右側子圖的 y 軸刻度，使畫面更加簡潔
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, 6.0), dpi=300, sharey=True)
     
     # 定義填充顏色：偏灰白色，低調且與 pruned/active 區隔
     pad_color = "#e2e8f0"
@@ -282,13 +284,7 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
     cmap_binary.set_bad(color=pad_color)
     
     im0 = ax0.imshow(binary_matrix, cmap=cmap_binary, vmin=0, vmax=1, aspect='auto', interpolation='nearest')
-    ax0.set_title("Binary Kernel Pruning Profile\n(White = Fully Pruned Kernels, Dark Slate = Active)", fontsize=11, fontweight='bold', pad=10)
-    
-    # 建立客製化圖例
-    legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
-    legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
-    legend_pad = mpatches.Patch(facecolor=pad_color, label='Padded / Non-existent')
-    ax0.legend(handles=[legend_pruned, legend_active, legend_pad], loc='upper right', fontsize=8, framealpha=0.9)
+    ax0.set_title("(a) Binary Pruning Map", fontsize=12, fontweight='bold', pad=12)
     
     # --- 2. 右圖: Continuous Log L1-Norm Strength (Viridis，剪枝的連接顯示為純白) ---
     # 找出 active (大於 threshold 且非 NaN) 的最小值與最大值以自訂範圍
@@ -312,36 +308,35 @@ def analyze_and_plot_kernels(encoder, model_title, backbone_name, output_dir="ru
     norm = Normalize(vmin=vmin, vmax=vmax)
     
     im1 = ax1.imshow(magnitude_matrix, cmap=cmap_mag, norm=norm, aspect='auto', interpolation='nearest')
-    ax1.set_title("Connection Strength Profile\n(Log10 L1-Norm Magnitude)", fontsize=11, fontweight='bold', pad=10)
+    ax1.set_title("(b) Connection Strength Map", fontsize=12, fontweight='bold', pad=12)
     
     # 加上 Colorbar
     cbar = fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04, extend='neither')
-    cbar.ax.tick_params(labelsize=7)
-    cbar.set_label("log10(Kernel L1-Norm)", fontsize=8)
+    cbar.ax.tick_params(labelsize=8)
+    cbar.set_label("$\\log_{10}$ (Kernel $L_1$-Norm)", fontsize=10)
     
-    legend_pad_mag = mpatches.Patch(facecolor=pad_color, label='Padded / Non-existent')
-    legend_pruned_mag = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
-    ax1.legend(handles=[legend_pad_mag, legend_pruned_mag], loc='upper right', fontsize=8, framealpha=0.9)
+    # --- 建立單一、橫向的統一圖例放於下方，避免遮擋數據，並移除子圖中的獨立圖例 ---
+    legend_pruned = mpatches.Patch(facecolor="#ffffff", edgecolor="#cbd5e1", label='Pruned (Zero)')
+    legend_active = mpatches.Patch(facecolor="#0f172a", label='Active')
+    legend_pad = mpatches.Patch(facecolor=pad_color, label='Padded / Non-existent')
+    fig.legend(handles=[legend_pruned, legend_active, legend_pad], loc='lower center', ncol=3, fontsize=10, framealpha=0.9, bbox_to_anchor=(0.5, 0.02))
     
     # --- 軸刻度與標籤美化 ---
+    ax0.set_ylabel("Kernel Index", fontsize=10)
     for ax in (ax0, ax1):
         ax.set_xticks(np.arange(num_selected))
         # 橫軸不顯示任何文字標籤（直接留空），完全消除擁擠感
         ax.set_xticklabels([])
-        ax.set_ylabel("Kernel Index (0 to Max)", fontsize=9)
-        ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=9)
-        ax.tick_params(labelsize=8)
+        ax.set_xlabel("Layers (Input $\\rightarrow$ Output)", fontsize=10)
+        ax.tick_params(labelsize=9)
         # 隱藏上方與右方的邊界線 (Spines)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         
-    fig.suptitle(f"Global Kernel-Level Topology & Connection Strength Profile ({model_title})\n"
-                 f"Backbone: {backbone_name} | Mode: {layer_type.capitalize()} | Global Conv Sparsity: {global_w_sparsity:.2f}% | Threshold: {threshold:.0e}", 
-                 fontsize=12, fontweight='bold', y=0.98)
-    
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    # 調整子圖之間的間距以防止 colorbar 重疊
-    fig.subplots_adjust(wspace=0.25)
+    # 留出底部給統一圖例的空間，並移除學術論文中通常不需要的 suptitle（由 LaTeX 標題/說明文字替代）
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
+    # 由於 sharey=True，子圖可以靠得更近以節省空間
+    fig.subplots_adjust(wspace=0.15)
     
     # 儲存高品質的 PNG 與 PDF (向量圖，方便直接插入 LaTeX 論文)
     save_name = f"global_kernel_profile_{layer_type}_{model_title.replace(' ', '_').lower()}"
