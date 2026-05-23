@@ -94,7 +94,15 @@ def run_experiment(exp_name, env_vars, dataset="cifar10", script="Hebbian.py", s
                         
                         # 統一使用新的標準評估腳本 (包含 CenterCrop, k=200 KNN, BatchNorm, L2 Norm)
                         eval_script = "evaluate_model.py" 
-                        run_env["METHOD"] = "hebbian" if script == "Hebbian.py" else "rigl"
+                        if script == "Hebbian.py":
+                            run_env["METHOD"] = "hebbian"
+                        elif script == "Random.py":
+                            run_env["METHOD"] = "random"
+                        else:
+                            run_env["METHOD"] = "rigl"
+                        
+                        # 確保線性探測 (Linear Probing) 評估階段使用對應的 50 Epochs 規格，不與預訓練 400 Epochs 混淆
+                        run_env["NUM_EPOCHS"] = "50"
                         
                         print(f"🚀 Running Standardized Evaluation: {eval_script} on {encoder_path}")
                         eval_cmd = ["python", "-u", eval_script]
@@ -118,7 +126,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         run_mode = sys.argv[1].lower()
     
-    valid_modes = ["all", "hebbian", "rigl"]
+    valid_modes = ["all", "hebbian", "rigl", "dense", "random"]
     if run_mode not in valid_modes:
         print(f"Error: Invalid mode '{run_mode}'. Available modes are {valid_modes}")
         sys.exit(1)
@@ -128,11 +136,13 @@ if __name__ == "__main__":
     print(f"🌟 Run Mode: {run_mode.upper()}")
     print("*"*60 + "\n")
     
-    # 根據執行的腳本 (Hebbian.py 或 SimSiam.py) 過濾實驗
+    # 根據執行的腳本 (Hebbian.py, SimSiam.py, Dense.py, Random.py) 過濾實驗
     def should_run(exp):
         if run_mode == "all": return True
         if run_mode == "hebbian" and exp.get("script", "Hebbian.py") == "Hebbian.py": return True
         if run_mode == "rigl" and exp.get("script", "Hebbian.py") == "SimSiam.py": return True
+        if run_mode == "dense" and exp.get("script", "Hebbian.py") == "Dense.py": return True
+        if run_mode == "random" and exp.get("script", "Hebbian.py") == "Random.py": return True
         return False
     
     # 1. 捍衛主戰場: 嚴格跑 3 Seeds

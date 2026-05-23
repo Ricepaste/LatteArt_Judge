@@ -17,6 +17,7 @@ from typing import Optional
 
 # 導入資料集處理 (假設路徑不變)
 from src.processing.CIFAR10 import CIFAR10_Dataset
+from src.processing.CIFAR100 import CIFAR100_Dataset
 # 導入我們上一部定義好的 Hebbian Sparse SimSiam
 # 請確保 src/module/hebbian_SimSiam_Module.py 包含我們之前討論的 Hebbian_SimSiam 類別
 from src.module.SET_SimSiam_Module import SET_SimSiam
@@ -29,19 +30,33 @@ class SET_SSL_Trainer:
         load_weight: str = "",
         base_lr=0.03,
         target_sparsity=0.8,  # [新參數] 目標稀疏度
+        dataset_name="cifar10",
     ) -> None:
         self.base_lr = base_lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.dataset_name = dataset_name
         
         # 1. 準備 Backbone (Dense)
         self.backbone = pretrained_model_class(weights=pretrained_weight)
+        model_type = "shufflenet" if pretrained_model_class == models.shufflenet_v2_x0_5 else "resnet"
 
         # 2. 初始化 Hebbian_SimSiam 模型
         # 這會自動將 conv/linear 層替換為 HebbianSparseLayer
-        self.model = SET_SimSiam(
-            self.backbone, 
-            target_sparsity=target_sparsity
-        ).to(self.device)
+        if model_type == "shufflenet":
+            self.model = SET_SimSiam(
+                self.backbone, 
+                model_type='shufflenet',
+                encoder_output_dim=1024,
+                target_sparsity=target_sparsity
+            ).to(self.device)
+        elif model_type == "resnet":
+            self.model = SET_SimSiam(
+                self.backbone, 
+                model_type='resnet',
+                encoder_output_dim=512,
+                projector_inner_dim=2048,
+                target_sparsity=target_sparsity
+            ).to(self.device)
 
         # 3. 載入權重 (若有)
         if load_weight != "":
@@ -74,8 +89,9 @@ class SET_SSL_Trainer:
         print("Use device:", self.device)
 
     def dataset_initialize(self, DATASET_DIR, BATCH_SIZE, WORKERS):
+        DatasetClass = CIFAR100_Dataset if self.dataset_name.lower() == "cifar100" else CIFAR10_Dataset
         self.image_datasets = {
-            x: CIFAR10_Dataset(split=x, transform=self.data_transforms[x])
+            x: DatasetClass(split=x, transform=self.data_transforms[x])
             for x in ["train", "val"]
         }
         self.dataloaders = {

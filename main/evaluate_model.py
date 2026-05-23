@@ -33,10 +33,12 @@ USE_ERK = os.environ.get("USE_ERK", "True") == "True"
 PROTECT_HIGHWAY = os.environ.get("PROTECT_HIGHWAY", "False") == "True"
 TARGET_SPARSITY = float(os.environ.get("TARGET_SPARSITY", "0.99"))
 LABEL_NOISE_RATE = float(os.environ.get("LABEL_NOISE_RATE", "0.0"))
+SHUFFLE_MASK = os.environ.get("SHUFFLE_MASK", "False") == "True"
+RANDOM_PRUNE_DENSE = os.environ.get("RANDOM_PRUNE_DENSE", "False") == "True"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if not ENCODER_PATH or not os.path.exists(ENCODER_PATH):
+if not ENCODER_PATH or (ENCODER_PATH.lower() not in ["imagenet", "official"] and not os.path.exists(ENCODER_PATH)):
     raise ValueError(f"Invalid ENCODER_PATH: {ENCODER_PATH}")
 
 print("="*60)
@@ -47,29 +49,90 @@ print(f"Target Evaluation Dataset: {DATASET_NAME.upper()}")
 print(f"Evaluation Data Fraction: {EVAL_FRACTION * 100}%")
 if LABEL_NOISE_RATE > 0.0:
     print(f"Label Noise Flip Rate: {LABEL_NOISE_RATE * 100:.1f}%")
+if SHUFFLE_MASK:
+    print("🎲 Mode: SHUFFLE_MASK (Randomly shuffling model masks)")
+if RANDOM_PRUNE_DENSE:
+    print(f"🎲 Mode: RANDOM_PRUNE_DENSE (Randomly pruning dense model to {TARGET_SPARSITY * 100}%)")
 print("="*60)
 
 # 動態選擇模組與初始化
+backbone_weights = None
+if ENCODER_PATH.lower() in ["imagenet", "official"]:
+    backbone_weights = models.ResNet18_Weights.IMAGENET1K_V1
+
 if METHOD == "hebbian":
     from src.training.Hebbian_train import Hebbian_SSL_Trainer
     dummy_trainer = Hebbian_SSL_Trainer(
         pretrained_model_class=models.resnet18,
+        pretrained_weight=backbone_weights,
         target_sparsity=TARGET_SPARSITY, # 動態對齊目標稀疏度
         use_erk=USE_ERK,
         protect_highway=PROTECT_HIGHWAY
+    )
+    simsiam_model = dummy_trainer.model.to(device)
+elif METHOD in ["random", "set"]:
+    from src.training.SET_train import SET_SSL_Trainer
+    dummy_trainer = SET_SSL_Trainer(
+        pretrained_model_class=models.resnet18,
+        pretrained_weight=backbone_weights,
+        target_sparsity=TARGET_SPARSITY,
+        dataset_name=DATASET_NAME
     )
     simsiam_model = dummy_trainer.model.to(device)
 else:
     import src.training.SimSiam_train as SimSiam_train
     dummy_trainer = SimSiam_train.SimSiam_Model(
         pretrained_model=models.resnet18,
+        pretrained_weight=backbone_weights
     )
     simsiam_model = dummy_trainer.model.to(device)
 
-print(f"Loading weights from {ENCODER_PATH}...")
-state_dict = torch.load(ENCODER_PATH, map_location=device, weights_only=True)
-simsiam_model.load_state_dict(state_dict, strict=False)
-print("Weights loaded successfully!")
+if ENCODER_PATH.lower() in ["imagenet", "official"]:
+    print("🌍 Using official ImageNet pre-trained weights directly.")
+else:
+    print(f"Loading weights from {ENCODER_PATH}...")
+    state_dict = torch.load(ENCODER_PATH, map_location=device, weights_only=True)
+    simsiam_model.load_state_dict(state_dict, strict=False)
+    print("Weights loaded successfully!")
+
+# Shuffled Mask (打亂 Hebbian/RigL 的遮罩)
+if SHUFFLE_MASK:
+    print("🎲 Randomly shuffling model masks...")
+    count = 0
+    for name, module in simsiam_model.named_modules():
+        if hasattr(module, 'mask') and module.mask is not None:
+            mask_flat = module.mask.view(-1)
+            perm = torch.randperm(mask_flat.numel(), device=mask_flat.device)
+            shuffled_mask = mask_flat[perm].view_as(module.mask)
+            module.mask.copy_(shuffled_mask)
+            
+            # 重新將打亂後的遮罩套用至權重
+            if hasattr(module, 'layer') and hasattr(module.layer, 'weight'):
+                with torch.no_grad():
+                    module.layer.weight.copy_(module.layer.weight * module.mask)
+            count += 1
+    print(f"🎲 Shuffled masks for {count} layers.")
+
+# Random Prune Dense (對密集模型隨機強行剪枝)
+if RANDOM_PRUNE_DENSE:
+    print(f"🎲 Randomly pruning dense model weights to target sparsity {TARGET_SPARSITY * 100:.2f}%...")
+    count = 0
+    for name, module in simsiam_model.named_modules():
+        # 對齊 Hebbian 的卷積層保護邏輯，只隨機剪枝 Spatial 卷積層 (kernel_size > 1)
+        if isinstance(module, nn.Conv2d) and module.kernel_size != 1 and module.kernel_size != (1, 1):
+            with torch.no_grad():
+                w = module.weight
+                numel = w.numel()
+                k = int((1 - TARGET_SPARSITY) * numel) # 保留的 active 連接數
+                
+                mask = torch.zeros(numel, dtype=torch.float32, device=w.device)
+                if k > 0:
+                    indices = torch.randperm(numel, device=w.device)[:k]
+                    mask[indices] = 1.0
+                mask = mask.view_as(w)
+                w.copy_(w * mask)
+                count += 1
+    print(f"🎲 Randomly pruned {count} Conv2d layers.")
 
 # 如果是 Hebbian，確保評估時不再觸發生長
 if hasattr(simsiam_model, 'set_hebbian_enable'):
@@ -370,7 +433,14 @@ with open(summary_file, "a") as f:
     
     # 簡化模型名稱 (只保留資料夾名稱)
     model_name = os.path.basename(os.path.dirname(ENCODER_PATH))
-    f.write(f"{METHOD},{model_name},{DATASET_NAME},{EVAL_FRACTION},{LABEL_NOISE_RATE:.4f},{knn_acc:.4f},{test_acc:.4f}\n")
+    
+    saved_method = METHOD
+    if SHUFFLE_MASK:
+        saved_method = f"{METHOD}_shuffled"
+    elif RANDOM_PRUNE_DENSE:
+        saved_method = f"{METHOD}_random_pruned"
+        
+    f.write(f"{saved_method},{model_name},{DATASET_NAME},{EVAL_FRACTION},{LABEL_NOISE_RATE:.4f},{knn_acc:.4f},{test_acc:.4f}\n")
 
 print("\n" + "="*60)
 print(f"📊 FINAL RESULTS for {METHOD.upper()} on {DATASET_NAME.upper()} ({EVAL_FRACTION*100}% labels)")
