@@ -15,11 +15,11 @@ MODELS_TO_TEST = [
         "method": "hebbian",
         "encoder_path": "/app/main/runs/Hebbian_SSL_20260410-190945/last.pt" 
     },
-    # {
-    #     "name": "RigL_99_C100",
-    #     "method": "rigl",
-    #     "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt" 
-    # }
+    {
+        "name": "RigL_99_C100",
+        "method": "rigl",
+        "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt" 
+    }
 ]
 
 # 測試目標：涵蓋同領域、跨領域、與特殊視覺領域 (Texture, Medical, Satellite)
