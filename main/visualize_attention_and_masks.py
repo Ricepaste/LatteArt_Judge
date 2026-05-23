@@ -230,7 +230,15 @@ def main():
         if row_idx == 0:
             axes[row_idx, 2].set_title("RigL Baseline", fontsize=12, pad=10)
 
-    plt.tight_layout()
+    # 增加一個共享的 Colorbar 在右側，以說明活化強度的色標 (對應 Low / High 關注度)
+    plt.tight_layout(rect=[0, 0, 0.90, 1])
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cb = fig.colorbar(plt.cm.ScalarMappable(cmap='jet'), cax=cbar_ax)
+    cb.set_ticks([0, 1])
+    cb.set_ticklabels(['Low', 'High'])
+    cb.set_label("Activation Intensity", fontsize=11, labelpad=5)
+    cb.ax.tick_params(labelsize=10)
+
     act_png = os.path.join(args.out_dir, "activation_attention_maps.png")
     act_pdf = os.path.join(args.out_dir, "activation_attention_maps.pdf")
     plt.savefig(act_png, dpi=300, bbox_inches='tight')
@@ -269,12 +277,12 @@ def main():
         
         # 使用 binary colors (白色代表 pruned，深藍/黑色代表 active)
         ax1.imshow(1 - mask_h, cmap='gray', aspect='auto', interpolation='nearest')
-        ax1.set_xlabel("Input Channels", fontsize=11)
-        ax1.set_ylabel("Output Channels", fontsize=11)
+        ax1.set_xlabel("Input Channel Index", fontsize=11)
+        ax1.set_ylabel("Output Channel Index", fontsize=11)
         
         ax2.imshow(1 - mask_r, cmap='gray', aspect='auto', interpolation='nearest')
-        ax2.set_xlabel("Input Channels", fontsize=11)
-        ax2.set_ylabel("Output Channels", fontsize=11)
+        ax2.set_xlabel("Input Channel Index", fontsize=11)
+        ax2.set_ylabel("Output Channel Index", fontsize=11)
         
         plt.tight_layout()
         conn_png = os.path.join(args.out_dir, "sparse_weight_connections.png")
