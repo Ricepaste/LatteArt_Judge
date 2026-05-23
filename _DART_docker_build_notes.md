@@ -36,7 +36,7 @@
    如下：
 
    ```powershell
-   docker run --gpus all -d -it --rm -v C:/Users/a3525/Documents/program/testing/Python/yolo/main:/app/main -v C:/Users/a3525/Documents/program/testing/Python/yolo/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
+   docker run --gpus all -d -it --rm -v C:/Users/a3525/Documents/program/testing/Python/LatteArt_Judge/main:/app/main -v C:/Users/a3525/Documents/program/testing/Python/LatteArt_Judge/runs:/app/runs --name sharpaste_SparseSSL_gpu_0 sparse_ssl_image
    ```
 
 4. 查看容器日誌
