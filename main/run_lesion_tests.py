@@ -26,8 +26,8 @@ MODELS_TO_TEST = [
 # TARGET_DATASETS = ["svhn", "stl10", "eurosat"]
 TARGET_DATASETS = ["cifar100", "cifar10", "svhn", "stl10", "eurosat", "dtd", "pcam"]
 
-# 少樣本比例：100% (遷移能力), 10% (資料效率)
-EVAL_FRACTIONS = [1.0, 0.1] 
+# 少樣本比例：100% (遷移能力)
+EVAL_FRACTIONS = [1.0] 
 
 def run_evaluation(model_info, target_ds, fraction):
     print(f"\n>>>> [RUNNING] {model_info['name']} on {target_ds.upper()} ({fraction*100}% labels)")

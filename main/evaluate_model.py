@@ -215,6 +215,10 @@ elif DATASET_NAME == "eurosat":
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42))
     num_classes = 10
+elif DATASET_NAME == "stl10":
+    train_dataset = datasets.STL10(root="./data", split='train', download=True, transform=transform)
+    test_dataset = datasets.STL10(root="./data", split='test', download=True, transform=transform)
+    num_classes = 10
 else:
     raise ValueError(f"Unknown dataset: {DATASET_NAME}")
 
