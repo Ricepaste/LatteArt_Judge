@@ -365,6 +365,171 @@ def analyze_and_plot_comparison(models_info, backbone_name, output_dir="runs/vis
         print(f"  - PDF (Vector):   {save_path_pdf}\n")
 
 
+def analyze_topology_overlap(model1_info, model2_info, backbone_name, output_dir, threshold=1e-7, layer_type="spatial"):
+    """
+    計算兩個模型在每個對應卷積層 (Layer-wise) 的遮罩重合度 (Topology Overlap Ratio)。
+    $$\text{Overlap}_l = \frac{\| \mathbf{M}_{1, l} \odot \mathbf{M}_{2, l} \|_0}{\| \mathbf{M}_{1, l} \|_0}$$
+    """
+    encoder1, name1 = model1_info
+    encoder2, name2 = model2_info
+    
+    # 提取卷積層
+    conv_layers1 = []
+    visited_modules1 = set()
+    for name, module in encoder1.named_modules():
+        target_layer = module
+        if hasattr(module, 'layer'):
+            target_layer = module.layer
+        if isinstance(target_layer, nn.Conv2d):
+            if target_layer not in visited_modules1:
+                visited_modules1.add(target_layer)
+                conv_layers1.append((name, target_layer))
+                
+    conv_layers2 = []
+    visited_modules2 = set()
+    for name, module in encoder2.named_modules():
+        target_layer = module
+        if hasattr(module, 'layer'):
+            target_layer = module.layer
+        if isinstance(target_layer, nn.Conv2d):
+            if target_layer not in visited_modules2:
+                visited_modules2.add(target_layer)
+                conv_layers2.append((name, target_layer))
+                
+    if len(conv_layers1) != len(conv_layers2):
+        print(f"⚠️ Warning: Model conv layer count mismatch ({len(conv_layers1)} vs {len(conv_layers2)}). Cannot compute overlap.")
+        return
+
+    # 根據 layer_type 過濾網路層
+    selected_indices = []
+    if layer_type == "representative":
+        # 1. 挑選 Stem
+        stem_idx = None
+        for i, (name, layer) in enumerate(conv_layers1):
+            if layer.kernel_size != 1 and layer.kernel_size != (1, 1):
+                if name in ["0", "0.0", "conv1"] or name.endswith(".conv1") or (name.endswith(".0") and not ("." in name[:-2])):
+                    stem_idx = i
+                    break
+        if stem_idx is not None:
+            selected_indices.append(stem_idx)
+            
+        # 2. 挑選不同 Stage 的代表性 3x3 卷積層
+        candidates = [
+            "4.0.conv1", "5.0.conv1", "6.0.conv1", "7.0.conv1",
+            "2.0.branch2.3", "3.0.branch2.3", "4.0.branch2.3",
+            "stage2.0.branch2.3", "stage3.0.branch2.3", "stage4.0.branch2.3"
+        ]
+        for i, (name, layer) in enumerate(conv_layers1):
+            if any(c in name for c in candidates):
+                if i not in selected_indices:
+                    selected_indices.append(i)
+                    
+        if not selected_indices:
+            selected_indices = [i for i, (n, l) in enumerate(conv_layers1) if l.kernel_size != 1 and l.kernel_size != (1, 1)][:4]
+            
+    elif layer_type == "spatial":
+        selected_indices = [i for i, (n, layer) in enumerate(conv_layers1) if layer.kernel_size != 1 and layer.kernel_size != (1, 1)]
+    elif layer_type == "all":
+        selected_indices = list(range(len(conv_layers1)))
+    else:
+        raise ValueError(f"Unknown layer_type: {layer_type}")
+
+    overlap_data = []
+    print("\n" + "="*60)
+    print(f"📊 Layer-wise Topology Overlap Analysis ({name1} vs {name2})")
+    print("="*60)
+    print(f"{'Layer Name':<20} | {'Clean Name':<15} | {'Overlap Ratio':<15} | {'IoU (Jaccard)':<15}")
+    print("-" * 75)
+
+    for idx in selected_indices:
+        name_h, layer_h = conv_layers1[idx]
+        name_r, layer_r = conv_layers2[idx]
+        
+        w_h = layer_h.weight.detach().cpu()
+        w_r = layer_r.weight.detach().cpu()
+        
+        # 二值遮罩 (1 代表 active，0 代表 pruned)
+        mask_h = (w_h.abs() >= threshold).float()
+        mask_r = (w_r.abs() >= threshold).float()
+        
+        intersection = (mask_h * mask_r).sum().item()
+        union = (mask_h + mask_r > 0).float().sum().item()
+        
+        denom_h = mask_h.sum().item()
+        
+        overlap_ratio = (intersection / denom_h) if denom_h > 0 else 0.0
+        iou = (intersection / union) if union > 0 else 0.0
+        
+        clean_name = get_clean_name(name_h, backbone_name)
+        
+        print(f"{name_h:<20} | {clean_name:<15} | {overlap_ratio*100:6.2f}%         | {iou*100:6.2f}%")
+        
+        overlap_data.append({
+            "Original_Name": name_h,
+            "Clean_Name": clean_name,
+            "Ours_Active": int(denom_h),
+            "RigL_Active": int(mask_r.sum().item()),
+            "Overlap_Count": int(intersection),
+            "Overlap_Ratio": overlap_ratio,
+            "IoU": iou
+        })
+
+    # 保存報告 CSV/Markdown
+    csv_path = os.path.join(output_dir, "topology_overlap_report.csv")
+    md_path = os.path.join(output_dir, "topology_overlap_report.md")
+    
+    import csv
+    with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["Original_Name", "Clean_Name", "Ours_Active", "RigL_Active", "Overlap_Count", "Overlap_Ratio", "IoU"])
+        writer.writeheader()
+        writer.writerows(overlap_data)
+        
+    with open(md_path, mode="w", encoding="utf-8") as f:
+        f.write(f"# Topology Overlap Analysis ({name1} vs {name2})\n\n")
+        f.write("| Original Name | Clean Name | Ours Active | RigL Active | Overlap Count | Overlap Ratio (%) | Jaccard IoU (%) |\n")
+        f.write("|---|---|---|---|---|---|---|\n")
+        for row in overlap_data:
+            f.write(f"| {row['Original_Name']} | {row['Clean_Name']} | {row['Ours_Active']} | {row['RigL_Active']} | {row['Overlap_Count']} | {row['Overlap_Ratio']*100:.2f}% | {row['IoU']*100:.2f}% |\n")
+
+    print(f"\n✅ Reports saved to:")
+    print(f"  - CSV: {csv_path}")
+    print(f"  - MD:  {md_path}")
+
+    # 繪製 Bar Chart (只保留對比，不加標題，LaTeX 友善)
+    plt.figure(figsize=(10, 5))
+    plt.rcParams['font.family'] = 'serif'
+    plt.rcParams['font.serif'] = ['Times New Roman', 'Liberation Serif', 'DejaVu Serif']
+    plt.rcParams['font.size'] = 11
+    
+    clean_names = [row["Clean_Name"] for row in overlap_data]
+    overlap_ratios = [row["Overlap_Ratio"] * 100 for row in overlap_data]
+    ious = [row["IoU"] * 100 for row in overlap_data]
+    
+    x = np.arange(len(clean_names))
+    width = 0.35
+    
+    plt.bar(x - width/2, overlap_ratios, width, label="Overlap Ratio (Intersection / Ours)", color="#1f77b4")
+    plt.bar(x + width/2, ious, width, label="Jaccard IoU (Intersection / Union)", color="#aec7e8", hatch="//")
+    
+    plt.xticks(x, clean_names, rotation=45, ha="right")
+    plt.ylabel("Percentage (%)")
+    plt.ylim(0, 100)
+    plt.legend(frameon=True)
+    plt.grid(True, axis="y", alpha=0.3, linestyle="--")
+    plt.tight_layout()
+    
+    fig_png = os.path.join(output_dir, "topology_overlap_comparison.png")
+    fig_pdf = os.path.join(output_dir, "topology_overlap_comparison.pdf")
+    plt.savefig(fig_png, dpi=300, bbox_inches="tight")
+    plt.savefig(fig_pdf, bbox_inches="tight")
+    plt.close()
+    
+    print(f"✅ Bar chart saved to:")
+    print(f"  - PNG: {fig_png}")
+    print(f"  - PDF: {fig_pdf}")
+    print("="*60 + "\n")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize Kernel-level Pruning Map using 2D Heatmaps")
     parser.add_argument("--hebbian_path", type=str, default="", help="Path to Hebbian model checkpoint (last.pt)")
@@ -385,17 +550,18 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # 每次執行前清理舊的檔案
-    import shutil
+    # 每次執行前清理舊的檔案 (僅限 kernel pruning 相關的檔案，防止刪除 SVD 分析等其他實驗產物)
     out_dir = args.out_dir
-    if os.path.exists(out_dir):
-        print(f"🧹 Clearing old visualization files in {out_dir}...")
-        try:
-            shutil.rmtree(out_dir)
-            print("Successfully cleared old visualizations.")
-        except Exception as e:
-            print(f"Warning: Failed to clear directory {out_dir}: {e}")
     os.makedirs(out_dir, exist_ok=True)
+    print(f"🧹 Cleaning old kernel pruning visualization files in {out_dir}...")
+    for f_name in os.listdir(out_dir):
+        if (f_name.startswith("kernel_profile_") or 
+            f_name.startswith("kernel_pruning_sparsity_") or 
+            f_name.startswith("topology_overlap_")):
+            try:
+                os.remove(os.path.join(out_dir, f_name))
+            except Exception as e:
+                print(f"Warning: Failed to remove {f_name}: {e}")
     
     models_to_compare = []
     backbone_name = None
@@ -441,8 +607,9 @@ if __name__ == "__main__":
             traceback.print_exc()
             print(f"❌ Failed to load RigL model: {e}")
             
-    # 3. 進行繪圖
+    # 3. 進行繪圖與重合度分析
     if len(models_to_compare) > 0:
+        # 原本的 Heatmap 對比繪圖
         analyze_and_plot_comparison(
             models_to_compare,
             backbone_name,
@@ -450,6 +617,17 @@ if __name__ == "__main__":
             threshold=args.threshold,
             layer_type=args.layer_type
         )
+        
+        # 進行網路拓撲層間重合度分析
+        if len(models_to_compare) == 2:
+            analyze_topology_overlap(
+                models_to_compare[0],
+                models_to_compare[1],
+                backbone_name,
+                args.out_dir,
+                threshold=args.threshold,
+                layer_type=args.layer_type
+            )
     else:
         print("\n⚠️ No model path provided. Please specify model path via arguments or environment variables.")
         print("Usage Example:")
