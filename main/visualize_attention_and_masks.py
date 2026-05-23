@@ -132,17 +132,47 @@ def main():
     os.environ["INPUT_NOISE_STD"] = "0.0"
     test_dataset = CIFAR100_Dataset(split="test", transform=transform_display)
     
-    # 選擇 4 個不同類別的代表性樣本
-    print("Selecting sample images for attention mapping...")
-    indices = [15, 28, 45, 90] # 挑選幾個固定索引，包含不同主體 (如植物、動物、交通工具等)
-    samples = []
+    # 選擇 4 個不同類別的代表性樣本 (自動挑選 Ours 聚焦中心、RigL 偏向邊緣/背景的影像)
+    print("Scanning dataset to find images with maximum attention discrepancy...")
+    best_samples = []
     classes = test_dataset.dataset.classes
     
-    for idx in indices:
+    # 掃描前 200 張影像
+    candidates = []
+    for idx in range(min(200, len(test_dataset))):
         img_display, _, label = test_dataset[idx]
+        img_model = transform_model(img_display).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            feat_h = hebbian_encoder(img_model)
+            feat_r = rigl_encoder(img_model)
+            
+        act_h = compute_activation_map(feat_h)
+        act_r = compute_activation_map(feat_r)
+        
+        # 定義中心區域 (3x3)
+        center_mask = np.zeros((7, 7), dtype=bool)
+        center_mask[2:5, 2:5] = True
+        
+        h_center_ratio = act_h[center_mask].sum() / (act_h.sum() + 1e-8)
+        r_center_ratio = act_r[center_mask].sum() / (act_r.sum() + 1e-8)
+        
+        # 分數：Ours 越專注於中心，RigL 越發散/專注於邊緣
+        score = h_center_ratio - r_center_ratio
+        
         class_name = classes[label]
-        samples.append((img_display, class_name))
-        print(f"  - Picked Sample index {idx}: Class '{class_name}'")
+        candidates.append((score, idx, img_display, class_name, feat_h, feat_r))
+        
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    selected_classes = set()
+    for item in candidates:
+        score, idx, img_display, class_name, feat_h, feat_r = item
+        if class_name not in selected_classes:
+            selected_classes.add(class_name)
+            best_samples.append((img_display, class_name, feat_h, feat_r))
+            print(f"  - Selected image idx {idx}: Class '{class_name}' (Discrepancy Score: {score:.3f})")
+        if len(best_samples) == 4:
+            break
 
     # 3. 提取特徵與疊加活化圖
     plt.rcParams['font.family'] = 'serif'
@@ -151,15 +181,7 @@ def main():
 
     fig, axes = plt.subplots(4, 3, figsize=(9, 11))
 
-    for row_idx, (img_display, class_name) in enumerate(samples):
-        # 轉為 model 輸入並送入 GPU
-        img_model = transform_model(img_display).unsqueeze(0).to(device)
-        
-        # 獲取特徵圖
-        with torch.no_grad():
-            feat_h = hebbian_encoder(img_model)
-            feat_r = rigl_encoder(img_model)
-            
+    for row_idx, (img_display, class_name, feat_h, feat_r) in enumerate(best_samples):
         # 計算特徵活化圖
         act_h = compute_activation_map(feat_h)
         act_r = compute_activation_map(feat_r)
@@ -174,6 +196,18 @@ def main():
         # 轉換為 numpy 展示格式 (H, W, C)
         img_np = img_display.permute(1, 2, 0).numpy()
         
+        # numpy-level pre-blending (將熱力圖與原圖在矩陣層面直接融合，徹底解決 PDF 矢量圖渲染透明度丟失/washed-out 的問題)
+        cmap = plt.get_cmap('jet')
+        alpha = 0.55
+        
+        # Ours composite
+        act_h_colored = cmap(act_h_resized)[:, :, :3]
+        composite_h = (1 - alpha) * img_np + alpha * act_h_colored
+        
+        # RigL composite
+        act_r_colored = cmap(act_r_resized)[:, :, :3]
+        composite_r = (1 - alpha) * img_np + alpha * act_r_colored
+        
         # 3.1 繪製原圖
         axes[row_idx, 0].imshow(img_np)
         axes[row_idx, 0].set_xticks([])
@@ -183,16 +217,14 @@ def main():
             axes[row_idx, 0].set_title("Original Image", fontsize=12, pad=10)
 
         # 3.2 繪製 Ours (Hebbian) 活化圖
-        axes[row_idx, 1].imshow(img_np)
-        axes[row_idx, 1].imshow(act_h_resized, cmap='jet', alpha=0.45)
+        axes[row_idx, 1].imshow(composite_h)
         axes[row_idx, 1].set_xticks([])
         axes[row_idx, 1].set_yticks([])
         if row_idx == 0:
             axes[row_idx, 1].set_title("Ours (GF-DST / Hebbian)", fontsize=12, pad=10)
 
         # 3.3 繪製 RigL 活化圖
-        axes[row_idx, 2].imshow(img_np)
-        axes[row_idx, 2].imshow(act_r_resized, cmap='jet', alpha=0.45)
+        axes[row_idx, 2].imshow(composite_r)
         axes[row_idx, 2].set_xticks([])
         axes[row_idx, 2].set_yticks([])
         if row_idx == 0:
@@ -232,20 +264,17 @@ def main():
         mask_h = (w_h.abs().sum(dim=(2, 3)) >= args.threshold).float().numpy()
         mask_r = (w_r.abs().sum(dim=(2, 3)) >= args.threshold).float().numpy()
         
-        # 繪圖展示 (Ours vs RigL side-by-side)
+        # 繪圖展示 (Ours vs RigL side-by-side，去標題留給 LaTeX 處理)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
         
-        # 使用 binary colors (白色代表 pruned，深藍代表 active)
-        # 1-mask 使得 active (1) 變成 0 (深色)，pruned (0) 變成 1 (白色)
+        # 使用 binary colors (白色代表 pruned，深藍/黑色代表 active)
         ax1.imshow(1 - mask_h, cmap='gray', aspect='auto', interpolation='nearest')
         ax1.set_xlabel("Input Channels", fontsize=11)
         ax1.set_ylabel("Output Channels", fontsize=11)
-        ax1.set_title("Ours (GF-DST / Hebbian) Connectivity Map", fontsize=12)
         
         ax2.imshow(1 - mask_r, cmap='gray', aspect='auto', interpolation='nearest')
         ax2.set_xlabel("Input Channels", fontsize=11)
         ax2.set_ylabel("Output Channels", fontsize=11)
-        ax2.set_title("RigL Baseline Connectivity Map", fontsize=12)
         
         plt.tight_layout()
         conn_png = os.path.join(args.out_dir, "sparse_weight_connections.png")
