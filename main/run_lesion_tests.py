@@ -11,14 +11,14 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # =====================================================================
 MODELS_TO_TEST = [
     {
-        "name": "Hebbian_99_C100",
+        "name": "Hebbian_90_C100",
         "method": "hebbian",
-        "encoder_path": "/app/main/runs/Hebbian_SSL_20260410-190945/last.pt" 
+        "encoder_path": "/app/main/runs/Hebbian_SSL_20260416-091440/last.pt" 
     },
     {
-        "name": "RigL_99_C100",
+        "name": "RigL_90_C100",
         "method": "rigl",
-        "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__4/last.pt" 
+        "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__1/last.pt" 
     }
 ]
 
@@ -39,6 +39,14 @@ def run_evaluation(model_info, target_ds, fraction):
     run_env["NUM_EPOCHS"] = "50" 
     run_env["EVAL_FRACTION"] = str(fraction)
     run_env["INPUT_NOISE_STD"] = "0.0"
+    
+    # 自動解析稀疏度 (例如 "Hebbian_90_C100" -> 0.9)
+    sparsity_val = 0.99
+    for part in model_info['name'].split('_'):
+        if part.isdigit():
+            sparsity_val = float(part) / 100.0
+            break
+    run_env["TARGET_SPARSITY"] = str(sparsity_val)
     
     script = "evaluate_model.py"
     cmd = ["python", "-u", script]
