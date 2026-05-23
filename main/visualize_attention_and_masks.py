@@ -216,13 +216,13 @@ def main():
     w_r = None
     for name, module in hebbian_encoder.encoder.named_modules():
         target = module.layer if hasattr(module, 'layer') else module
-        if name == "layer3.0.conv1" and isinstance(target, nn.Conv2d):
+        if (name == "6.0.conv1" or name.endswith("layer3.0.conv1")) and isinstance(target, nn.Conv2d):
             w_h = target.weight.detach().cpu()
             break
             
     for name, module in rigl_encoder.encoder.named_modules():
         target = module.layer if hasattr(module, 'layer') else module
-        if name == "layer3.0.conv1" and isinstance(target, nn.Conv2d):
+        if (name == "6.0.conv1" or name.endswith("layer3.0.conv1")) and isinstance(target, nn.Conv2d):
             w_r = target.weight.detach().cpu()
             break
 
