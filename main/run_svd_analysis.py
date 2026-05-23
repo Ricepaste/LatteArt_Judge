@@ -219,67 +219,59 @@ def main():
             "cum_r": cum_r
         }
 
-    # 5. 繪製學術對比圖表 (2x2 Panel)
-    print("\n>>> Generating publication-ready plots...")
+    # 5. 繪製學術對比圖表 (僅保留 Log 尺度且不加標題)
+    print("\n>>> Generating publication-ready log-scale plots (without titles)...")
     # 設定字體與風格
     plt.rcParams['font.family'] = 'serif'
     plt.rcParams['font.serif'] = ['Times New Roman', 'Liberation Serif', 'DejaVu Serif']
-    plt.rcParams['font.size'] = 11
+    plt.rcParams['font.size'] = 12
     plt.rcParams['axes.grid'] = True
     plt.rcParams['grid.alpha'] = 0.3
     plt.rcParams['grid.linestyle'] = '--'
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-
-    # 第一行: Raw Features SVD Spectrum
+    # 5.1 繪製 Raw Features Log Scale
     raw_res = svd_results["Raw Features"]
-    # Linear Scale
-    axes[0, 0].plot(raw_res["S_h_norm"], label="Ours (GF-DST / Hebbian)", color="#1f77b4", linewidth=2.0)
-    axes[0, 0].plot(raw_res["S_r_norm"], label="RigL Baseline", color="#d62728", linewidth=2.0, linestyle="--")
-    axes[0, 0].set_title("Raw Features - Linear Scale")
-    axes[0, 0].set_xlabel("Singular Value Index")
-    axes[0, 0].set_ylabel("Normalized Singular Value")
-    axes[0, 0].legend()
-
-    # Log Scale
-    axes[0, 1].plot(raw_res["S_h_norm"], label="Ours (GF-DST / Hebbian)", color="#1f77b4", linewidth=2.0)
-    axes[0, 1].plot(raw_res["S_r_norm"], label="RigL Baseline", color="#d62728", linewidth=2.0, linestyle="--")
-    axes[0, 1].set_yscale("log")
-    axes[0, 1].set_title("Raw Features - Log Scale")
-    axes[0, 1].set_xlabel("Singular Value Index")
-    axes[0, 1].set_ylabel("Normalized Singular Value (Log)")
-    axes[0, 1].legend()
-
-    # 第二行: L2-Normalized Features SVD Spectrum
-    l2_res = svd_results["L2-Normalized Features"]
-    # Linear Scale
-    axes[1, 0].plot(l2_res["S_h_norm"], label="Ours (GF-DST / Hebbian)", color="#1f77b4", linewidth=2.0)
-    axes[1, 0].plot(l2_res["S_r_norm"], label="RigL Baseline", color="#d62728", linewidth=2.0, linestyle="--")
-    axes[1, 0].set_title("L2-Normalized Features - Linear Scale")
-    axes[1, 0].set_xlabel("Singular Value Index")
-    axes[1, 0].set_ylabel("Normalized Singular Value")
-    axes[1, 0].legend()
-
-    # Log Scale
-    axes[1, 1].plot(l2_res["S_h_norm"], label="Ours (GF-DST / Hebbian)", color="#1f77b4", linewidth=2.0)
-    axes[1, 1].plot(l2_res["S_r_norm"], label="RigL Baseline", color="#d62728", linewidth=2.0, linestyle="--")
-    axes[1, 1].set_yscale("log")
-    axes[1, 1].set_title("L2-Normalized Features - Log Scale")
-    axes[1, 1].set_xlabel("Singular Value Index")
-    axes[1, 1].set_ylabel("Normalized Singular Value (Log)")
-    axes[1, 1].legend()
-
+    plt.figure(figsize=(6, 4.5))
+    plt.plot(raw_res["S_h_norm"], label="Ours (GF-DST / Hebbian)", color="#1f77b4", linewidth=2.0)
+    plt.plot(raw_res["S_r_norm"], label="RigL Baseline", color="#d62728", linewidth=2.0, linestyle="--")
+    plt.yscale("log")
+    plt.xlabel("Singular Value Index")
+    plt.ylabel("Normalized Singular Value")
+    plt.legend(frameon=True)
     plt.tight_layout()
     
-    # 儲存圖片
-    png_path = os.path.join(args.out_dir, "singular_value_spectrum.png")
-    pdf_path = os.path.join(args.out_dir, "singular_value_spectrum.pdf")
+    raw_png = os.path.join(args.out_dir, "singular_value_spectrum_raw_log.png")
+    raw_pdf = os.path.join(args.out_dir, "singular_value_spectrum_raw_log.pdf")
+    plt.savefig(raw_png, dpi=300, bbox_inches='tight')
+    plt.savefig(raw_pdf, bbox_inches='tight')
+    plt.close()
+
+    # 5.2 繪製 L2-Normalized Features Log Scale
+    l2_res = svd_results["L2-Normalized Features"]
+    plt.figure(figsize=(6, 4.5))
+    plt.plot(l2_res["S_h_norm"], label="Ours (GF-DST / Hebbian)", color="#1f77b4", linewidth=2.0)
+    plt.plot(l2_res["S_r_norm"], label="RigL Baseline", color="#d62728", linewidth=2.0, linestyle="--")
+    plt.yscale("log")
+    plt.xlabel("Singular Value Index")
+    plt.ylabel("Normalized Singular Value")
+    plt.legend(frameon=True)
+    plt.tight_layout()
     
-    plt.savefig(png_path, dpi=300, bbox_inches='tight')
-    plt.savefig(pdf_path, bbox_inches='tight')
+    l2_png = os.path.join(args.out_dir, "singular_value_spectrum_l2_log.png")
+    l2_pdf = os.path.join(args.out_dir, "singular_value_spectrum_l2_log.pdf")
+    plt.savefig(l2_png, dpi=300, bbox_inches='tight')
+    plt.savefig(l2_pdf, bbox_inches='tight')
+    
+    # 同步儲存至預設檔名，便於外部系統存取
+    default_png = os.path.join(args.out_dir, "singular_value_spectrum.png")
+    default_pdf = os.path.join(args.out_dir, "singular_value_spectrum.pdf")
+    plt.savefig(default_png, dpi=300, bbox_inches='tight')
+    plt.savefig(default_pdf, bbox_inches='tight')
     plt.close()
     
-    print(f"\n✅ Plot successfully saved to:\n  - {png_path}\n  - {pdf_path}")
+    print(f"\n✅ Plots successfully saved to {args.out_dir}:")
+    print(f"  - Raw features log plot: {raw_png} / {raw_pdf}")
+    print(f"  - L2-normalized features log plot: {l2_png} / {l2_pdf}")
     print("="*60 + "\n")
 
 if __name__ == "__main__":
