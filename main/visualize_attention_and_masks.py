@@ -167,6 +167,9 @@ def main():
     selected_classes = set()
     for item in candidates:
         score, idx, img_display, class_name, feat_h, feat_r = item
+        # 排除時鐘 (clock)，因為其活化關注區域不夠直觀，保留梨子 (pear) 等更佳範例
+        if class_name == "clock":
+            continue
         if class_name not in selected_classes:
             selected_classes.add(class_name)
             best_samples.append((img_display, class_name, feat_h, feat_r))
@@ -221,14 +224,14 @@ def main():
         axes[row_idx, 1].set_xticks([])
         axes[row_idx, 1].set_yticks([])
         if row_idx == 0:
-            axes[row_idx, 1].set_title("Ours (GF-DST / Hebbian)", fontsize=12, pad=10)
+            axes[row_idx, 1].set_title("Ours", fontsize=12, pad=10)
 
         # 3.3 繪製 RigL 活化圖
         axes[row_idx, 2].imshow(composite_r)
         axes[row_idx, 2].set_xticks([])
         axes[row_idx, 2].set_yticks([])
         if row_idx == 0:
-            axes[row_idx, 2].set_title("RigL Baseline", fontsize=12, pad=10)
+            axes[row_idx, 2].set_title("RigL", fontsize=12, pad=10)
 
     # 增加一個共享的 Colorbar 在右側，以說明活化強度的色標 (對應 Low / High 關注度)
     plt.tight_layout(rect=[0, 0, 0.90, 1])
