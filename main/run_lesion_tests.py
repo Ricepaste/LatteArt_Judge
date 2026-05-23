@@ -11,14 +11,14 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # =====================================================================
 MODELS_TO_TEST = [
     {
-        "name": "Hebbian_90_C100",
+        "name": "Hebbian_80_C100",
         "method": "hebbian",
-        "encoder_path": "/app/main/runs/Hebbian_SSL_20260416-091440/last.pt" 
+        "encoder_path": "/app/main/runs/Hebbian_SSL_20260415-010443/last.pt" 
     },
     {
-        "name": "RigL_90_C100",
+        "name": "RigL_80_C100",
         "method": "rigl",
-        "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__1/last.pt" 
+        "encoder_path": "/app/main/runs/shuffleNet_v05_SimSiam__2/last.pt" 
     }
 ]
 
