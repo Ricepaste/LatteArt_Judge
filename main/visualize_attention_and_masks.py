@@ -111,7 +111,8 @@ def main():
     parser.add_argument("--threshold", type=float, default=1e-7, help="Pruning threshold")
     parser.add_argument("--out_dir", type=str, default="main/runs/visualizations",
                         help="Output directory for plots")
-    parser.add_argument("--run_appendix", action="store_true", help="Generate additional appendix visualizations")
+    parser.add_argument("--run_appendix_masks", action="store_true", help="Generate additional sparse weight connectivity maps for other layers")
+    parser.add_argument("--run_augmentation_test", action="store_true", help="Run crop/shift augmentation test on a representative CIFAR-100 image")
     args = parser.parse_args()
 
     # 路徑解析
@@ -305,144 +306,12 @@ def main():
     print("🎉 Main visualizations generated successfully!")
     print("="*50 + "\n")
 
-    # 5. 繪製附錄視覺化 (下游任務活化圖 + 其他卷積層稀疏遮罩)
-    if args.run_appendix:
+    # 5. 繪製附錄其他層之二值稀疏遮罩矩陣連接圖
+    if args.run_appendix_masks:
         print("\n" + "="*50)
-        print("🚀 Starting Appendix Visualizations Generation")
+        print("🚀 Starting Appendix Sparse Mask Connectivity Maps Generation")
         print("="*50)
         
-        import torchvision.datasets as datasets
-        downstream_datasets = ["cifar10", "svhn", "dtd", "pcam", "eurosat", "stl10"]
-        
-        print("\n--- Generating Feature Activation Maps for Downstream Datasets ---")
-        for ds_name in downstream_datasets:
-            print(f"Processing dataset: {ds_name}...")
-            try:
-                if ds_name == "cifar10":
-                    test_dataset = CIFAR10_Dataset(split="test", transform=transform_display)
-                    classes = test_dataset.dataset.classes
-                elif ds_name == "svhn":
-                    test_dataset = datasets.SVHN(root="./data", split='test', download=True, transform=transform_display)
-                    classes = [str(i) for i in range(10)]
-                elif ds_name == "dtd":
-                    test_dataset = datasets.DTD(root="./data", split='test', download=True, transform=transform_display)
-                    classes = test_dataset.classes
-                elif ds_name == "pcam":
-                    test_dataset = datasets.PCAM(root="./data", split='test', download=True, transform=transform_display)
-                    classes = ["normal", "tumor"]
-                elif ds_name == "eurosat":
-                    test_dataset = datasets.EuroSAT(root="./data", download=True, transform=transform_display)
-                    classes = test_dataset.classes
-                elif ds_name == "stl10":
-                    test_dataset = datasets.STL10(root="./data", split='test', download=True, transform=transform_display)
-                    classes = test_dataset.classes
-            except Exception as e:
-                print(f"⚠️ Error loading dataset {ds_name}: {e}. Skipping this dataset.")
-                continue
-
-            candidates = []
-            for idx in range(min(100, len(test_dataset))):
-                try:
-                    batch = test_dataset[idx]
-                    if len(batch) == 3:
-                        img_display, _, label = batch
-                    else:
-                        img_display, label = batch
-                    
-                    img_model = transform_model(img_display).unsqueeze(0).to(device)
-                    with torch.no_grad():
-                        feat_h = hebbian_encoder(img_model)
-                        feat_r = rigl_encoder(img_model)
-                    
-                    act_h = compute_activation_map(feat_h)
-                    act_r = compute_activation_map(feat_r)
-                    
-                    center_mask = np.zeros((7, 7), dtype=bool)
-                    center_mask[2:5, 2:5] = True
-                    h_center_ratio = act_h[center_mask].sum() / (act_h.sum() + 1e-8)
-                    r_center_ratio = act_r[center_mask].sum() / (act_r.sum() + 1e-8)
-                    score = h_center_ratio - r_center_ratio
-                    
-                    class_name = classes[label]
-                    candidates.append((score, idx, img_display, class_name, feat_h, feat_r))
-                except Exception as ex:
-                    continue
-
-            if len(candidates) == 0:
-                print(f"⚠️ No valid images found for {ds_name}. Skipping.")
-                continue
-
-            class_candidates = {}
-            for item in candidates:
-                score, idx, img_display, class_name, feat_h, feat_r = item
-                if class_name not in class_candidates:
-                    class_candidates[class_name] = []
-                class_candidates[class_name].append(item)
-
-            sorted_classes = sorted(class_candidates.keys(), key=lambda c: max(x[0] for x in class_candidates[c]), reverse=True)
-            selected_samples = []
-            for c in sorted_classes[:2]:
-                best_img = max(class_candidates[c], key=lambda x: x[0])
-                selected_samples.append((best_img[2], best_img[3], best_img[4], best_img[5]))
-                print(f"  - Selected Class '{best_img[3]}' (Discrepancy Score: {best_img[0]:.3f})")
-
-            # 繪圖展示 2x3 網格
-            fig, axes = plt.subplots(2, 3, figsize=(9, 6))
-            for row_idx, (img_display, class_name, feat_h, feat_r) in enumerate(selected_samples):
-                act_h = compute_activation_map(feat_h)
-                act_r = compute_activation_map(feat_r)
-                
-                act_h_tensor = torch.tensor(act_h).unsqueeze(0).unsqueeze(0)
-                act_r_tensor = torch.tensor(act_r).unsqueeze(0).unsqueeze(0)
-                
-                act_h_resized = torch.nn.functional.interpolate(act_h_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
-                act_r_resized = torch.nn.functional.interpolate(act_r_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
-                
-                img_np = img_display.permute(1, 2, 0).numpy()
-                cmap = plt.get_cmap('jet')
-                alpha = 0.55
-                
-                composite_h = (1 - alpha) * img_np + alpha * (cmap(act_h_resized)[:, :, :3])
-                composite_r = (1 - alpha) * img_np + alpha * (cmap(act_r_resized)[:, :, :3])
-                
-                # 原圖
-                axes[row_idx, 0].imshow(img_np)
-                axes[row_idx, 0].set_xticks([])
-                axes[row_idx, 0].set_yticks([])
-                axes[row_idx, 0].set_ylabel(class_name.capitalize(), fontsize=12, fontweight='bold')
-                if row_idx == 0:
-                    axes[row_idx, 0].set_title("Original Image", fontsize=12, pad=10)
-                
-                # Ours
-                axes[row_idx, 1].imshow(composite_h)
-                axes[row_idx, 1].set_xticks([])
-                axes[row_idx, 1].set_yticks([])
-                if row_idx == 0:
-                    axes[row_idx, 1].set_title("Ours", fontsize=12, pad=10)
-                
-                # RigL
-                axes[row_idx, 2].imshow(composite_r)
-                axes[row_idx, 2].set_xticks([])
-                axes[row_idx, 2].set_yticks([])
-                if row_idx == 0:
-                    axes[row_idx, 2].set_title("RigL", fontsize=12, pad=10)
-                    
-            plt.tight_layout(rect=[0, 0, 0.88, 1])
-            cbar_ax = fig.add_axes([0.90, 0.15, 0.02, 0.7])
-            cb = fig.colorbar(plt.cm.ScalarMappable(cmap='jet'), cax=cbar_ax)
-            cb.set_ticks([0, 1])
-            cb.set_ticklabels(['Low', 'High'])
-            cb.set_label("Activation Intensity", fontsize=11, labelpad=5)
-            cb.ax.tick_params(labelsize=10)
-
-            out_png = os.path.join(args.out_dir, f"appendix_attention_{ds_name}.png")
-            out_pdf = os.path.join(args.out_dir, f"appendix_attention_{ds_name}.pdf")
-            plt.savefig(out_png, dpi=300, bbox_inches='tight')
-            plt.savefig(out_pdf, bbox_inches='tight')
-            plt.close()
-            print(f"✅ Saved appendix attention map for {ds_name} to {out_png} / {out_pdf}")
-
-        print("\n--- Generating Sparse Mask Connectivity Maps for Other Layers ---")
         layers_to_plot = [
             ("conv1", "conv1"),
             ("layer1.0.conv1", "layer1_0_conv1"),
@@ -479,8 +348,104 @@ def main():
                 print(f"⚠️ Warning: Could not find weights for layer '{l_key}' in one or both models.")
 
         print("\n" + "="*50)
-        print("🎉 Appendix visualizations generated successfully!")
+        print("🎉 Appendix mask visualizations generated successfully!")
         print("="*50 + "\n")
+
+    # 6. 繪製資料強化（隨機裁切）強健性測試圖
+    if args.run_augmentation_test:
+        print("\n" + "="*50)
+        print("🚀 Starting Augmentation Robustness Test (Random Resized Crop)")
+        print("="*50)
+        
+        # 尋找最具代表性的圖像 (排除 "clock")
+        best_idx = None
+        best_class = None
+        for item in candidates:
+            score, idx, _, class_name, _, _ = item
+            if class_name != "clock":
+                best_idx = idx
+                best_class = class_name
+                break
+                
+        if best_idx is not None:
+            print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
+            raw_image, label = test_dataset.dataset[best_idx]
+            
+            # 定義隨機裁切增強 (scale=0.35~0.65，強烈改變位置與縮放)
+            aug_transform = transforms.Compose([
+                transforms.RandomResizedCrop((224, 224), scale=(0.35, 0.65)),
+                transforms.ToTensor(),
+            ])
+            
+            # 生成 4 個不同的隨機裁切版本
+            seed_everything(123)  # 固定種子以利複現
+            augmented_images = []
+            for _ in range(4):
+                augmented_images.append(aug_transform(raw_image))
+                
+            fig, axes = plt.subplots(3, 4, figsize=(11, 8))
+            
+            for col_idx, img_display in enumerate(augmented_images):
+                img_model = transform_model(img_display).unsqueeze(0).to(device)
+                
+                with torch.no_grad():
+                    feat_h = hebbian_encoder(img_model)
+                    feat_r = rigl_encoder(img_model)
+                    
+                act_h = compute_activation_map(feat_h)
+                act_r = compute_activation_map(feat_r)
+                
+                act_h_tensor = torch.tensor(act_h).unsqueeze(0).unsqueeze(0)
+                act_r_tensor = torch.tensor(act_r).unsqueeze(0).unsqueeze(0)
+                
+                act_h_resized = torch.nn.functional.interpolate(act_h_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
+                act_r_resized = torch.nn.functional.interpolate(act_r_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
+                
+                img_np = img_display.permute(1, 2, 0).numpy()
+                cmap = plt.get_cmap('jet')
+                alpha = 0.55
+                
+                composite_h = (1 - alpha) * img_np + alpha * (cmap(act_h_resized)[:, :, :3])
+                composite_r = (1 - alpha) * img_np + alpha * (cmap(act_r_resized)[:, :, :3])
+                
+                # Row 0: 原始裁切圖
+                axes[0, col_idx].imshow(img_np)
+                axes[0, col_idx].set_xticks([])
+                axes[0, col_idx].set_yticks([])
+                axes[0, col_idx].set_title(f"Crop {col_idx+1}", fontsize=11)
+                if col_idx == 0:
+                    axes[0, col_idx].set_ylabel("Augmented Image\n(Class: {})".format(best_class.capitalize()), fontsize=11, fontweight='bold')
+                
+                # Row 1: Ours (Hebbian)
+                axes[1, col_idx].imshow(composite_h)
+                axes[1, col_idx].set_xticks([])
+                axes[1, col_idx].set_yticks([])
+                if col_idx == 0:
+                    axes[1, col_idx].set_ylabel("Ours", fontsize=11, fontweight='bold')
+                
+                # Row 2: RigL
+                axes[2, col_idx].imshow(composite_r)
+                axes[2, col_idx].set_xticks([])
+                axes[2, col_idx].set_yticks([])
+                if col_idx == 0:
+                    axes[2, col_idx].set_ylabel("RigL", fontsize=11, fontweight='bold')
+                    
+            plt.tight_layout(rect=[0, 0, 0.90, 1])
+            cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+            cb = fig.colorbar(plt.cm.ScalarMappable(cmap='jet'), cax=cbar_ax)
+            cb.set_ticks([0, 1])
+            cb.set_ticklabels(['Low', 'High'])
+            cb.set_label("Activation Intensity", fontsize=11, labelpad=5)
+            cb.ax.tick_params(labelsize=10)
+            
+            aug_png = os.path.join(args.out_dir, "augmentation_robustness_test.png")
+            aug_pdf = os.path.join(args.out_dir, "augmentation_robustness_test.pdf")
+            plt.savefig(aug_png, dpi=300, bbox_inches='tight')
+            plt.savefig(aug_pdf, bbox_inches='tight')
+            plt.close()
+            print(f"✅ Saved augmentation robustness test plot to {aug_png} / {aug_pdf}")
+        else:
+            print("⚠️ Warning: Could not find any valid image for augmentation test.")
 
 if __name__ == "__main__":
     main()
