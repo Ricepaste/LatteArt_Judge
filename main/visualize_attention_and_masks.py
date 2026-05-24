@@ -113,8 +113,8 @@ def main():
                         help="Output directory for plots")
     parser.add_argument("--run_appendix_masks", action="store_true", help="Generate additional sparse weight connectivity maps for other layers")
     parser.add_argument("--run_augmentation_test", action="store_true", help="Run crop/shift augmentation test on a representative CIFAR-100 image")
-    parser.add_argument("--custom_image", type=str, default="main/demo/wolf.jpg",
-                        help="Path to custom image for augmentation test (default: main/demo/wolf.jpg)")
+    parser.add_argument("--custom_image", type=str, default="main/demo",
+                        help="Path to custom image file or directory of images for direct attention map visualization (default: main/demo)")
     args = parser.parse_args()
 
     # 路徑解析
@@ -457,68 +457,92 @@ def main():
 
     # 7. 繪製自訂影像的原始特徵活化圖 (無須任何資料強化)
     if args.custom_image:
-        custom_img_path = args.custom_image
-        if not os.path.isabs(custom_img_path):
-            custom_img_path = os.path.abspath(os.path.join(repo_dir, custom_img_path))
+        custom_path = args.custom_image
+        if not os.path.isabs(custom_path):
+            custom_path = os.path.abspath(os.path.join(repo_dir, custom_path))
             
-        if os.path.exists(custom_img_path):
-            print(f"\n--- Generating Direct Attention Map for Custom Image: {os.path.basename(custom_img_path)} ---")
+        # 蒐集所有要處理的圖片檔案路徑與檔名
+        image_files = []
+        if os.path.isdir(custom_path):
+            valid_exts = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+            for f in sorted(os.listdir(custom_path)):
+                if f.lower().endswith(valid_exts):
+                    image_files.append(os.path.join(custom_path, f))
+        elif os.path.isfile(custom_path):
+            image_files.append(custom_path)
+            
+        if len(image_files) > 0:
+            print(f"\n--- Generating Direct Attention Maps for {len(image_files)} Custom Image(s) ---")
             try:
                 from PIL import Image
-                raw_image = Image.open(custom_img_path).convert("RGB")
                 
-                # 直接 Resize 到 224x224 (ResNet 標準輸入) 不做任何其他強化
+                # 計算子圖的大小與佈局
+                num_imgs = len(image_files)
+                # 每張圖高度對應 ~2.7 吋，總高度隨圖片數按比例擴展
+                fig, axes = plt.subplots(num_imgs, 3, figsize=(9, 2.7 * num_imgs))
+                
+                # 確保 axes 始終是 2D array，即使只有 1 張圖也統一為 (1, 3) 結構
+                if num_imgs == 1:
+                    axes = np.expand_dims(axes, axis=0)
+                    
                 eval_transform = transforms.Compose([
                     transforms.Resize((224, 224)),
                     transforms.ToTensor(),
                 ])
-                img_display = eval_transform(raw_image)
-                img_model = transform_model(img_display).unsqueeze(0).to(device)
                 
-                with torch.no_grad():
-                    feat_h = hebbian_encoder(img_model)
-                    feat_r = rigl_encoder(img_model)
+                for row_idx, img_path in enumerate(image_files):
+                    img_name = os.path.basename(img_path).split('.')[0].capitalize()
+                    print(f"  - Processing: {os.path.basename(img_path)}")
                     
-                act_h = compute_activation_map(feat_h)
-                act_r = compute_activation_map(feat_r)
-                
-                act_h_tensor = torch.tensor(act_h).unsqueeze(0).unsqueeze(0)
-                act_r_tensor = torch.tensor(act_r).unsqueeze(0).unsqueeze(0)
-                
-                act_h_resized = torch.nn.functional.interpolate(act_h_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
-                act_r_resized = torch.nn.functional.interpolate(act_r_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
-                
-                img_np = img_display.permute(1, 2, 0).numpy()
-                cmap = plt.get_cmap('jet')
-                alpha = 0.55
-                
-                composite_h = (1 - alpha) * img_np + alpha * (cmap(act_h_resized)[:, :, :3])
-                composite_r = (1 - alpha) * img_np + alpha * (cmap(act_r_resized)[:, :, :3])
-                
-                # 繪圖展示 (1x3 網格)
-                fig, axes = plt.subplots(1, 3, figsize=(9, 3.5))
-                
-                # 原圖
-                axes[0].imshow(img_np)
-                axes[0].set_xticks([])
-                axes[0].set_yticks([])
-                axes[0].set_ylabel(os.path.basename(custom_img_path).split('.')[0].capitalize(), fontsize=12, fontweight='bold')
-                axes[0].set_title("Original Image", fontsize=12, pad=10)
-                
-                # Ours
-                axes[1].imshow(composite_h)
-                axes[1].set_xticks([])
-                axes[1].set_yticks([])
-                axes[1].set_title("Ours", fontsize=12, pad=10)
-                
-                # RigL
-                axes[2].imshow(composite_r)
-                axes[2].set_xticks([])
-                axes[2].set_yticks([])
-                axes[2].set_title("RigL", fontsize=12, pad=10)
-                
-                plt.tight_layout(rect=[0, 0, 0.88, 1])
-                cbar_ax = fig.add_axes([0.90, 0.15, 0.02, 0.7])
+                    raw_image = Image.open(img_path).convert("RGB")
+                    img_display = eval_transform(raw_image)
+                    img_model = transform_model(img_display).unsqueeze(0).to(device)
+                    
+                    with torch.no_grad():
+                        feat_h = hebbian_encoder(img_model)
+                        feat_r = rigl_encoder(img_model)
+                        
+                    act_h = compute_activation_map(feat_h)
+                    act_r = compute_activation_map(feat_r)
+                    
+                    act_h_tensor = torch.tensor(act_h).unsqueeze(0).unsqueeze(0)
+                    act_r_tensor = torch.tensor(act_r).unsqueeze(0).unsqueeze(0)
+                    
+                    act_h_resized = torch.nn.functional.interpolate(act_h_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
+                    act_r_resized = torch.nn.functional.interpolate(act_r_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
+                    
+                    img_np = img_display.permute(1, 2, 0).numpy()
+                    cmap = plt.get_cmap('jet')
+                    alpha = 0.55
+                    
+                    composite_h = (1 - alpha) * img_np + alpha * (cmap(act_h_resized)[:, :, :3])
+                    composite_r = (1 - alpha) * img_np + alpha * (cmap(act_r_resized)[:, :, :3])
+                    
+                    # 1. 原始影像
+                    axes[row_idx, 0].imshow(img_np)
+                    axes[row_idx, 0].set_xticks([])
+                    axes[row_idx, 0].set_yticks([])
+                    axes[row_idx, 0].set_ylabel(img_name, fontsize=12, fontweight='bold')
+                    if row_idx == 0:
+                        axes[row_idx, 0].set_title("Original Image", fontsize=12, pad=10)
+                        
+                    # 2. Ours
+                    axes[row_idx, 1].imshow(composite_h)
+                    axes[row_idx, 1].set_xticks([])
+                    axes[row_idx, 1].set_yticks([])
+                    if row_idx == 0:
+                        axes[row_idx, 1].set_title("Ours", fontsize=12, pad=10)
+                        
+                    # 3. RigL
+                    axes[row_idx, 2].imshow(composite_r)
+                    axes[row_idx, 2].set_xticks([])
+                    axes[row_idx, 2].set_yticks([])
+                    if row_idx == 0:
+                        axes[row_idx, 2].set_title("RigL", fontsize=12, pad=10)
+                        
+                # 共用色標設置
+                plt.tight_layout(rect=[0, 0, 0.90, 1])
+                cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
                 cb = fig.colorbar(plt.cm.ScalarMappable(cmap='jet'), cax=cbar_ax)
                 cb.set_ticks([0, 1])
                 cb.set_ticklabels(['Low', 'High'])
