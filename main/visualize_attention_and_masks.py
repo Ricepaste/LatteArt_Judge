@@ -371,12 +371,14 @@ def main():
             print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
             raw_image, label = test_dataset.dataset[best_idx]
             
-            # 定義更為極端的隨機增強 (極限裁切、大角度旋轉與隨機翻轉)
+            # 定義平移增強 (純水平/垂直位移，無旋轉、無縮放)
             aug_transform = transforms.Compose([
-                transforms.RandomResizedCrop((224, 224), scale=(0.15, 0.45)), # 極限裁切與平移
-                transforms.RandomRotation(degrees=(-90, 90)),                  # 極限隨機旋轉 (-90度 ~ 90度)
-                transforms.RandomHorizontalFlip(p=0.5),                        # 隨機水平翻轉
-                transforms.RandomVerticalFlip(p=0.5),                          # 隨機垂直翻轉
+                transforms.Resize((224, 224)),
+                transforms.RandomAffine(
+                    degrees=0,
+                    translate=(0.3, 0.3),  # 允許水平與垂直方向最大 30% 比例的位移
+                    fill=0                 # 位移後多出的邊界區域填補黑色
+                ),
                 transforms.ToTensor(),
             ])
             
