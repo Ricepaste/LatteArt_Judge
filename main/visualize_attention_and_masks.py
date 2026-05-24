@@ -376,7 +376,7 @@ def main():
                 transforms.Resize((224, 224)),
                 transforms.RandomAffine(
                     degrees=0,
-                    translate=(0.3, 0.3),  # 允許水平與垂直方向最大 30% 比例的位移
+                    translate=(0.45, 0.45),  # 允許水平與垂直方向最大 45% 比例的位移
                     fill=0                 # 位移後多出的邊界區域填補黑色
                 ),
                 transforms.ToTensor(),
