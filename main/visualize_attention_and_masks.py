@@ -371,12 +371,13 @@ def main():
             print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
             raw_image, label = test_dataset.dataset[best_idx]
             
-            # 定義平移增強 (純水平/垂直位移，無旋轉、無縮放)
+            # 定義平移搭配縮小增強 (縮小為 50%~80%，搭配最大 30% 比例位移，無旋轉)
             aug_transform = transforms.Compose([
                 transforms.Resize((224, 224)),
                 transforms.RandomAffine(
                     degrees=0,
-                    translate=(0.45, 0.45),  # 允許水平與垂直方向最大 45% 比例的位移
+                    translate=(0.3, 0.3),  # 允許水平與垂直方向最大 30% 比例的位移
+                    scale=(0.5, 0.8),      # 隨機縮小為原尺寸的 50% ~ 80%
                     fill=0                 # 位移後多出的邊界區域填補黑色
                 ),
                 transforms.ToTensor(),
