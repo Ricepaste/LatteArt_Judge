@@ -45,5 +45,21 @@ def main():
         grad_cache_chunk_size=0,  # 不使用 GradCache
     )
 
+    # 訓練完成後，自動執行線性評估與 KNN 評估 (50 epochs)
+    if hasattr(model_dense, "writer") and model_dense.writer is not None:
+        log_dir = model_dense.writer.log_dir
+        encoder_path = os.path.join(log_dir, "last.pt")
+        print(f"\n--- Running Automatic Evaluation on {encoder_path} ---")
+        
+        import subprocess
+        run_env = os.environ.copy()
+        run_env["ENCODER_PATH"] = encoder_path
+        run_env["METHOD"] = "dense"
+        run_env["TARGET_DATASET"] = dataset_name_val
+        run_env["NUM_EPOCHS"] = "50"  # 線性評估設定為 50 epochs
+        
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "evaluate_model.py")
+        subprocess.run(["python", "-u", script_path], env=run_env, check=True)
+
 if __name__ == "__main__":
     main()
