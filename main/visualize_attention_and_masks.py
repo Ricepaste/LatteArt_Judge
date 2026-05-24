@@ -353,57 +353,39 @@ def main():
         print("🎉 Appendix mask visualizations generated successfully!")
         print("="*50 + "\n")
 
-    # 6. 繪製資料強化（隨機裁切）強健性測試圖
+    # 6. 繪製資料強化（隨機平移縮小）強健性測試圖 (專注於 CIFAR-100 的自動搜尋影像)
     if args.run_augmentation_test:
         print("\n" + "="*50)
-        print("🚀 Starting Augmentation Robustness Test (Random Resized Crop)")
+        print("🚀 Starting Augmentation Robustness Test (Random Translation & Scale)")
         print("="*50)
         
-        # 1. 載入自訂影像 (預設為 main/demo/wolf.jpg)
-        custom_img_path = args.custom_image
-        if custom_img_path and not os.path.isabs(custom_img_path):
-            custom_img_path = os.path.abspath(os.path.join(repo_dir, custom_img_path))
-            
-        raw_image = None
+        # 尋找最具代表性的圖像 (排除 "clock")
+        best_idx = None
         best_class = None
-        
-        if os.path.exists(custom_img_path):
-            try:
-                print(f"Loading custom image for augmentation test: {custom_img_path}")
-                from PIL import Image
-                raw_image = Image.open(custom_img_path).convert("RGB")
-                best_class = os.path.basename(custom_img_path)
-            except Exception as e:
-                print(f"⚠️ Error loading custom image {custom_img_path}: {e}")
+        for item in candidates:
+            score, idx, _, class_name, _, _ = item
+            if class_name != "clock":
+                best_idx = idx
+                best_class = class_name
+                break
                 
-        if raw_image is None:
-            # Fallback: 尋找最具代表性的圖像 (排除 "clock")
-            print(f"⚠️ Custom image not found or failed to load. Falling back to CIFAR-100 dataset...")
-            best_idx = None
-            for item in candidates:
-                score, idx, _, class_name, _, _ = item
-                if class_name != "clock":
-                    best_idx = idx
-                    best_class = class_name
-                    break
-                    
-            if best_idx is not None:
-                print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
-                raw_image, label = test_dataset.dataset[best_idx]
+        if best_idx is not None:
+            print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
+            raw_image, label = test_dataset.dataset[best_idx]
             
             # 定義平移搭配縮小增強 (固定縮小為 50%，搭配最大 40% 比例位移以貼近邊緣，無旋轉)
             aug_transform = transforms.Compose([
                 transforms.Resize((224, 224)),
                 transforms.RandomAffine(
                     degrees=0,
-                    translate=(0.4, 0.4),  # 允許最大 40% 比例的平移 (更靠近邊緣)
-                    scale=(0.5, 0.5),      # 固定縮小為原尺寸的 50% (穩定的縮小)
-                    fill=0                 # 位移後多出的邊界區域填補黑色
+                    translate=(0.4, 0.4),  # 允許最大 40% 比例的平移
+                    scale=(0.5, 0.5),      # 固定縮小為原尺寸的 50%
+                    fill=0                 # 填補黑色
                 ),
                 transforms.ToTensor(),
             ])
             
-            # 生成 4 個不同的隨機裁切版本
+            # 生成 4 個不同的隨機版本
             seed_everything(123)  # 固定種子以利複現
             augmented_images = []
             for _ in range(4):
@@ -434,7 +416,7 @@ def main():
                 composite_h = (1 - alpha) * img_np + alpha * (cmap(act_h_resized)[:, :, :3])
                 composite_r = (1 - alpha) * img_np + alpha * (cmap(act_r_resized)[:, :, :3])
                 
-                # Row 0: 原始裁切圖
+                # Row 0: 原始裁切平移圖
                 axes[0, col_idx].imshow(img_np)
                 axes[0, col_idx].set_xticks([])
                 axes[0, col_idx].set_yticks([])
@@ -472,6 +454,85 @@ def main():
             print(f"✅ Saved augmentation robustness test plot to {aug_png} / {aug_pdf}")
         else:
             print("⚠️ Warning: Could not find any valid image for augmentation test.")
+
+    # 7. 繪製自訂影像的原始特徵活化圖 (無須任何資料強化)
+    if args.custom_image:
+        custom_img_path = args.custom_image
+        if not os.path.isabs(custom_img_path):
+            custom_img_path = os.path.abspath(os.path.join(repo_dir, custom_img_path))
+            
+        if os.path.exists(custom_img_path):
+            print(f"\n--- Generating Direct Attention Map for Custom Image: {os.path.basename(custom_img_path)} ---")
+            try:
+                from PIL import Image
+                raw_image = Image.open(custom_img_path).convert("RGB")
+                
+                # 直接 Resize 到 224x224 (ResNet 標準輸入) 不做任何其他強化
+                eval_transform = transforms.Compose([
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                ])
+                img_display = eval_transform(raw_image)
+                img_model = transform_model(img_display).unsqueeze(0).to(device)
+                
+                with torch.no_grad():
+                    feat_h = hebbian_encoder(img_model)
+                    feat_r = rigl_encoder(img_model)
+                    
+                act_h = compute_activation_map(feat_h)
+                act_r = compute_activation_map(feat_r)
+                
+                act_h_tensor = torch.tensor(act_h).unsqueeze(0).unsqueeze(0)
+                act_r_tensor = torch.tensor(act_r).unsqueeze(0).unsqueeze(0)
+                
+                act_h_resized = torch.nn.functional.interpolate(act_h_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
+                act_r_resized = torch.nn.functional.interpolate(act_r_tensor, size=(224, 224), mode='bilinear', align_corners=False).squeeze().numpy()
+                
+                img_np = img_display.permute(1, 2, 0).numpy()
+                cmap = plt.get_cmap('jet')
+                alpha = 0.55
+                
+                composite_h = (1 - alpha) * img_np + alpha * (cmap(act_h_resized)[:, :, :3])
+                composite_r = (1 - alpha) * img_np + alpha * (cmap(act_r_resized)[:, :, :3])
+                
+                # 繪圖展示 (1x3 網格)
+                fig, axes = plt.subplots(1, 3, figsize=(9, 3.5))
+                
+                # 原圖
+                axes[0].imshow(img_np)
+                axes[0].set_xticks([])
+                axes[0].set_yticks([])
+                axes[0].set_ylabel(os.path.basename(custom_img_path).split('.')[0].capitalize(), fontsize=12, fontweight='bold')
+                axes[0].set_title("Original Image", fontsize=12, pad=10)
+                
+                # Ours
+                axes[1].imshow(composite_h)
+                axes[1].set_xticks([])
+                axes[1].set_yticks([])
+                axes[1].set_title("Ours", fontsize=12, pad=10)
+                
+                # RigL
+                axes[2].imshow(composite_r)
+                axes[2].set_xticks([])
+                axes[2].set_yticks([])
+                axes[2].set_title("RigL", fontsize=12, pad=10)
+                
+                plt.tight_layout(rect=[0, 0, 0.88, 1])
+                cbar_ax = fig.add_axes([0.90, 0.15, 0.02, 0.7])
+                cb = fig.colorbar(plt.cm.ScalarMappable(cmap='jet'), cax=cbar_ax)
+                cb.set_ticks([0, 1])
+                cb.set_ticklabels(['Low', 'High'])
+                cb.set_label("Activation Intensity", fontsize=11, labelpad=5)
+                cb.ax.tick_params(labelsize=10)
+                
+                custom_png = os.path.join(args.out_dir, "custom_image_attention.png")
+                custom_pdf = os.path.join(args.out_dir, "custom_image_attention.pdf")
+                plt.savefig(custom_png, dpi=300, bbox_inches='tight')
+                plt.savefig(custom_pdf, bbox_inches='tight')
+                plt.close()
+                print(f"✅ Saved custom image direct attention map to {custom_png} / {custom_pdf}")
+            except Exception as e:
+                print(f"⚠️ Error processing custom image: {e}")
 
 if __name__ == "__main__":
     main()
