@@ -113,6 +113,8 @@ def main():
                         help="Output directory for plots")
     parser.add_argument("--run_appendix_masks", action="store_true", help="Generate additional sparse weight connectivity maps for other layers")
     parser.add_argument("--run_augmentation_test", action="store_true", help="Run crop/shift augmentation test on a representative CIFAR-100 image")
+    parser.add_argument("--custom_image", type=str, default="main/demo/wolf.jpg",
+                        help="Path to custom image for augmentation test (default: main/demo/wolf.jpg)")
     args = parser.parse_args()
 
     # 路徑解析
@@ -357,19 +359,37 @@ def main():
         print("🚀 Starting Augmentation Robustness Test (Random Resized Crop)")
         print("="*50)
         
-        # 尋找最具代表性的圖像 (排除 "clock")
-        best_idx = None
+        # 1. 載入自訂影像 (預設為 main/demo/wolf.jpg)
+        custom_img_path = args.custom_image
+        if custom_img_path and not os.path.isabs(custom_img_path):
+            custom_img_path = os.path.abspath(os.path.join(repo_dir, custom_img_path))
+            
+        raw_image = None
         best_class = None
-        for item in candidates:
-            score, idx, _, class_name, _, _ = item
-            if class_name != "clock":
-                best_idx = idx
-                best_class = class_name
-                break
+        
+        if os.path.exists(custom_img_path):
+            try:
+                print(f"Loading custom image for augmentation test: {custom_img_path}")
+                from PIL import Image
+                raw_image = Image.open(custom_img_path).convert("RGB")
+                best_class = os.path.basename(custom_img_path)
+            except Exception as e:
+                print(f"⚠️ Error loading custom image {custom_img_path}: {e}")
                 
-        if best_idx is not None:
-            print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
-            raw_image, label = test_dataset.dataset[best_idx]
+        if raw_image is None:
+            # Fallback: 尋找最具代表性的圖像 (排除 "clock")
+            print(f"⚠️ Custom image not found or failed to load. Falling back to CIFAR-100 dataset...")
+            best_idx = None
+            for item in candidates:
+                score, idx, _, class_name, _, _ = item
+                if class_name != "clock":
+                    best_idx = idx
+                    best_class = class_name
+                    break
+                    
+            if best_idx is not None:
+                print(f"Selected representative image idx {best_idx} (Class: '{best_class}') for augmentation test.")
+                raw_image, label = test_dataset.dataset[best_idx]
             
             # 定義平移搭配縮小增強 (固定縮小為 50%，搭配最大 40% 比例位移以貼近邊緣，無旋轉)
             aug_transform = transforms.Compose([
