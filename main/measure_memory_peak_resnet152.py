@@ -157,6 +157,12 @@ def main():
     print(f"🔬 GPU Memory Peak Profiler (ResNet-152, BS={args.batch_size})")
     print("=" * 70)
     print(f"Device: {device}")
+    if device.type == "cuda":
+        gpu_name = torch.cuda.get_device_name(device)
+        total_mem = torch.cuda.get_device_properties(device).total_memory / (1024 ** 3)
+        print(f"GPU Name: {gpu_name}")
+        print(f"GPU Total VRAM: {total_mem:.2f} GB")
+    print("=" * 70)
     
     hebbian_overhead = 0.0
     rigl_overhead = 0.0
