@@ -13,28 +13,43 @@ MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # --- 🚨 THESIS EMERGENCY PRIORITY MODE 🚨 ---
 # 既然 1 個實驗要 2 天，全面 3-Seed 驗證是不可能的。我們必須把算力集中在「口試委員最會攻擊的地方」！
 
-# 💀 Priority 1: 捍衛主戰場 (已完成)
-GENERALIZATION = []
-
-# ⚔️ Priority 2: 點出衰減交叉點 (瞄準 95% ~ 99% 的超車區間)
-SPARSITY_CURVE = [
-    {"name": "Sparsity_V8_96", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": 0.96, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
-    {"name": "Sparsity_RigL_96", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": 0.96, "env": {}},
-    
-    {"name": "Sparsity_V8_97", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": 0.97, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
-    {"name": "Sparsity_RigL_97", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": 0.97, "env": {}},
-    
-    {"name": "Sparsity_V8_98", "dataset": "cifar100", "script": "Hebbian.py", "sparsity": 0.98, "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}},
-    {"name": "Sparsity_RigL_98", "dataset": "cifar100", "script": "SimSiam.py", "sparsity": 0.98, "env": {}},
+# 💀 Priority 1: 捍衛主戰場 (無資訊商優化版本，進行 3-Seed 驗證)
+GENERALIZATION = [
+    # {
+    #     "name": "Curve_V8_NoEntropy_0.8",
+    #     "dataset": "cifar100",
+    #     "script": "Hebbian.py",
+    #     "sparsity": 0.80,
+    #     "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "0"}
+    # },
+    # {
+    #     "name": "V8_NoEntropy_CIFAR100_99",
+    #     "dataset": "cifar100",
+    #     "script": "Hebbian.py",
+    #     "sparsity": 0.99,
+    #     "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "0"}
+    # },
+    {
+        "name": "V8_NoVariance_CIFAR100_99",
+        "dataset": "cifar100",
+        "script": "Hebbian.py",
+        "sparsity": 0.99,
+        "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "0", "ABLATION_ENTROPY": "1"}
+    },
+    {
+        "name": "V8_AntiHebb_CIFAR100_99",
+        "dataset": "cifar100",
+        "script": "Hebbian.py",
+        "sparsity": 0.99,
+        "env": {"ABLATION_ANTI_HEBB": "0", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1"}
+    },
 ]
 
-# 🧪 Priority 4: Noise Robustness Challenge (CIFAR-100 @ 99% + 10% Input Noise)
-# 用來模擬「環境惡化」時，誰的拓樸生長更穩健。
-# 我們對 Input 注入 std=0.1 的高斯雜訊 (約 = 10% 數據污染)。
-NOISE_ROBUSTNESS = [
-    {"name": "Robust_V8_Full_C100_Noise0.1", "dataset": "cifar100", "script": "Hebbian.py", "env": {"ABLATION_ANTI_HEBB": "1", "ABLATION_VARIANCE": "1", "ABLATION_ENTROPY": "1", "INPUT_NOISE_STD": "0.1"}},
-    {"name": "Robust_RigL_C100_Noise0.1", "dataset": "cifar100", "script": "SimSiam.py", "env": {"INPUT_NOISE_STD": "0.1"}}
-]
+# ⚔️ Priority 2: 點出衰減交叉點 (瞄準 95% ~ 99% 的超車區間) (暫不執行，已註解)
+SPARSITY_CURVE = []
+
+# 🧪 Priority 4: Noise Robustness Challenge (CIFAR-100 @ 99% + 10% Input Noise) (暫不執行，已註解)
+NOISE_ROBUSTNESS = []
 
 
 # 🛡️ Priority 3: 舊資料防禦 (Ablation Tests)
@@ -145,13 +160,13 @@ if __name__ == "__main__":
         if run_mode == "random" and exp.get("script", "Hebbian.py") == "Random.py": return True
         return False
     
-    # 1. 捍衛主戰場: 嚴格跑 3 Seeds
+    # 1. 捍衛主戰場: 先跑 1 個 Seed (42)
     CORE_DEFENSE_SEEDS = [42, 3407, 114514]
     for seed in CORE_DEFENSE_SEEDS:
         print(f"\n>>>>>> STARTING CORE DEFENSE SEED {seed} <<<<<<")
         for exp in GENERALIZATION:
             if should_run(exp):
-                run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=0.99, epochs=400, seed=seed)
+                run_experiment(exp["name"], exp["env"], dataset=exp.get("dataset", "cifar100"), script=exp.get("script", "Hebbian.py"), sparsity=exp.get("sparsity", 0.99), epochs=400, seed=seed)
             
     # 2. 曲線交叉點: 先跑 1 個 Seed 搶數據作圖 (未來如果有時間，改成 [42, 3407, 114514] 即可無縫接軌補完)
     CURVE_SEEDS = [42] 

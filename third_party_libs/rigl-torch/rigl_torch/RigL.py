@@ -93,10 +93,13 @@ class RigLScheduler:
                 # when using uniform sparsity, the first layer is always 100% dense
                 # UNLESS there is only 1 layer
                 is_first_layer = i == 0
+                import os
+                no_protect_first = os.environ.get("RIGL_NO_PROTECT_FIRST_LAYER", "0") == "1"
                 if (
                     is_first_layer
                     and self.sparsity_distribution == "uniform"
                     and len(self.W) > 1
+                    and not no_protect_first
                 ):
                     self.S.append(0)
 
