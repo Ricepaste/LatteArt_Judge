@@ -24,7 +24,7 @@ def main():
     
     log_dir = os.path.join(MAIN_DIR, "ablation_logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "unprotected_rigl_c100_99_seed42.log")
+    log_file = os.path.join(log_dir, "unprotected_rigl_c100_99_seed3407.log")
     
     # Environment variables for pretraining
     env = os.environ.copy()
@@ -32,11 +32,11 @@ def main():
     env["TARGET_DATASET"] = "cifar100"
     env["TARGET_SPARSITY"] = "0.99"
     env["NUM_EPOCHS"] = "400"
-    env["RUN_SEED"] = "42"
+    env["RUN_SEED"] = "3407"
     
     print("=" * 60)
     print("🚀 Starting RigL Pretraining (Unprotected First Layer) on CIFAR-100")
-    print(f"Sparsity: 99% | Epochs: 400 | Seed: 42")
+    print(f"Sparsity: 99% | Epochs: 400 | Seed: 3407")
     print(f"Log will be saved to: {log_file}")
     print("=" * 60)
     
