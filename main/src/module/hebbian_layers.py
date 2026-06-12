@@ -227,15 +227,19 @@ class HebbianSparseLayer(nn.Module):
                 use_anti_hebb = os.environ.get("ABLATION_ANTI_HEBB", "1") == "1"
                 use_variance = os.environ.get("ABLATION_VARIANCE", "1") == "1"
                 use_entropy = os.environ.get("ABLATION_ENTROPY", "1") == "1"
+                use_positive_hebb_only = os.environ.get("ABLATION_POSITIVE_HEBB_ONLY", "0") == "1"
                 
-                joint_score = torch.ones_like(anti_hebbian_2d)
-                
-                if use_anti_hebb:
-                    joint_score *= anti_hebbian_2d
-                if use_variance:
-                    joint_score *= variance_2d
-                if use_entropy:
-                    joint_score *= entropy_2d
+                if use_positive_hebb_only:
+                    # 完全使用正赫布 (Positive Hebbian) 作為生長依據，不使用 joint score 評分 (不乘以 variance 和 entropy)
+                    joint_score = self.hebbian_score.clone()
+                else:
+                    joint_score = torch.ones_like(anti_hebbian_2d)
+                    if use_anti_hebb:
+                        joint_score *= anti_hebbian_2d
+                    if use_variance:
+                        joint_score *= variance_2d
+                    if use_entropy:
+                        joint_score *= entropy_2d
                 
                 # 排除非潛在池
                 joint_score[~potential_pool] = -float('inf')
