@@ -46,8 +46,8 @@ def is_eval_missing_or_failed(log_path):
 
 def clean_traceback_from_log(log_path):
     """
-    If the log ended with a Python traceback, remove the traceback lines
-    so the log stays clean before we append the new evaluation output.
+    If the log ended with a Python traceback or an incomplete evaluation attempt,
+    remove those lines so the log stays clean before we append the new evaluation output.
     """
     if not os.path.exists(log_path):
         return
@@ -57,12 +57,12 @@ def clean_traceback_from_log(log_path):
         
     truncate_idx = None
     for idx, line in enumerate(lines):
-        if "Traceback (most recent call last):" in line:
+        if "Traceback (most recent call last):" in line or "=== STANDARDIZED EVALUATION STAGE ===" in line:
             truncate_idx = idx
             break
             
     if truncate_idx is not None:
-        print(f"🧹 Truncating traceback from log: {os.path.basename(log_path)}")
+        print(f"🧹 Truncating failed/incomplete evaluation output from log: {os.path.basename(log_path)}")
         with open(log_path, "w") as f:
             f.writelines(lines[:truncate_idx])
 
