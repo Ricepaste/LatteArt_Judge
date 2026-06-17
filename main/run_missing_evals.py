@@ -281,24 +281,30 @@ def main():
                 }
                 checkpoint_source = "Slurm log mapping"
         
-        # Priority 2: Try parsing checkpoint path from log content (filtered to specific keywords)
+        # Priority 2: Try parsing checkpoint path from log content (filtered to specific keywords + temporal check)
         if not best_checkpoint:
             checkpoint_path = find_checkpoint_path_in_log(log_path)
             if checkpoint_path:
                 exists = os.path.exists(checkpoint_path)
-                log_print(f"  🔍 Log content matched path: {checkpoint_path} (exists={exists})")
                 if exists:
-                    best_checkpoint = {
-                        "checkpoint": checkpoint_path,
-                        "folder": os.path.dirname(checkpoint_path)
-                    }
-                    checkpoint_source = "Log content"
+                    cp_mtime = get_file_mtime(checkpoint_path)
+                    # A valid checkpoint must have been completed BEFORE or near the log's modification time (with a 30s buffer)
+                    is_valid_time = cp_mtime <= log_mtime + 30
+                    log_print(f"  🔍 Log content matched path: {checkpoint_path} (exists={exists}, valid_time={is_valid_time})")
+                    if is_valid_time:
+                        best_checkpoint = {
+                            "checkpoint": checkpoint_path,
+                            "folder": os.path.dirname(checkpoint_path)
+                        }
+                        checkpoint_source = "Log content"
+                    else:
+                        log_print(f"  ⚠️ Checkpoint in log was modified after this log was aborted (likely a wrong match from a previous recovery attempt). Ignoring.")
                 else:
                     log_print(f"  ⚠️ Checkpoint path in log does not exist on disk.")
         
-        # Priority 3: Smart Sparsity & Duration Matching fallback (vital when Slurm logs are cleared)
+        # Priority 3: Smart Sparsity & Duration Matching fallback with temporal constraints
         if not best_checkpoint:
-            log_print(f"  ⏳ Attempting smart matching via Sparsity & Duration alignment...")
+            log_print(f"  ⏳ Attempting smart matching via Sparsity & Duration alignment (with temporal constraints)...")
             log_duration = parse_pretraining_duration_from_log(log_path)
             if log_duration is not None:
                 log_print(f"    - Parsed pre-training duration from log: {log_duration/3600:.2f} hours ({log_duration:.1f} seconds)")
@@ -307,6 +313,10 @@ def main():
                 
             candidates = []
             for cp in checkpoints:
+                # Temporal constraint: checkpoint must be completed before or near log modification time
+                if cp["mtime"] > log_mtime + 30:
+                    continue
+                    
                 # 1. Sparsity check
                 cp_sparsity = get_checkpoint_sparsity(cp["checkpoint"])
                 if cp_sparsity is None:
@@ -343,26 +353,29 @@ def main():
                     checkpoint_source = f"Smart duration alignment (diff: {best_checkpoint['duration_diff']:.1f}s)"
                     log_print(f"  🎯 Matched via Sparsity & Duration: {os.path.basename(best_checkpoint['folder'])}")
                 else:
-                    # Fallback to modification time matching only among filtered sparsity candidates
+                    # Fallback to modification time matching only among filtered sparsity/time candidates
                     log_mtime = get_file_mtime(log_path)
                     candidates.sort(key=lambda x: abs(x["mtime"] - log_mtime))
                     best_checkpoint = candidates[0]
                     time_diff = abs(best_checkpoint["mtime"] - log_mtime)
-                    checkpoint_source = f"Sparsity-filtered modification time (diff: {time_diff:.1f}s)"
+                    checkpoint_source = f"Sparsity/Time-filtered modification time (diff: {time_diff:.1f}s)"
                     log_print(f"  🎯 Matched via Sparsity & Modification Time: {os.path.basename(best_checkpoint['folder'])}")
         
-        # Priority 4: Final global modification time fallback
+        # Priority 4: Final global modification time fallback (with temporal constraint)
         if not best_checkpoint:
-            log_print(f"  ⏳ Fallback to global modification time matching...")
+            log_print(f"  ⏳ Fallback to global modification time matching (with temporal constraints)...")
             min_diff = float('inf')
             matched_cp = None
             for cp in checkpoints:
+                # Temporal constraint: checkpoint must be completed before or near log modification time
+                if cp["mtime"] > log_mtime + 30:
+                    continue
                 diff = abs(cp["mtime"] - log_mtime)
                 if diff < min_diff:
                     min_diff = diff
                     matched_cp = cp
                     
-            if matched_cp and min_diff < 86400: # 24 小時
+            if matched_cp and min_diff < 86400: # 24 hours
                 best_checkpoint = matched_cp
                 checkpoint_source = f"Global modification time difference ({min_diff:.1f}s)"
                 log_print(f"  🎯 Matched via global modification time: {os.path.basename(best_checkpoint['folder'])}")

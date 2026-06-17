@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=eval_recovery     ## Job 名稱
+#SBATCH --job-name=eval_direct       ## Job 名稱
 #SBATCH --mail-type=ALL            ## 收到通知條件
-#SBATCH --mail-user=n22126@gmail.com ## 請替換為您的 Email
+#SBATCH --mail-user=n22126@gmail.com ## 您的 Email
 #SBATCH --nodes=1                  ## 索取 1 個節點
 #SBATCH --cpus-per-task=16         ## 每個 task 索取 16 顆 CPU
-#SBATCH --gres=gpu:1               ## 每個節點索取 1 張 H200/H100 GPU
-#SBATCH --account="MST113277"      ## iService_ID 計畫 ID
+#SBATCH --gres=gpu:1               ## 每個節點索取 1 張 GPU
+#SBATCH --account="MST113277"      ## 計畫 ID
 #SBATCH --partition=8gpus          ## 使用測試 queue
 #SBATCH --output=logs/%x-%j-%N.out
 #SBATCH --error=logs/%x-%j-%N.err
@@ -23,5 +23,5 @@ export PYTHONPATH="/home/sharpaste236/LatteArt_Judge:${PYTHONPATH:-}"
 # 確保日誌目錄存在
 mkdir -p logs
 
-# 執行自動補做評估的恢復腳本
-$SINGULARITY python -u main/run_missing_evals.py
+# 執行直接評估腳本
+$SINGULARITY python -u main/run_ablation_evals_direct.py
