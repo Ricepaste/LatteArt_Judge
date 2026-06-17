@@ -334,9 +334,9 @@ for label in range(num_classes):
             np.random.choice(label_indices, size=sample_size, replace=False)
         )
 
-train_sampler = SubsetRandomSampler(train_idx)
-train_loader = DataLoader(train_dataset, batch_size=128, sampler=train_sampler, num_workers=0)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=0)
+num_workers_val = int(os.environ.get("DATALOADER_WORKERS", "4"))
+train_loader = DataLoader(train_dataset, batch_size=128, sampler=train_sampler, num_workers=num_workers_val)
+test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=num_workers_val)
 
 # ==================== KNN Evaluation ====================
 print("\n--- Starting KNN Evaluation ---")

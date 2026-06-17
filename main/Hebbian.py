@@ -36,9 +36,11 @@ if __name__ == "__main__":
         dataset_name=dataset_name_val
     )
     
+    workers_val = int(os.environ.get("DATALOADER_WORKERS", "4"))
     trainer.train(
         num_epochs=num_epochs_val, # Hebbian V10 Automated Epochs
         batch_size=128, 
+        workers=workers_val,
         init_grow_ratio=0.2, 
         hebbian_freq=10 # Hebbian V5: 更頻繁地觀察以對抗噪聲
     )
