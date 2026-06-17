@@ -22,11 +22,8 @@ def parse_log_filename(filename):
     if match:
         sparsity_percent = int(match.group(1))
         seed = match.group(2)
-        # Convert sparsity_percent (e.g. 80, 95, 99) to float string (e.g. 0.8, 0.95, 0.99)
-        if sparsity_percent == 80:
-            sparsity = "0.8"
-        else:
-            sparsity = f"0.{sparsity_percent}"
+        # Convert sparsity_percent (e.g. 80, 90, 95) to float string (e.g. 0.8, 0.9, 0.95)
+        sparsity = str(sparsity_percent / 100)
         return sparsity, seed
     return None, None
 
@@ -36,10 +33,10 @@ def find_checkpoint_path_in_log(log_path):
     with open(log_path, "r", errors="ignore") as f:
         content = f.read()
     
-    # 搜尋日誌內容中是否有 "runs/Hebbian_SSL_YYYYMMDD-HHMMSS/last.pt" 或類似的路徑
-    match = re.search(r"runs/(Hebbian_SSL_\d{8}-\d{6})/last\.pt", content)
+    # Match Hebbian_SSL_YYYYMMDD-HHMMSS anywhere in the log
+    match = re.search(r"Hebbian_SSL_\d{8}-\d{6}", content)
     if match:
-        return os.path.join(RUNS_DIR, match.group(1), "last.pt")
+        return os.path.join(RUNS_DIR, match.group(0), "last.pt")
     return None
 
 def is_eval_missing_or_failed(log_path):
@@ -55,6 +52,13 @@ def is_eval_missing_or_failed(log_path):
     has_traceback = "Traceback" in content or "NameError" in content
     
     return (not has_started_eval) or (not has_final_results) or has_traceback
+
+def is_pretraining_finished(log_path):
+    if not os.path.exists(log_path):
+        return False
+    with open(log_path, "r", errors="ignore") as f:
+        content = f.read()
+    return "Training Finished." in content or "Epoch 400" in content
 
 def clean_traceback_from_log(log_path):
     """
@@ -112,35 +116,50 @@ def main():
         log_name = os.path.basename(log_path)
         log_mtime = get_file_mtime(log_path)
         
+        missing = is_eval_missing_or_failed(log_path)
+        finished = is_pretraining_finished(log_path)
+        
+        print(f"\n🔍 Scanning log: {log_name}")
+        print(f"  - Evaluation missing/failed: {missing}")
+        print(f"  - Pre-training finished: {finished}")
+        
         # 1. 檢查是否已經有合法的評估結果
-        if not is_eval_missing_or_failed(log_path):
-            print(f"✅ {log_name} already has valid evaluation results. Skipping.")
+        if not missing:
+            print(f"  ✅ Already has valid evaluation results. Skipping.")
             continue
             
-        # 2. 檢查是否仍在訓練中 (若日誌在最近 2 分鐘內有寫入，表示該 Job 仍在運作，跳過)
-        time_since_modified = time.time() - log_mtime
-        if time_since_modified < 120: # 2 分鐘
-            print(f"⏳ {log_name} was modified recently ({time_since_modified:.1f}s ago, likely still training). Skipping.")
+        # 2. 檢查預訓練是否已經完成 (如果沒完成，表示仍在訓練，跳過)
+        if not finished:
+            print(f"  ⏳ Still pre-training. Skipping.")
             continue
             
         sparsity, seed = parse_log_filename(log_name)
         if not sparsity:
+            print(f"  ⚠️ Could not parse sparsity/seed from filename.")
             continue
             
-        print(f"\n⏳ Found log missing evaluation: {log_name} (Sparsity: {sparsity}, Seed: {seed})")
+        print(f"  💡 Targets: Sparsity={sparsity}, Seed={seed}")
+        
         # 1. 優先嘗試從日誌內容中尋找之前失敗/中斷的權重路徑
         checkpoint_path = find_checkpoint_path_in_log(log_path)
         best_checkpoint = None
         min_diff = float('inf')
         
-        if checkpoint_path and os.path.exists(checkpoint_path):
-            best_checkpoint = {
-                "checkpoint": checkpoint_path,
-                "folder": os.path.dirname(checkpoint_path)
-            }
-            print(f"🎯 Matched via log content: {os.path.basename(best_checkpoint['folder'])}")
-        else:
+        if checkpoint_path:
+            exists = os.path.exists(checkpoint_path)
+            print(f"  🔍 Regex found checkpoint path: {checkpoint_path} (exists={exists})")
+            if exists:
+                best_checkpoint = {
+                    "checkpoint": checkpoint_path,
+                    "folder": os.path.dirname(checkpoint_path)
+                }
+                print(f"  🎯 Matched via log content: {os.path.basename(best_checkpoint['folder'])}")
+            else:
+                print(f"  ⚠️ Checkpoint path in log does not exist on disk.")
+        
+        if not best_checkpoint:
             # 2. 備用方案：根據修改時間進行最接近配對 (容許落差 24 小時)
+            print(f"  ⏳ Attempting fallback to modification time matching...")
             min_diff = float('inf')
             matched_cp = None
             for cp in checkpoints:
@@ -151,7 +170,12 @@ def main():
                     
             if matched_cp and min_diff < 86400: # 24 小時
                 best_checkpoint = matched_cp
-                print(f"🎯 Matched via modification time: {os.path.basename(best_checkpoint['folder'])} (Time difference: {min_diff:.1f}s)")
+                print(f"  🎯 Matched via modification time: {os.path.basename(best_checkpoint['folder'])} (Time difference: {min_diff:.1f}s)")
+            else:
+                if matched_cp:
+                    print(f"  ❌ Closest checkpoint time difference too large ({min_diff:.1f}s, limit 24h).")
+                else:
+                    print(f"  ❌ No checkpoints found in checkpoints list.")
                 
         if best_checkpoint:
             # Clean up the traceback from the log file first
@@ -166,7 +190,7 @@ def main():
             eval_env["TARGET_SPARSITY"] = sparsity
             eval_env["RUN_SEED"] = seed
             
-            print(f"🚀 Running evaluate_model.py for checkpoint...")
+            print(f"  🚀 Running evaluate_model.py for checkpoint...")
             try:
                 with open(log_path, "a") as f:
                     f.write("\n\n" + "=" * 50 + "\n")
@@ -182,14 +206,14 @@ def main():
                     process.wait()
                     
                 if process.returncode == 0:
-                    print(f"✅ Finished evaluating {log_name} successfully!")
+                    print(f"  ✅ Finished evaluating {log_name} successfully!")
                     evaluated_count += 1
                 else:
-                    print(f"❌ Evaluation process failed for {log_name} with code {process.returncode}")
+                    print(f"  ❌ Evaluation process failed for {log_name} with code {process.returncode}")
             except Exception as e:
-                print(f"❌ Error running evaluation: {e}")
+                print(f"  ❌ Error running evaluation: {e}")
         else:
-            print(f"⚠️ Could not find a matching checkpoint folder for log {log_name} (closest difference: {min_diff:.1f}s)")
+            print(f"  ❌ Could not find a matching checkpoint folder for log {log_name}")
             
     print("\n" + "=" * 60)
     print(f"🎉 Process completed. Successfully evaluated {evaluated_count} missing runs.")
