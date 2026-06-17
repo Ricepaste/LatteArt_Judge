@@ -105,10 +105,10 @@ def main():
             print(f"✅ {log_name} already has valid evaluation results. Skipping.")
             continue
             
-        # 2. 檢查是否仍在訓練中 (若日誌在最近 5 分鐘內有寫入，表示該 Job 仍在運作，跳過)
+        # 2. 檢查是否仍在訓練中 (若日誌在最近 2 分鐘內有寫入，表示該 Job 仍在運作，跳過)
         time_since_modified = time.time() - log_mtime
-        if time_since_modified < 300: # 5 分鐘
-            print(f"⏳ {log_name} was modified recently ({time_since_modified:.1f}s ago). It is likely still training. Skipping.")
+        if time_since_modified < 120: # 2 分鐘
+            print(f"⏳ {log_name} was modified recently ({time_since_modified:.1f}s ago, likely still training). Skipping.")
             continue
             
         sparsity, seed = parse_log_filename(log_name)
