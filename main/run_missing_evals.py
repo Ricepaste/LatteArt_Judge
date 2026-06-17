@@ -30,6 +30,18 @@ def parse_log_filename(filename):
         return sparsity, seed
     return None, None
 
+def find_checkpoint_path_in_log(log_path):
+    if not os.path.exists(log_path):
+        return None
+    with open(log_path, "r", errors="ignore") as f:
+        content = f.read()
+    
+    # 搜尋日誌內容中是否有 "runs/Hebbian_SSL_YYYYMMDD-HHMMSS/last.pt" 或類似的路徑
+    match = re.search(r"runs/(Hebbian_SSL_\d{8}-\d{6})/last\.pt", content)
+    if match:
+        return os.path.join(RUNS_DIR, match.group(1), "last.pt")
+    return None
+
 def is_eval_missing_or_failed(log_path):
     if not os.path.exists(log_path):
         return True
@@ -116,22 +128,32 @@ def main():
             continue
             
         print(f"\n⏳ Found log missing evaluation: {log_name} (Sparsity: {sparsity}, Seed: {seed})")
-        
-        # Match this log file to the checkpoint with the closest modification time
-        # (Since they were written by the same job, the checkpoint save and the log file closing are near-simultaneous)
+        # 1. 優先嘗試從日誌內容中尋找之前失敗/中斷的權重路徑
+        checkpoint_path = find_checkpoint_path_in_log(log_path)
         best_checkpoint = None
         min_diff = float('inf')
         
-        for cp in checkpoints:
-            diff = abs(cp["mtime"] - log_mtime)
-            if diff < min_diff:
-                min_diff = diff
-                best_checkpoint = cp
+        if checkpoint_path and os.path.exists(checkpoint_path):
+            best_checkpoint = {
+                "checkpoint": checkpoint_path,
+                "folder": os.path.dirname(checkpoint_path)
+            }
+            print(f"🎯 Matched via log content: {os.path.basename(best_checkpoint['folder'])}")
+        else:
+            # 2. 備用方案：根據修改時間進行最接近配對 (容許落差 24 小時)
+            min_diff = float('inf')
+            matched_cp = None
+            for cp in checkpoints:
+                diff = abs(cp["mtime"] - log_mtime)
+                if diff < min_diff:
+                    min_diff = diff
+                    matched_cp = cp
+                    
+            if matched_cp and min_diff < 86400: # 24 小時
+                best_checkpoint = matched_cp
+                print(f"🎯 Matched via modification time: {os.path.basename(best_checkpoint['folder'])} (Time difference: {min_diff:.1f}s)")
                 
-        # We accept a match if the mtime difference is within 10 minutes
-        if best_checkpoint and min_diff < 600:
-            print(f"🎯 Matched to checkpoint: {os.path.basename(best_checkpoint['folder'])} (Time difference: {min_diff:.1f}s)")
-            
+        if best_checkpoint:
             # Clean up the traceback from the log file first
             clean_traceback_from_log(log_path)
             
