@@ -5,7 +5,7 @@ set -x
 # ============================================================
 # 1. 工作目錄 & 環境設定 (對齊您在 TWCC 的路徑)
 # ============================================================
-WORKDIR="/home/sharpaste/repo/LatteArt_Judge"
+WORKDIR="/home/sharpaste236/LatteArt_Judge"
 cd "$WORKDIR"
 
 export PYTHONPATH="$WORKDIR:${PYTHONPATH:-}"
