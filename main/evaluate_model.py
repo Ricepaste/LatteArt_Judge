@@ -62,8 +62,26 @@ if ENCODER_PATH.lower() in ["imagenet", "official"]:
 
 if METHOD == "hebbian":
     from src.training.Hebbian_train import Hebbian_SSL_Trainer
+    
+    use_no_bn = os.environ.get("BACKBONE_NO_BN", "False") == "True"
+    if use_no_bn:
+        print("📢 BACKBONE_NO_BN is True. Removing all BatchNorm2d layers from ResNet-18 backbone prior to evaluation.")
+        def resnet18_no_bn_eval(weights=None):
+            model = models.resnet18(weights=weights)
+            def replace_bn(m):
+                for name, child in m.named_children():
+                    if isinstance(child, nn.BatchNorm2d):
+                        setattr(m, name, nn.Identity())
+                    else:
+                        replace_bn(child)
+            replace_bn(model)
+            return model
+        model_class = resnet18_no_bn_eval
+    else:
+        model_class = models.resnet18
+
     dummy_trainer = Hebbian_SSL_Trainer(
-        pretrained_model_class=models.resnet18,
+        pretrained_model_class=model_class,
         pretrained_weight=backbone_weights,
         target_sparsity=TARGET_SPARSITY, # 動態對齊目標稀疏度
         use_erk=USE_ERK,
@@ -174,8 +192,9 @@ class ResNetEncoderWrapper(nn.Module):
 encoder = ResNetEncoderWrapper(simsiam_model.encoder).to(device)
 encoder.eval()
 
-# 4. 資料集準備 (Linear Probing 專用的乾淨資料，不要 Noise)
-os.environ["INPUT_NOISE_STD"] = "0.0"
+# 4. 資料集準備 (Linear Probing 專用的乾淨資料，若外部未指定噪聲則預設為 0)
+if "INPUT_NOISE_STD" not in os.environ:
+    os.environ["INPUT_NOISE_STD"] = "0.0"
 
 transform = transforms.Compose([
     transforms.Resize(256),
@@ -360,16 +379,23 @@ print(f"KNN Protocol Accuracy (k=200): {knn_acc:.4f}")
 
 # ==================== Linear Probing ====================
 print("\n--- Starting Linear Probing ---")
+USE_CLASSIFIER_BN = os.environ.get("DISABLE_CLASSIFIER_BN", "False") != "True"
+print(f"Use BatchNorm in downstream Linear Classifier: {USE_CLASSIFIER_BN}")
+
 class LinearClassifier(nn.Module):
-    def __init__(self, encoder_output_dim, num_classes):
+    def __init__(self, encoder_output_dim, num_classes, use_bn=True):
         super(LinearClassifier, self).__init__()
-        self.bn = nn.BatchNorm1d(encoder_output_dim, affine=False)
+        self.use_bn = use_bn
+        if use_bn:
+            self.bn = nn.BatchNorm1d(encoder_output_dim, affine=False)
         self.linear = nn.Linear(encoder_output_dim, num_classes)
 
     def forward(self, x):
-        return self.linear(self.bn(x))
+        if self.use_bn:
+            return self.linear(self.bn(x))
+        return self.linear(x)
 
-classifier = LinearClassifier(encoder.output_dim, num_classes).to(device)
+classifier = LinearClassifier(encoder.output_dim, num_classes, use_bn=USE_CLASSIFIER_BN).to(device)
 optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
 criterion = nn.CrossEntropyLoss()
 
