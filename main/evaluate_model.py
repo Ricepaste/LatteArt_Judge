@@ -88,15 +88,6 @@ if METHOD == "hebbian":
         protect_highway=PROTECT_HIGHWAY
     )
     simsiam_model = dummy_trainer.model.to(device)
-elif METHOD in ["random", "set"]:
-    from src.training.SET_train import SET_SSL_Trainer
-    dummy_trainer = SET_SSL_Trainer(
-        pretrained_model_class=models.resnet18,
-        pretrained_weight=backbone_weights,
-        target_sparsity=TARGET_SPARSITY,
-        dataset_name=DATASET_NAME
-    )
-    simsiam_model = dummy_trainer.model.to(device)
 else:
     import src.training.SimSiam_train as SimSiam_train
     dummy_trainer = SimSiam_train.SimSiam_Model(

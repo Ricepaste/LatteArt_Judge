@@ -228,8 +228,13 @@ class HebbianSparseLayer(nn.Module):
                 use_variance = os.environ.get("ABLATION_VARIANCE", "1") == "1"
                 use_entropy = os.environ.get("ABLATION_ENTROPY", "1") == "1"
                 use_positive_hebb_only = os.environ.get("ABLATION_POSITIVE_HEBB_ONLY", "0") == "1"
+                use_random_growth = os.environ.get("ABLATION_RANDOM_GROWTH", "0") == "1"
                 
-                if use_positive_hebb_only:
+                if use_random_growth:
+                    # 純隨機生長 (SET)，對齊所有的網絡拓撲保護與 ERK 分佈
+                    # 生成與權重形狀相同的隨機分數，並在潛在池中進行選擇
+                    joint_score = torch.rand_like(self.layer.weight)
+                elif use_positive_hebb_only:
                     # 完全使用正赫布 (Positive Hebbian) 作為生長依據，不使用 joint score 評分 (不乘以 variance 和 entropy)
                     joint_score = self.hebbian_score.clone()
                 else:
