@@ -334,6 +334,9 @@ for label in range(num_classes):
             np.random.choice(label_indices, size=sample_size, replace=False)
         )
 
+# 創建 SubsetRandomSampler 用於少樣本/比例評估
+train_sampler = SubsetRandomSampler(train_idx)
+
 num_workers_val = int(os.environ.get("DATALOADER_WORKERS", "8"))
 train_loader = DataLoader(train_dataset, batch_size=128, sampler=train_sampler, num_workers=num_workers_val)
 test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=num_workers_val)
