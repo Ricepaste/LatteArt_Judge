@@ -36,7 +36,7 @@ if __name__ == "__main__":
         dataset_name=dataset_name_val
     )
     
-    workers_val = int(os.environ.get("DATALOADER_WORKERS", "4"))
+    workers_val = int(os.environ.get("DATALOADER_WORKERS", "8"))
     trainer.train(
         num_epochs=num_epochs_val, # Hebbian V10 Automated Epochs
         batch_size=128, 
