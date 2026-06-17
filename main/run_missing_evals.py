@@ -151,11 +151,11 @@ def main():
                     f.write("=== STANDARDIZED EVALUATION STAGE ===\n")
                     f.write("=" * 50 + "\n")
                     process = subprocess.Popen(
-                        ["python", "-u", "main/evaluate_model.py"],
+                        ["python", "-u", "evaluate_model.py"],
                         env=eval_env,
                         stdout=f,
                         stderr=subprocess.STDOUT,
-                        cwd=os.path.dirname(MAIN_DIR)
+                        cwd=MAIN_DIR
                     )
                     process.wait()
                     
