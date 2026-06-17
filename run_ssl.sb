@@ -20,6 +20,7 @@ SINGULARITY="singularity run --nv $SIF"
 
 export SINGULARITY_BINDPATH="/work:/work,/home:/home"
 export RUN_SEED=42
+export TARGET_SPARSITY=0.8
 
 # 確保日誌目錄存在
 mkdir -p logs
