@@ -30,9 +30,11 @@ def main():
     
     log_file = os.path.join(log_dir, f"set_c100_{int(float(target_sparsity)*100)}_seed{run_seed}.log")
     
-    # Environment variables for pretraining (we enable ABLATION_RANDOM_GROWTH)
+    # Environment variables for pretraining (we enable ABLATION_RANDOM_GROWTH and enforce original SET behavior)
     env = os.environ.copy()
     env["ABLATION_RANDOM_GROWTH"] = "1"
+    env["USE_ERK"] = "False"
+    env["PROTECT_HIGHWAY"] = "False"
     env["TARGET_DATASET"] = target_dataset
     env["TARGET_SPARSITY"] = target_sparsity
     env["NUM_EPOCHS"] = num_epochs
@@ -85,7 +87,9 @@ def main():
     
     eval_env = os.environ.copy()
     eval_env["ENCODER_PATH"] = encoder_path
-    eval_env["METHOD"] = "hebbian" # Must be "hebbian" because the model class is Hebbian_SimSiam (with ERK/stem protection)
+    eval_env["METHOD"] = "hebbian" # Must be "hebbian" because the model class is Hebbian_SimSiam
+    eval_env["USE_ERK"] = "False"
+    eval_env["PROTECT_HIGHWAY"] = "False"
     eval_env["TARGET_DATASET"] = target_dataset
     eval_env["NUM_EPOCHS"] = "50"
     eval_env["TARGET_SPARSITY"] = target_sparsity

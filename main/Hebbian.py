@@ -18,10 +18,10 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     
     # --- Ablation Study Toggles ---
-    # 設為 True : 啟用 V6 特性 (1000 Epoch 可達 ~80%)
-    # 設為 False: 退回 V5 特性 (用來證明 V6 的架構貢獻)
-    USE_ERK = True          
-    PROTECT_HIGHWAY = False 
+    # 支援透過環境變數動態控制，若為原版 SET 實驗則預設為 False
+    is_set_run = os.environ.get("ABLATION_RANDOM_GROWTH", "0") == "1"
+    USE_ERK = os.environ.get("USE_ERK", "False" if is_set_run else "True") == "True"
+    PROTECT_HIGHWAY = os.environ.get("PROTECT_HIGHWAY", "False") == "True"
     # ------------------------------
 
     target_sparsity_val = float(os.environ.get("TARGET_SPARSITY", "0.99"))
