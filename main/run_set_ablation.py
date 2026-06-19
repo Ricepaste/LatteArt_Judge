@@ -8,8 +8,8 @@ import sys
 MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def find_latest_hebbian_run(runs_dir):
-    # Hebbian runs are named "Hebbian_SSL_*"
-    folders = glob.glob(os.path.join(runs_dir, "Hebbian_SSL_*"))
+    # Hebbian or SET runs are named "*_SSL_*"
+    folders = glob.glob(os.path.join(runs_dir, "*_SSL_*"))
     if not folders:
         return None
     folders.sort(key=os.path.getmtime)

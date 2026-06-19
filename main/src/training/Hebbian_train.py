@@ -428,13 +428,28 @@ class Hebbian_SSL_Trainer:
         print(f"Lottery Validation Finished. Best Acc: {best_acc:.4f}")
         self.writer.close()
 
-    def save_model(self, model, type="last", filename_prefix="Hebbian_SSL_", directory="./runs"):
+    def save_model(self, model, type="last", filename_prefix=None, directory="./runs"):
         os.makedirs(directory, exist_ok=True)
         
         if type == "tensorboard_init":
             import datetime
             now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            log_dir = os.path.join(directory, f"{filename_prefix}{now}")
+            
+            # 動態區分隨機生長 (SET) 與赫布 (Hebbian)
+            is_set = os.environ.get("ABLATION_RANDOM_GROWTH", "0") == "1"
+            method_str = "SET" if is_set else "Hebbian"
+            
+            # 取得當前稀疏度與種子碼資訊以避免併發衝突並利於識別
+            sparsity_str = f"s{int(self.model.target_sparsity * 100)}"
+            seed_str = f"seed{os.environ.get('RUN_SEED', '42')}"
+            
+            if filename_prefix is None:
+                folder_name = f"{method_str}_SSL_{sparsity_str}_{seed_str}_{now}"
+            else:
+                folder_name = f"{filename_prefix}_{method_str}_SSL_{sparsity_str}_{seed_str}_{now}"
+                folder_name = folder_name.replace("__", "_")
+                
+            log_dir = os.path.join(directory, folder_name)
             os.makedirs(log_dir, exist_ok=True)
             return SummaryWriter(log_dir)
         
