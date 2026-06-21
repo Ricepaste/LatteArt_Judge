@@ -7,9 +7,10 @@ import sys
 
 MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def find_latest_hebbian_run(runs_dir):
-    # Hebbian or SET runs are named "*_SSL_*"
-    folders = glob.glob(os.path.join(runs_dir, "*_SSL_*"))
+def find_specific_run(runs_dir, target_sparsity, run_seed):
+    sparsity_percent = int(float(target_sparsity) * 100)
+    pattern = f"SET_SSL_s{sparsity_percent}_seed{run_seed}_*"
+    folders = glob.glob(os.path.join(runs_dir, pattern))
     if not folders:
         return None
     folders.sort(key=os.path.getmtime)
@@ -69,10 +70,10 @@ def main():
         print(f"❌ Error during pretraining: {e}")
         sys.exit(1)
 
-    # 2. Find the saved checkpoint
-    latest_run = find_latest_hebbian_run(runs_dir)
+    # 2. Find the saved checkpoint (specific to this run's sparsity and seed)
+    latest_run = find_specific_run(runs_dir, target_sparsity, run_seed)
     if not latest_run:
-        print("❌ Could not locate the latest Hebbian run folder.")
+        print(f"❌ Could not locate the run folder for sparsity {target_sparsity} and seed {run_seed}.")
         sys.exit(1)
         
     encoder_path = os.path.join(latest_run, "last.pt")

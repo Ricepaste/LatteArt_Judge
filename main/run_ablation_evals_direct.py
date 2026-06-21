@@ -12,15 +12,18 @@ LOG_DIR = os.path.join(MAIN_DIR, "ablation_logs")
 SUMMARY_CSV = os.path.join(LOG_DIR, "direct_eval_summary.csv")
 
 FOLDERS = [
-    "Hebbian_SSL_20260617-182647",
-    "Hebbian_SSL_20260617-183925",
-    "Hebbian_SSL_20260617-184434",
-    "Hebbian_SSL_20260617-185915",
-    "Hebbian_SSL_20260617-191027",
-    "Hebbian_SSL_20260617-191028",
-    "Hebbian_SSL_20260617-191029",
-    "Hebbian_SSL_20260617-191858",
-    "Hebbian_SSL_20260618-011550"
+    "SET_SSL_s80_seed42_20260619-170148",
+    "SET_SSL_s80_seed3407_20260620-063012",
+    "SET_SSL_s80_seed114514_20260619-234424",
+    "SET_SSL_s90_seed42_20260619-170149",
+    "SET_SSL_s90_seed3407_20260620-025430",
+    "SET_SSL_s90_seed114514_20260619-215758",
+    "SET_SSL_s95_seed42_20260619-170149",
+    "SET_SSL_s95_seed3407_20260620-023323",
+    "SET_SSL_s95_seed114514_20260619-214827",
+    "SET_SSL_s99_seed42_20260619-170149",
+    "SET_SSL_s99_seed3407_20260620-014756",
+    "SET_SSL_s99_seed114514_20260619-212033"
 ]
 
 def get_checkpoint_sparsity(checkpoint_path):
@@ -80,6 +83,14 @@ def main():
         eval_env["NUM_EPOCHS"] = "50"
         eval_env["TARGET_SPARSITY"] = str(target_sparsity)
         
+        # 動態判定是 SET 還是 Hebbian
+        if folder_name.startswith("SET_"):
+            eval_env["USE_ERK"] = "False"
+            eval_env["PROTECT_HIGHWAY"] = "False"
+        else:
+            eval_env["USE_ERK"] = "True"
+            eval_env["PROTECT_HIGHWAY"] = "False"
+            
         # Set a dummy seed for evaluation run (it uses this seed internally for linear probing)
         eval_env["RUN_SEED"] = "42"
         
