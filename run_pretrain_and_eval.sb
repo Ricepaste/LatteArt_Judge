@@ -25,7 +25,7 @@ RUN_SEED="${RUN_SEED:-42}"
 TARGET_SPARSITY="${TARGET_SPARSITY:-0.7}"
 PRETRAIN_EPOCHS="${PRETRAIN_EPOCHS:-400}"
 EVAL_EPOCHS="${EVAL_EPOCHS:-30}"
-DATASET_DIR="${DATASET_DIR:-/home/sharpaste236/LatteArt_Judge/main/data/voc}" # Pascal VOC 2012 資料集目錄
+DATASET_DIR="${DATASET_DIR:-main/data/voc}" # Pascal VOC 2012 資料集目錄
 
 # 確保日誌目錄存在
 mkdir -p logs
@@ -94,7 +94,7 @@ for seed in 42 114514 3407; do
     # 暫停數秒確保檔案寫入與系統同步
     sleep 5
 
-    found_folder=$(find /home/sharpaste236/LatteArt_Judge/main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
+    found_folder=$(find main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
 
     if [ -n "$found_folder" ]; then
         ENCODER_PATH="${found_folder}/last.pt"
