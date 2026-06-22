@@ -22,7 +22,7 @@ export SINGULARITY_BINDPATH="/work:/work,/home:/home"
 METHOD="${METHOD:-hebbian}"                      # 支援: hebbian, rigl, imagenet
 TARGET_SPARSITY="${TARGET_SPARSITY:-0.99}"        # 稀疏度: 0.8, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99
 EVAL_MODE="${EVAL_MODE:-finetuning}"             # 評估模式: probing (線性探測 / 凍結骨幹) 或 finetuning (全微調)
-DATASET_DIR="${DATASET_DIR:-/work/datasets/pascal_voc}" # Pascal VOC 2012 資料集目錄
+DATASET_DIR="${DATASET_DIR:-/home/sharpaste236/LatteArt_Judge/main/data/voc}" # Pascal VOC 2012 資料集目錄
 
 # 對應的 Hebbian 預訓練屬性 (若為 RigL/ImageNet 會自動忽略，若是原版 SET 需設為 False)
 USE_ERK="${USE_ERK:-True}"
