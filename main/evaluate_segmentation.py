@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision import models, transforms
+from torchvision import models, transforms, datasets
 import torchvision.transforms.functional as TF
 from PIL import Image
 
@@ -195,11 +195,11 @@ def main():
     val_transform = JointTransform(size=(256, 256), is_train=False)
 
     try:
-        train_dataset = models.segmentation.VOCSegmentation(
+        train_dataset = datasets.VOCSegmentation(
             root=args.dataset_dir, year="2012", image_set="train",
             download=args.download, transforms=train_transform
         )
-        val_dataset = models.segmentation.VOCSegmentation(
+        val_dataset = datasets.VOCSegmentation(
             root=args.dataset_dir, year="2012", image_set="val",
             download=args.download, transforms=val_transform
         )
