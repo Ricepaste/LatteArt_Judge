@@ -1,0 +1,98 @@
+#!/bin/bash
+#SBATCH --job-name=seg_eval         ## Job 名稱
+#SBATCH --mail-type=ALL            ## 收到通知條件
+#SBATCH --mail-user=n22126@gmail.com ## 請替換為您的 Email
+#SBATCH --nodes=1                  ## 索取 1 個節點
+#SBATCH --cpus-per-task=16         ## 每個 task 索取 16 顆 CPU
+#SBATCH --gres=gpu:1               ## 每個節點索取 1 張 H200/H100 GPU
+#SBATCH --account="MST113277"      ## iService_ID 計畫 ID
+#SBATCH --partition=8gpus          ## 使用測試 queue
+#SBATCH --output=logs/%x-%j-%N.out
+#SBATCH --error=logs/%x-%j-%N.err
+
+# 清理並加載環境
+module purge
+module load singularity
+
+SIF="/home/sharpaste236/sparse_ssl_image.sif"
+SINGULARITY="singularity run --nv $SIF"
+export SINGULARITY_BINDPATH="/work:/work,/home:/home"
+
+# --- 1. 配置實驗參數 (支援透過環境變數覆寫，以利平行排程) ---
+METHOD="${METHOD:-hebbian}"                      # 支援: hebbian, rigl, imagenet
+TARGET_SPARSITY="${TARGET_SPARSITY:-0.99}"        # 稀疏度: 0.8, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99
+EVAL_MODE="${EVAL_MODE:-finetuning}"             # 評估模式: probing (線性探測 / 凍結骨幹) 或 finetuning (全微調)
+DATASET_DIR="${DATASET_DIR:-/work/datasets/pascal_voc}" # Pascal VOC 2012 資料集目錄
+
+# 對應的 Hebbian 預訓練屬性 (若為 RigL/ImageNet 會自動忽略，若是原版 SET 需設為 False)
+USE_ERK="${USE_ERK:-True}"
+PROTECT_HIGHWAY="${PROTECT_HIGHWAY:-False}"
+
+# 確保日誌目錄存在
+mkdir -p logs
+
+# 依序執行三個種子碼的分割評估
+for seed in 42 114514 3407; do
+    echo "============================================================"
+    echo "Processing Seed: $seed"
+    echo "============================================================"
+    
+    # 2. 自動尋找對應的預訓練權重路徑
+    sparsity_percent=$(python3 -c "print(int(float('${TARGET_SPARSITY}') * 100))")
+    
+    # A. 優先嘗試動態匹配新格式 (如 SET_SSL_s99_seed42_* 或 Hebbian_SSL_s99_seed42_*)
+    pattern="*_SSL_s${sparsity_percent}_seed${seed}_*"
+    found_folder=$(find /home/sharpaste236/LatteArt_Judge/main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
+    
+    if [ -n "$found_folder" ]; then
+        ENCODER_PATH="${found_folder}/last.pt"
+        echo "🔍 Found dynamically named checkpoint: $ENCODER_PATH"
+    else
+        # B. 若未找到新格式，退回讀取舊版 99% 預訓練權重硬編碼對照表
+        echo "🔍 No dynamic folder found. Falling back to old 99% checkpoint mapping table..."
+        if [ "$METHOD" = "hebbian" ]; then
+            if [ "$seed" = "42" ]; then
+                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
+            elif [ "$seed" = "3407" ]; then
+                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260412-050458/last.pt"
+            elif [ "$seed" = "114514" ]; then
+                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260413-163009/last.pt"
+            fi
+        elif [ "$METHOD" = "rigl" ]; then
+            if [ "$seed" = "42" ]; then
+                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
+            elif [ "$seed" = "3407" ]; then
+                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__5/last.pt"
+            elif [ "$seed" = "114514" ]; then
+                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__7/last.pt"
+            fi
+        else
+            echo "❌ ERROR: Unknown method '$METHOD' or no checkpoint found for seed $seed."
+            continue
+        fi
+    fi
+    
+    if [ ! -f "$ENCODER_PATH" ]; then
+        echo "❌ ERROR: Checkpoint file does not exist: $ENCODER_PATH. Skipping."
+        continue
+    fi
+    
+    echo "🚀 Running evaluate_segmentation.py..."
+    srun $SINGULARITY python main/evaluate_segmentation.py \
+        --method "$METHOD" \
+        --encoder_path "$ENCODER_PATH" \
+        --sparsity "$TARGET_SPARSITY" \
+        --use_erk "$USE_ERK" \
+        --protect_highway "$PROTECT_HIGHWAY" \
+        --dataset_dir "$DATASET_DIR" \
+        --mode "$EVAL_MODE" \
+        --epochs 30 \
+        --lr 1e-3 \
+        --batch_size 16 \
+        --workers 8 \
+        --seed "$seed"
+done
+
+echo "============================================================"
+echo "✅ All 3 Seeds Segmentation Evaluation Completed! $(date)"
+echo "============================================================"
