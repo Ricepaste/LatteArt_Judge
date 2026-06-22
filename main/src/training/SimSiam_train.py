@@ -934,7 +934,7 @@ class SimSiam_Model:
         self,
         models: Union[torch.nn.Module, List[torch.nn.Module]],
         filename_prefix="shuffleNet_v05_SimSiam_",
-        directory="./runs",
+        directory="main/runs",
         type="best",
     ):
         """

@@ -87,9 +87,8 @@ for seed in 42 114514 3407; do
                 prefix="UNKNOWN_PREFIX"
             fi
             
-            # A. 優先嘗試動態匹配新格式 (如 SET_SSL_s99_seed42_* 或 Hebbian_SSL_s99_seed42_*)
             pattern="${prefix}_s${sparsity_percent}_seed${seed}_*"
-            found_folder=$(find main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
+            found_folder=$(find main/runs runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
             
             if [ -n "$found_folder" ]; then
                 ENCODER_PATH="${found_folder}/last.pt"

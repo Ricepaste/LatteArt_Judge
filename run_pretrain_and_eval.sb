@@ -94,7 +94,7 @@ for seed in 42 114514 3407; do
     # 暫停數秒確保檔案寫入與系統同步
     sleep 5
 
-    found_folder=$(find main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
+    found_folder=$(find main/runs runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
 
     if [ -n "$found_folder" ]; then
         ENCODER_PATH="${found_folder}/last.pt"
