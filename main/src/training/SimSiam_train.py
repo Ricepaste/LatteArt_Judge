@@ -957,14 +957,25 @@ class SimSiam_Model:
         os.makedirs(directory, exist_ok=True)
 
         if type == "tensorboard_init":
-            # 創建一個新的運行目錄
-            i = 0
-            run_dir_name = filename_prefix
-            while os.path.exists(os.path.join(directory, run_dir_name)):
-                i += 1
-                run_dir_name = f"{filename_prefix}_{i}"
-            final_run_dir = os.path.join(directory, run_dir_name)
-            os.makedirs(final_run_dir)
+            import datetime
+            now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            
+            # 從環境變數讀取以實現動態命名，防止平行化衝突
+            run_seed = os.environ.get('RUN_SEED', '42')
+            target_sparsity = os.environ.get('TARGET_SPARSITY', '0.0')
+            method_str = os.environ.get('METHOD', 'dense').lower()
+            
+            if method_str == 'rigl':
+                method_name = "RigL"
+            else:
+                method_name = "Dense"
+                
+            sparsity_percent = int(float(target_sparsity) * 100)
+            sparsity_str = f"s{sparsity_percent}"
+            
+            folder_name = f"{method_name}_SSL_{sparsity_str}_seed{run_seed}_{now}"
+            final_run_dir = os.path.join(directory, folder_name)
+            os.makedirs(final_run_dir, exist_ok=True)
             print(f"TensorBoard log directory created at: {final_run_dir}")
             return SummaryWriter(final_run_dir)
 

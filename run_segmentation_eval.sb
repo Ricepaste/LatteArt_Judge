@@ -40,79 +40,88 @@ for seed in 42 114514 3407; do
     # 2. 自動尋找對應的預訓練權重路徑
     sparsity_percent=$(python3 -c "print(int(float('${TARGET_SPARSITY}') * 100))")
     
-    # 若為 RigL 或 我們的方法 (hebbian 且 USE_ERK=True)，且稀疏度為 99%，則直接使用硬編碼路徑
-    use_hardcoded=false
-    if [ "$sparsity_percent" = "99" ]; then
-        if [ "$METHOD" = "rigl" ] || { [ "$METHOD" = "hebbian" ] && [ "$USE_ERK" = "True" ]; }; then
-            use_hardcoded=true
-        fi
-    fi
-
-    if [ "$use_hardcoded" = "true" ]; then
-        echo "🔒 Using hardcoded 99% checkpoint mapping table for $METHOD (seed $seed)..."
-        if [ "$METHOD" = "hebbian" ]; then
-            if [ "$seed" = "42" ]; then
-                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
-            elif [ "$seed" = "3407" ]; then
-                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
-            elif [ "$seed" = "114514" ]; then
-                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
-            fi
-        elif [ "$METHOD" = "rigl" ]; then
-            if [ "$seed" = "42" ]; then
-                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
-            elif [ "$seed" = "3407" ]; then
-                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
-            elif [ "$seed" = "114514" ]; then
-                ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
-            fi
-        fi
+    if [ -n "$CUSTOM_ENCODER_PATH" ]; then
+        ENCODER_PATH="$CUSTOM_ENCODER_PATH"
+        echo "🎯 Using custom encoder path provided via env: $ENCODER_PATH"
+    elif [ "$METHOD" = "imagenet" ]; then
+        ENCODER_PATH="imagenet"
+        TARGET_SPARSITY="0.0"
+        echo "🌍 Using official dense ImageNet pre-trained ResNet18 backbone..."
     else
-        # 根據 METHOD 與 USE_ERK 決定精準的資料夾前綴，防止萬用字元衝突
-        if [ "$METHOD" = "hebbian" ]; then
-            if [ "$USE_ERK" = "False" ]; then
-                prefix="SET_SSL"
-            else
-                prefix="Hebbian_SSL"
+        # 若為 RigL 或 我們的方法 (hebbian 且 USE_ERK=True)，且稀疏度為 99%，則直接使用硬編碼路徑
+        use_hardcoded=false
+        if [ "$sparsity_percent" = "99" ]; then
+            if [ "$METHOD" = "rigl" ] || { [ "$METHOD" = "hebbian" ] && [ "$USE_ERK" = "True" ]; }; then
+                use_hardcoded=true
             fi
-        else
-            prefix="UNKNOWN_PREFIX"
         fi
-        
-        # A. 優先嘗試動態匹配新格式 (如 SET_SSL_s99_seed42_* 或 Hebbian_SSL_s99_seed42_*)
-        pattern="${prefix}_s${sparsity_percent}_seed${seed}_*"
-        found_folder=$(find /home/sharpaste236/LatteArt_Judge/main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
-        
-        if [ -n "$found_folder" ]; then
-            ENCODER_PATH="${found_folder}/last.pt"
-            echo "🔍 Found dynamically named checkpoint: $ENCODER_PATH"
-        else
-            # B. 若未找到新格式，退回讀取舊版 99% 預訓練權重硬編碼對照表
-            echo "🔍 No dynamic folder found. Falling back to old 99% checkpoint mapping table..."
+
+        if [ "$use_hardcoded" = "true" ]; then
+            echo "🔒 Using hardcoded 99% checkpoint mapping table for $METHOD (seed $seed)..."
             if [ "$METHOD" = "hebbian" ]; then
                 if [ "$seed" = "42" ]; then
                     ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
                 elif [ "$seed" = "3407" ]; then
-                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260412-050458/last.pt"
+                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
                 elif [ "$seed" = "114514" ]; then
-                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260413-163009/last.pt"
+                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
                 fi
             elif [ "$METHOD" = "rigl" ]; then
                 if [ "$seed" = "42" ]; then
                     ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
                 elif [ "$seed" = "3407" ]; then
-                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__5/last.pt"
+                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
                 elif [ "$seed" = "114514" ]; then
-                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__7/last.pt"
+                    ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
+                fi
+            fi
+        else
+            # 根據 METHOD 與 USE_ERK 決定精準的資料夾前綴，防止萬用字元衝突
+            if [ "$METHOD" = "hebbian" ]; then
+                if [ "$USE_ERK" = "False" ]; then
+                    prefix="SET_SSL"
+                else
+                    prefix="Hebbian_SSL"
                 fi
             else
-                echo "❌ ERROR: Unknown method '$METHOD' or no checkpoint found for seed $seed."
-                continue
+                prefix="UNKNOWN_PREFIX"
+            fi
+            
+            # A. 優先嘗試動態匹配新格式 (如 SET_SSL_s99_seed42_* 或 Hebbian_SSL_s99_seed42_*)
+            pattern="${prefix}_s${sparsity_percent}_seed${seed}_*"
+            found_folder=$(find /home/sharpaste236/LatteArt_Judge/main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
+            
+            if [ -n "$found_folder" ]; then
+                ENCODER_PATH="${found_folder}/last.pt"
+                echo "🔍 Found dynamically named checkpoint: $ENCODER_PATH"
+            else
+                # B. 若未找到新格式，退回讀取舊版 99% 預訓練權重硬編碼對照表
+                echo "🔍 No dynamic folder found. Falling back to old 99% checkpoint mapping table..."
+                if [ "$METHOD" = "hebbian" ]; then
+                    if [ "$seed" = "42" ]; then
+                        ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260410-190945/last.pt"
+                    elif [ "$seed" = "3407" ]; then
+                        ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260412-050458/last.pt"
+                    elif [ "$seed" = "114514" ]; then
+                        ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/Hebbian_SSL_20260413-163009/last.pt"
+                    fi
+                elif [ "$METHOD" = "rigl" ]; then
+                    if [ "$seed" = "42" ]; then
+                        ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__4/last.pt"
+                    elif [ "$seed" = "3407" ]; then
+                        ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__5/last.pt"
+                    elif [ "$seed" = "114514" ]; then
+                        ENCODER_PATH="/home/sharpaste236/LatteArt_Judge/main/runs/shuffleNet_v05_SimSiam__7/last.pt"
+                    fi
+                else
+                    echo "❌ ERROR: Unknown method '$METHOD' or no checkpoint found for seed $seed."
+                    continue
+                fi
             fi
         fi
     fi
     
-    if [ ! -f "$ENCODER_PATH" ]; then
+    if [ ! -f "$ENCODER_PATH" ] && [ "$ENCODER_PATH" != "imagenet" ]; then
         echo "❌ ERROR: Checkpoint file does not exist: $ENCODER_PATH. Skipping."
         continue
     fi
@@ -126,7 +135,7 @@ for seed in 42 114514 3407; do
         --protect_highway "$PROTECT_HIGHWAY" \
         --dataset_dir "$DATASET_DIR" \
         --mode "$EVAL_MODE" \
-        --epochs 30 \
+        --epochs "${EPOCHS:-30}" \
         --lr 1e-3 \
         --batch_size 16 \
         --workers 8 \

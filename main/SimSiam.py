@@ -18,6 +18,8 @@ def main():
     random.seed(run_seed)
     torch.backends.cudnn.deterministic = True
     
+    os.environ["METHOD"] = "rigl"
+    
     target_sparsity_val = float(os.environ.get("TARGET_SPARSITY", "0.99"))
     rigl_dense_allocation = 1.0 - target_sparsity_val
     dataset_name_val = os.environ.get("TARGET_DATASET", "cifar10")

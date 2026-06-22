@@ -17,6 +17,9 @@ def main():
     random.seed(run_seed)
     torch.backends.cudnn.deterministic = True
     
+    os.environ["METHOD"] = "dense"
+    os.environ["TARGET_SPARSITY"] = "0.0"
+    
     dataset_name_val = os.environ.get("TARGET_DATASET", "cifar10")
     num_epochs_val = int(os.environ.get("NUM_EPOCHS", "400"))
     

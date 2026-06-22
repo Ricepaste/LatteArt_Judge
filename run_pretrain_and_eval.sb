@@ -1,0 +1,156 @@
+#!/bin/bash
+#SBATCH --job-name=ssl_pretrain_eval  ## Job 名稱
+#SBATCH --mail-type=ALL               ## 收到通知條件
+#SBATCH --mail-user=n22126@gmail.com    ## 請替換為您的 Email
+#SBATCH --nodes=1                     ## 索取 1 個節點
+#SBATCH --cpus-per-task=16            ## 每個 task 索取 16 顆 CPU
+#SBATCH --gres=gpu:1                  ## 每個節點索取 1 張 GPU
+#SBATCH --account="MST113277"         ## iService_ID 計畫 ID
+#SBATCH --partition=8gpus             ## 使用測試 queue
+#SBATCH --output=logs/%x-%j-%N.out
+#SBATCH --error=logs/%x-%j-%N.err
+
+# 清理並加載環境
+module purge
+module load singularity
+
+SIF="/home/sharpaste236/sparse_ssl_image.sif"
+SINGULARITY="singularity run --nv $SIF"
+export SINGULARITY_BINDPATH="/work:/work,/home:/home"
+
+# --- 1. 配置實驗參數 (可透過環境變數傳入以利平行排程) ---
+# METHOD 支援: hebbian (我們的), rigl (RigL基準), set (原版SET/隨機生長), dense (密集基準)
+METHOD="${METHOD:-hebbian}"
+RUN_SEED="${RUN_SEED:-42}"
+TARGET_SPARSITY="${TARGET_SPARSITY:-0.7}"
+PRETRAIN_EPOCHS="${PRETRAIN_EPOCHS:-400}"
+EVAL_EPOCHS="${EVAL_EPOCHS:-30}"
+DATASET_DIR="${DATASET_DIR:-/home/sharpaste236/LatteArt_Judge/main/data/voc}" # Pascal VOC 2012 資料集目錄
+
+# 確保日誌目錄存在
+mkdir -p logs
+
+# 依序執行三個種子碼的預訓練與分割評估
+for seed in 42 114514 3407; do
+    echo "============================================================"
+    echo "⚡ Starting Experiment: METHOD=$METHOD | SEED=$seed | SPARSITY=$TARGET_SPARSITY"
+    echo "============================================================"
+
+    # --- 2. 執行自監督預訓練階段 (Pre-training on CIFAR-100) ---
+    export RUN_SEED="$seed"
+    export TARGET_SPARSITY="$TARGET_SPARSITY"
+    export NUM_EPOCHS="$PRETRAIN_EPOCHS"
+    export TARGET_DATASET="cifar100"
+
+    case "$METHOD" in
+        "hebbian")
+            echo "🌀 Pre-training: Hebbian SimSiam (Ours, ERK=True)..."
+            export ABLATION_RANDOM_GROWTH="0"
+            export USE_ERK="True"
+            srun $SINGULARITY python main/Hebbian.py
+            ;;
+        "set")
+            echo "🎲 Pre-training: SET Ablation (Random Growth, ERK=False)..."
+            export ABLATION_RANDOM_GROWTH="1"
+            export USE_ERK="False"
+            srun $SINGULARITY python main/Hebbian.py
+            ;;
+        "rigl")
+            echo "🎯 Pre-training: RigL SimSiam..."
+            srun $SINGULARITY python main/SimSiam.py
+            ;;
+        "dense")
+            echo "🧱 Pre-training: Fully Dense SimSiam..."
+            export TARGET_SPARSITY="0.0"
+            srun $SINGULARITY python main/Dense.py
+            ;;
+        *)
+            echo "❌ ERROR: Unknown method '$METHOD'."
+            exit 1
+            ;;
+    esac
+
+    # --- 3. 自動搜尋對應的預訓練權重路徑 (基於新動態命名規格) ---
+    if [ "$METHOD" = "dense" ]; then
+        prefix="Dense_SSL"
+        sparsity_str="s0"
+    elif [ "$METHOD" = "hebbian" ]; then
+        prefix="Hebbian_SSL"
+        sparsity_percent=$(python3 -c "print(int(float('${TARGET_SPARSITY}') * 100))")
+        sparsity_str="s${sparsity_percent}"
+    elif [ "$METHOD" = "set" ]; then
+        prefix="SET_SSL"
+        sparsity_percent=$(python3 -c "print(int(float('${TARGET_SPARSITY}') * 100))")
+        sparsity_str="s${sparsity_percent}"
+    elif [ "$METHOD" = "rigl" ]; then
+        prefix="RigL_SSL"
+        sparsity_percent=$(python3 -c "print(int(float('${TARGET_SPARSITY}') * 100))")
+        sparsity_str="s${sparsity_percent}"
+    fi
+
+    pattern="${prefix}_${sparsity_str}_seed${seed}_*"
+    echo "🔍 Searching for checkpoint folder matching pattern: $pattern"
+
+    # 暫停數秒確保檔案寫入與系統同步
+    sleep 5
+
+    found_folder=$(find /home/sharpaste236/LatteArt_Judge/main/runs -maxdepth 1 -name "$pattern" | sort | tail -n 1)
+
+    if [ -n "$found_folder" ]; then
+        ENCODER_PATH="${found_folder}/last.pt"
+        echo "✅ Found checkpoint folder: $found_folder"
+        echo "📂 Checkpoint Path: $ENCODER_PATH"
+    else
+        echo "❌ ERROR: Could not find checkpoint folder for pattern '$pattern'!"
+        exit 1
+    fi
+
+    if [ ! -f "$ENCODER_PATH" ]; then
+        echo "❌ ERROR: Checkpoint file does not exist: $ENCODER_PATH"
+        exit 1
+    fi
+
+    # --- 4. 執行下游語義分割微調階段 (Downstream VOC Segmentation Fine-tuning) ---
+    echo "============================================================"
+    echo "🚀 Running Downstream VOC Segmentation Fine-tuning..."
+    echo "============================================================"
+
+    # Hebbian 與 SET 方法在 evaluate_segmentation 中使用 "hebbian" 模式初始化載入
+    # RigL 與 Dense 方法在 evaluate_segmentation 中使用 "rigl" 模式初始化載入
+    if [ "$METHOD" = "hebbian" ] || [ "$METHOD" = "set" ]; then
+        eval_method="hebbian"
+    else
+        eval_method="rigl"
+    fi
+
+    if [ "$METHOD" = "set" ]; then
+        use_erk_val="False"
+    else
+        use_erk_val="True"
+    fi
+
+    # 如果是密集模型，載入時將 sparsity 參數設為 0.0
+    if [ "$METHOD" = "dense" ]; then
+        eval_sparsity="0.0"
+    else
+        eval_sparsity="$TARGET_SPARSITY"
+    fi
+
+    srun $SINGULARITY python main/evaluate_segmentation.py \
+        --method "$eval_method" \
+        --encoder_path "$ENCODER_PATH" \
+        --sparsity "$eval_sparsity" \
+        --use_erk "$use_erk_val" \
+        --protect_highway "False" \
+        --dataset_dir "$DATASET_DIR" \
+        --mode "finetuning" \
+        --epochs "$EVAL_EPOCHS" \
+        --lr 1e-3 \
+        --batch_size 16 \
+        --workers 8 \
+        --seed "$seed"
+
+    echo "============================================================"
+    echo "✅ Seed $seed Experiment Completed! $(date)"
+    echo "============================================================"
+done

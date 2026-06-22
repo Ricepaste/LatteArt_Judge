@@ -185,7 +185,7 @@ def main():
         if len(parts) >= 2:
             checkpoint_folder = parts[-2] if parts[-1].endswith(".pt") else parts[-1]
             
-    log_file = os.path.join(log_dir, f"segmentation_{checkpoint_folder}_{args.mode}.log")
+    log_file = os.path.join(log_dir, f"segmentation_{checkpoint_folder}_{args.mode}_seed{args.seed}.log")
 
     use_erk_bool = args.use_erk.lower() == "true"
     protect_highway_bool = args.protect_highway.lower() == "true"
