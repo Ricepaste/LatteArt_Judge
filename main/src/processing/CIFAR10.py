@@ -18,13 +18,18 @@ class AddGaussianNoise(object):
 
 class CIFAR10_Dataset(Dataset):
     def __init__(self, split="train", transform=None):
+        # 自動偵測資料集存放路徑以適應不同執行環境，避免無網路環境下載失敗
+        data_root = "./data"
+        if not os.path.exists(os.path.join(data_root, "cifar-10-batches-py")) and os.path.exists("main/data/cifar-10-batches-py"):
+            data_root = "main/data"
+
         if split == "train":
             self.dataset = torchvision.datasets.CIFAR10(
-                root="./data", train=True, download=True
+                root=data_root, train=True, download=True
             )
         elif split == "val" or split == "test":
             self.dataset = torchvision.datasets.CIFAR10(
-                root="./data", train=False, download=True
+                root=data_root, train=False, download=True
             )
         else:
             raise ValueError("Invalid split: {}".format(split))
