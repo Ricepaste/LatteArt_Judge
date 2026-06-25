@@ -23,6 +23,7 @@ METHOD="${METHOD:-hebbian}"                      # 支援: hebbian, rigl, imagen
 TARGET_SPARSITY="${TARGET_SPARSITY:-0.99}"        # 稀疏度: 0.8, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99
 EVAL_MODE="${EVAL_MODE:-finetuning}"             # 評估模式: probing (線性探測 / 凍結骨幹) 或 finetuning (全微調)
 DATASET_DIR="${DATASET_DIR:-main/data/voc}" # Pascal VOC 2012 資料集目錄
+TARGET_DATASET="${TARGET_DATASET:-cifar100}" # 預訓練所使用的資料集 (cifar100, imagenet100, cifar10)
 
 # 對應的 Hebbian 預訓練屬性 (若為 RigL/ImageNet 會自動忽略，若是原版 SET 需設為 False)
 USE_ERK="${USE_ERK:-True}"
@@ -31,8 +32,18 @@ PROTECT_HIGHWAY="${PROTECT_HIGHWAY:-False}"
 # 確保日誌目錄存在
 mkdir -p logs
 
-# 依序執行三個種子碼的分割評估
-for seed in 42 114514 3407; do
+# 支援單一種子運行 (可設為特定數字或 "random")，否則預設執行三個種子
+if [ "$SINGLE_SEED" = "random" ]; then
+    # 產生 1 到 1000000 之間的隨機數
+    random_seed=$(( 1 + RANDOM % 1000000 ))
+    seeds=("$random_seed")
+elif [ -n "$SINGLE_SEED" ]; then
+    seeds=("$SINGLE_SEED")
+else
+    seeds=(42 114514 3407)
+fi
+
+for seed in "${seeds[@]}"; do
     echo "============================================================"
     echo "Processing Seed: $seed"
     echo "============================================================"
@@ -83,12 +94,31 @@ for seed in 42 114514 3407; do
                 else
                     prefix="Hebbian_SSL"
                 fi
+            elif [ "$METHOD" = "rigl" ]; then
+                prefix="RigL_SSL"
+            elif [ "$METHOD" = "dense" ]; then
+                prefix="Dense_SSL"
+                sparsity_percent="0"
             else
                 prefix="UNKNOWN_PREFIX"
             fi
             
-            pattern="${prefix}_s${sparsity_percent}_seed${seed}_*"
-            found_folder=$(find main/runs runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
+            # 決定資料集後綴
+            if [ "$TARGET_DATASET" = "cifar100" ]; then
+                dataset_suffix="c100"
+            elif [ "$TARGET_DATASET" = "imagenet100" ]; then
+                dataset_suffix="in100"
+            elif [ "$TARGET_DATASET" = "cifar10" ]; then
+                dataset_suffix="c10"
+            else
+                dataset_suffix="$TARGET_DATASET"
+            fi
+
+            pattern="${prefix}_s${sparsity_percent}_seed${seed}_${dataset_suffix}_*"
+            found_folder=$(find main/runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
+            if [ -z "$found_folder" ]; then
+                found_folder=$(find runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
+            fi
             
             if [ -n "$found_folder" ]; then
                 ENCODER_PATH="${found_folder}/last.pt"

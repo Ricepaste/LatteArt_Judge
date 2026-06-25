@@ -147,7 +147,12 @@ def load_pretrain_encoder(method, path, sparsity, use_erk, protect_highway, devi
 
     print(f"Loading checkpoint weights from {path}...")
     state_dict = torch.load(path, map_location=device, weights_only=True)
-    model.load_state_dict(state_dict, strict=False)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    if missing:
+        print(f"⚠️ [WARNING] Missing keys during load_state_dict (first 10): {missing[:10]}")
+    if unexpected:
+        print(f"⚠️ [WARNING] Unexpected keys during load_state_dict (first 10): {unexpected[:10]}")
+    print(f"✨ Successfully loaded weights dict. (Missing={len(missing)}, Unexpected={len(unexpected)})")
     
     if hasattr(model, 'set_hebbian_enable'):
         model.set_hebbian_enable(False)

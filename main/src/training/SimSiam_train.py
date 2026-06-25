@@ -114,8 +114,14 @@ class SimSiam_Model:
 
         from src.processing.CIFAR10 import CIFAR10_Dataset
         from src.processing.CIFAR100 import CIFAR100_Dataset
+        from src.processing.ImageNet100 import ImageNet100_Dataset
         
-        DatasetClass = CIFAR100_Dataset if dataset_name.lower() == "cifar100" else CIFAR10_Dataset
+        if dataset_name.lower() == "imagenet100":
+            DatasetClass = ImageNet100_Dataset
+        elif dataset_name.lower() == "cifar100":
+            DatasetClass = CIFAR100_Dataset
+        else:
+            DatasetClass = CIFAR10_Dataset
 
         self.data_dir = DATASET_DIR
         self.image_datasets = {
@@ -973,7 +979,18 @@ class SimSiam_Model:
             sparsity_percent = int(float(target_sparsity) * 100)
             sparsity_str = f"s{sparsity_percent}"
             
-            folder_name = f"{method_name}_SSL_{sparsity_str}_seed{run_seed}_{now}"
+            # 取得資料集後綴
+            raw_dataset = os.environ.get('TARGET_DATASET', 'cifar10').lower()
+            if raw_dataset == 'cifar100':
+                dataset_suffix = 'c100'
+            elif raw_dataset == 'imagenet100':
+                dataset_suffix = 'in100'
+            elif raw_dataset == 'cifar10':
+                dataset_suffix = 'c10'
+            else:
+                dataset_suffix = raw_dataset
+            
+            folder_name = f"{method_name}_SSL_{sparsity_str}_seed{run_seed}_{dataset_suffix}_{now}"
             final_run_dir = os.path.join(directory, folder_name)
             os.makedirs(final_run_dir, exist_ok=True)
             print(f"TensorBoard log directory created at: {final_run_dir}")

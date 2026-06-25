@@ -26,12 +26,23 @@ TARGET_SPARSITY="${TARGET_SPARSITY:-0.7}"
 PRETRAIN_EPOCHS="${PRETRAIN_EPOCHS:-400}"
 EVAL_EPOCHS="${EVAL_EPOCHS:-30}"
 DATASET_DIR="${DATASET_DIR:-main/data/voc}" # Pascal VOC 2012 資料集目錄
+TARGET_DATASET="${TARGET_DATASET:-cifar100}"
 
 # 確保日誌目錄存在
 mkdir -p logs
 
-# 依序執行三個種子碼的預訓練與分割評估
-for seed in 42 114514 3407; do
+# 支援單一種子運行 (可設為特定數字或 "random")，否則預設執行三個種子
+if [ "$SINGLE_SEED" = "random" ]; then
+    # 產生 1 到 1000000 之間的隨機數
+    random_seed=$(( 1 + RANDOM % 1000000 ))
+    seeds=("$random_seed")
+elif [ -n "$SINGLE_SEED" ]; then
+    seeds=("$SINGLE_SEED")
+else
+    seeds=(42 114514 3407)
+fi
+
+for seed in "${seeds[@]}"; do
     echo "============================================================"
     echo "⚡ Starting Experiment: METHOD=$METHOD | SEED=$seed | SPARSITY=$TARGET_SPARSITY"
     echo "============================================================"
@@ -40,7 +51,7 @@ for seed in 42 114514 3407; do
     export RUN_SEED="$seed"
     export TARGET_SPARSITY="$TARGET_SPARSITY"
     export NUM_EPOCHS="$PRETRAIN_EPOCHS"
-    export TARGET_DATASET="cifar100"
+    export TARGET_DATASET="$TARGET_DATASET"
 
     case "$METHOD" in
         "hebbian")
@@ -88,13 +99,27 @@ for seed in 42 114514 3407; do
         sparsity_str="s${sparsity_percent}"
     fi
 
-    pattern="${prefix}_${sparsity_str}_seed${seed}_*"
+    # 決定資料集後綴
+    if [ "$TARGET_DATASET" = "cifar100" ]; then
+        dataset_suffix="c100"
+    elif [ "$TARGET_DATASET" = "imagenet100" ]; then
+        dataset_suffix="in100"
+    elif [ "$TARGET_DATASET" = "cifar10" ]; then
+        dataset_suffix="c10"
+    else
+        dataset_suffix="$TARGET_DATASET"
+    fi
+
+    pattern="${prefix}_${sparsity_str}_seed${seed}_${dataset_suffix}_*"
     echo "🔍 Searching for checkpoint folder matching pattern: $pattern"
 
     # 暫停數秒確保檔案寫入與系統同步
     sleep 5
 
-    found_folder=$(find main/runs runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
+    found_folder=$(find main/runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
+    if [ -z "$found_folder" ]; then
+        found_folder=$(find runs -maxdepth 1 -name "$pattern" 2>/dev/null | sort | tail -n 1)
+    fi
 
     if [ -n "$found_folder" ]; then
         ENCODER_PATH="${found_folder}/last.pt"

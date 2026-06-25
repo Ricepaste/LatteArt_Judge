@@ -18,6 +18,7 @@ from typing import Optional
 # 導入資料集處理 (假設路徑不變)
 from src.processing.CIFAR10 import CIFAR10_Dataset
 from src.processing.CIFAR100 import CIFAR100_Dataset
+from src.processing.ImageNet100 import ImageNet100_Dataset
 # 導入我們上一部定義好的 Hebbian Sparse SimSiam
 # 請確保 src/module/hebbian_SimSiam_Module.py 包含我們之前討論的 Hebbian_SimSiam 類別
 from src.module.hebbian_SimSiam_Module import Hebbian_SimSiam
@@ -100,7 +101,12 @@ class Hebbian_SSL_Trainer:
         print("Use device:", self.device)
 
     def dataset_initialize(self, DATASET_DIR, BATCH_SIZE, WORKERS):
-        DatasetClass = CIFAR100_Dataset if self.dataset_name.lower() == "cifar100" else CIFAR10_Dataset
+        if self.dataset_name.lower() == "imagenet100":
+            DatasetClass = ImageNet100_Dataset
+        elif self.dataset_name.lower() == "cifar100":
+            DatasetClass = CIFAR100_Dataset
+        else:
+            DatasetClass = CIFAR10_Dataset
         self.image_datasets = {
             x: DatasetClass(split=x, transform=self.data_transforms[x])
             for x in ["train", "val"]
@@ -443,10 +449,21 @@ class Hebbian_SSL_Trainer:
             sparsity_str = f"s{int(self.model.target_sparsity * 100)}"
             seed_str = f"seed{os.environ.get('RUN_SEED', '42')}"
             
-            if filename_prefix is None:
-                folder_name = f"{method_str}_SSL_{sparsity_str}_{seed_str}_{now}"
+            # 取得資料集後綴
+            dataset_name_str = self.dataset_name.lower()
+            if dataset_name_str == "cifar100":
+                dataset_suffix = "c100"
+            elif dataset_name_str == "imagenet100":
+                dataset_suffix = "in100"
+            elif dataset_name_str == "cifar10":
+                dataset_suffix = "c10"
             else:
-                folder_name = f"{filename_prefix}_{method_str}_SSL_{sparsity_str}_{seed_str}_{now}"
+                dataset_suffix = dataset_name_str
+            
+            if filename_prefix is None:
+                folder_name = f"{method_str}_SSL_{sparsity_str}_{seed_str}_{dataset_suffix}_{now}"
+            else:
+                folder_name = f"{filename_prefix}_{method_str}_SSL_{sparsity_str}_{seed_str}_{dataset_suffix}_{now}"
                 folder_name = folder_name.replace("__", "_")
                 
             log_dir = os.path.join(directory, folder_name)
