@@ -434,7 +434,10 @@ class Hebbian_SSL_Trainer:
         print(f"Lottery Validation Finished. Best Acc: {best_acc:.4f}")
         self.writer.close()
 
-    def save_model(self, model, type="last", filename_prefix=None, directory="main/runs"):
+    def save_model(self, model, type="last", filename_prefix=None, directory=None):
+        if directory is None:
+            main_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            directory = os.path.join(main_dir, "runs")
         os.makedirs(directory, exist_ok=True)
         
         if type == "tensorboard_init":

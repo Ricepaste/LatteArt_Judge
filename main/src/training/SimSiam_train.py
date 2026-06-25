@@ -940,7 +940,7 @@ class SimSiam_Model:
         self,
         models: Union[torch.nn.Module, List[torch.nn.Module]],
         filename_prefix="shuffleNet_v05_SimSiam_",
-        directory="main/runs",
+        directory=None,
         type="best",
     ):
         """
@@ -958,6 +958,10 @@ class SimSiam_Model:
             "early",
             "tensorboard_init",
         ], "type 参数只能是 'best'、'last' 或 'tensorboard_init'"
+
+        if directory is None:
+            main_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            directory = os.path.join(main_dir, "runs")
 
         # 確保目錄存在
         os.makedirs(directory, exist_ok=True)
