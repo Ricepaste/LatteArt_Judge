@@ -3,7 +3,7 @@
 #SBATCH --mail-type=ALL               ## 收到通知條件
 #SBATCH --mail-user=n22126@gmail.com    ## 請替換為您的 Email
 #SBATCH --nodes=1                     ## 索取 1 個節點
-#SBATCH --cpus-per-task=16            ## 每個 task 索取 16 顆 CPU
+#SBATCH --cpus-per-task=12            ## 每個 task 索取 12 顆 CPU
 #SBATCH --gres=gpu:1                  ## 每個節點索取 1 張 GPU
 #SBATCH --account="MST113277"         ## iService_ID 計畫 ID
 #SBATCH --partition=8gpus             ## 使用測試 queue
