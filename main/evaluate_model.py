@@ -229,6 +229,11 @@ elif DATASET_NAME == "stl10":
     train_dataset = datasets.STL10(root="./data", split='train', download=True, transform=transform)
     test_dataset = datasets.STL10(root="./data", split='test', download=True, transform=transform)
     num_classes = 10
+elif DATASET_NAME == "imagenet100":
+    from src.processing.ImageNet100 import ImageNet100_Dataset
+    train_dataset = ImageNet100_Dataset(split="train", transform=transform)
+    test_dataset = ImageNet100_Dataset(split="val", transform=transform)
+    num_classes = 100
 else:
     raise ValueError(f"Unknown dataset: {DATASET_NAME}")
 
