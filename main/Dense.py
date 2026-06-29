@@ -27,7 +27,7 @@ def main():
     common_train_params = {
         "num_epochs": num_epochs_val, 
         "batch_size": 128,
-        "workers": 0,
+        "workers": int(os.environ.get("DATALOADER_WORKERS", "8")),
         "dataset_dir": ".\\LabelTool",
         "dataset_name": dataset_name_val,
         "rigl_dense_allocation": 1.0,  # Fully Dense (100% weights)

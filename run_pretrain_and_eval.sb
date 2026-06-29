@@ -31,6 +31,26 @@ TARGET_DATASET="${TARGET_DATASET:-cifar100}"
 # 確保日誌目錄存在
 mkdir -p logs
 
+# 0. 配置 dataloader workers
+export DATALOADER_WORKERS=8
+
+# 如果是 ImageNet-100，我們將 zip 檔複製到節點的 /tmp 下進行高速解壓與讀取 (避開 NFS 網路檔案系統讀取小檔案的致命瓶頸)
+if [ "$TARGET_DATASET" = "imagenet100" ]; then
+    echo "⚡ Copying and unzipping ImageNet-100 to node local /tmp/ for high-speed dataloading..."
+    mkdir -p /tmp/imagenet-100-data
+    if [ ! -d "/tmp/imagenet-100-data/imagenet-100/train" ] && [ ! -d "/tmp/imagenet-100-data/imagenet-100/imagenet-100/train" ]; then
+        cp main/data/imagenet-100.zip /tmp/imagenet-100-data/
+        unzip -q -o /tmp/imagenet-100-data/imagenet-100.zip -d /tmp/imagenet-100-data/
+        rm /tmp/imagenet-100-data/imagenet-100.zip
+    fi
+    if [ -d "/tmp/imagenet-100-data/imagenet-100/imagenet-100/train" ]; then
+        export LOCAL_DATASET_DIR="/tmp/imagenet-100-data/imagenet-100/imagenet-100"
+    else
+        export LOCAL_DATASET_DIR="/tmp/imagenet-100-data/imagenet-100"
+    fi
+    echo "📂 Local high-speed dataset path resolved to: $LOCAL_DATASET_DIR"
+fi
+
 # 支援單一種子運行 (可設為特定數字或 "random")，否則預設執行三個種子
 if [ "$SINGLE_SEED" = "random" ]; then
     # 產生 1 到 1000000 之間的隨機數

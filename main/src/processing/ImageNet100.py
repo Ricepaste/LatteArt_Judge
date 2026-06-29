@@ -17,23 +17,27 @@ class AddGaussianNoise(object):
 
 class ImageNet100_Dataset(Dataset):
     def __init__(self, split="train", transform=None):
-        # 自動偵測資料集存放路徑以適應不同執行環境，支援解決壓縮時的套娃問題
-        candidates = [
-            "./data/imagenet-100",
-            "main/data/imagenet-100",
-            "./data/imagenet-100/imagenet-100",
-            "main/data/imagenet-100/imagenet-100",
-            "./imagenet-100",
-            "main/imagenet-100",
-            "./imagenet-100/imagenet-100"
-        ]
-        
+        # 優先從環境變數讀取本地高速資料集路徑，避開網路檔案系統瓶頸
+        env_local_dir = os.environ.get("LOCAL_DATASET_DIR")
         data_root = None
-        for c in candidates:
-            # 必須包含 train/ 子目錄才算有效路徑，避免選到空的或套娃資料夾
-            if os.path.exists(os.path.join(c, "train")):
-                data_root = c
-                break
+        
+        if env_local_dir and os.path.exists(os.path.join(env_local_dir, "train")):
+            data_root = env_local_dir
+        else:
+            candidates = [
+                "./data/imagenet-100",
+                "main/data/imagenet-100",
+                "./data/imagenet-100/imagenet-100",
+                "main/data/imagenet-100/imagenet-100",
+                "./imagenet-100",
+                "main/imagenet-100",
+                "./imagenet-100/imagenet-100"
+            ]
+            for c in candidates:
+                # 必須包含 train/ 子目錄才算有效路徑，避免選到空的或套娃資料夾
+                if os.path.exists(os.path.join(c, "train")):
+                    data_root = c
+                    break
                 
         if data_root is None:
             # 預設回退路徑以供錯誤提示
