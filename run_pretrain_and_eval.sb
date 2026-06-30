@@ -160,11 +160,23 @@ for seed in "${seeds[@]}"; do
         echo "❌ ERROR: Could not find checkpoint folder for pattern '$pattern'!"
         exit 1
     fi
-
+    # 確保權重檔案實際存在
     if [ ! -f "$ENCODER_PATH" ]; then
         echo "❌ ERROR: Checkpoint file does not exist: $ENCODER_PATH"
         exit 1
     fi
+
+    # --- 3.5 執行線性評估與 KNN 評估 (Linear Probing & KNN Classification) ---
+    echo "============================================================"
+    echo "🚀 Running Linear Probing & KNN Classification Evaluation..."
+    echo "============================================================"
+    # 備份並暫時設定評估的 NUM_EPOCHS 為 50 (線性探測基準)
+    export PREV_NUM_EPOCHS="$NUM_EPOCHS"
+    export NUM_EPOCHS="50"
+    export ENCODER_PATH="$ENCODER_PATH"
+    export TARGET_DATASET="$TARGET_DATASET"
+    srun $SINGULARITY python main/evaluate_model.py
+    export NUM_EPOCHS="$PREV_NUM_EPOCHS"
 
     # --- 4. 執行下游語義分割微調階段 (Downstream VOC Segmentation Fine-tuning) ---
     echo "============================================================"
@@ -199,7 +211,7 @@ for seed in "${seeds[@]}"; do
         --use_erk "$use_erk_val" \
         --protect_highway "False" \
         --dataset_dir "$DATASET_DIR" \
-        --mode "finetuning" \
+        --mode "probing" \
         --epochs "$EVAL_EPOCHS" \
         --lr 1e-3 \
         --batch_size 16 \
