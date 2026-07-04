@@ -127,7 +127,7 @@ def load_pretrain_encoder(method, path, sparsity, use_erk, protect_highway, devi
         return encoder
 
     print(f"Initializing {method.upper()} model backbone...")
-    if method.lower() == "hebbian":
+    if method.lower() in ["hebbian", "set"]:
         from src.training.Hebbian_train import Hebbian_SSL_Trainer
         dummy_trainer = Hebbian_SSL_Trainer(
             pretrained_model_class=models.resnet18,

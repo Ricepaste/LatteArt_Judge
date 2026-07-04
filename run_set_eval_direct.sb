@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --job-name=set_eval_direct   ## Job 名稱
+#SBATCH --mail-type=ALL            ## 收到通知條件
+#SBATCH --mail-user=n22126@gmail.com ## 您的 Email
+#SBATCH --nodes=1                  ## 索取 1 個節點
+#SBATCH --cpus-per-task=12         ## 每個 task 索取 12 顆 CPU
+#SBATCH --gres=gpu:1               ## 每個節點索取 1 張 GPU
+#SBATCH --account="MST113277"      ## 計畫 ID
+#SBATCH --partition=dev          ## 使用測試 queue
+#SBATCH --output=logs/%x-%j-%N.out
+#SBATCH --error=logs/%x-%j-%N.err
+
+# 清理並加載環境
+module purge
+module load singularity
+
+SIF="/home/sharpaste236/sparse_ssl_image.sif"
+SINGULARITY="singularity run --nv $SIF"
+
+export SINGULARITY_BINDPATH="/work:/work,/home:/home"
+export PYTHONPATH="/home/sharpaste236/LatteArt_Judge:${PYTHONPATH:-}"
+
+# 確保日誌目錄存在
+mkdir -p logs
+
+# 執行直接評估腳本
+$SINGULARITY python -u main/run_set_eval_direct.py

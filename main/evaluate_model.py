@@ -60,7 +60,7 @@ backbone_weights = None
 if ENCODER_PATH.lower() in ["imagenet", "official"]:
     backbone_weights = models.ResNet18_Weights.IMAGENET1K_V1
 
-if METHOD == "hebbian":
+if METHOD in ["hebbian", "set"]:
     from src.training.Hebbian_train import Hebbian_SSL_Trainer
     
     use_no_bn = os.environ.get("BACKBONE_NO_BN", "False") == "True"
