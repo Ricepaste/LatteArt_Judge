@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=12         ## 每個 task 索取 12 顆 CPU
 #SBATCH --gres=gpu:1               ## 每個節點索取 1 張 GPU
 #SBATCH --account="MST113277"      ## 計畫 ID
-#SBATCH --partition=dev          ## 使用測試 queue
+#SBATCH --partition=8gpus          ## 使用測試 queue
 #SBATCH --output=logs/%x-%j-%N.out
 #SBATCH --error=logs/%x-%j-%N.err
 
