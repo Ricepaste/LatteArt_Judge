@@ -145,8 +145,8 @@ def main():
         f_rep.write("> 本報告採用 **內部 Filter-wise Jaccard Similarity** 證明群聚特性，並新增了 **Ours vs RigL 交叉 $N \\times N$ 比對** 證明兩者的拓樸空間完全互斥。\n\n")
         
         f_rep.write("## 1. 核心統計指標表\n\n")
-        f_rep.write("| 卷積層名稱 | Ours 群聚峰度(Kurtosis) | RigL 群聚峰度 | Ours vs RigL 交叉平均相似度 | Ours vs RigL 最佳匹配相似度(Max) |\n")
-        f_rep.write("|---|---|---|---|---|\n")
+        f_rep.write("| 卷積層名稱 | Ours 內部平均相似度 | RigL 內部平均相似度 | Ours 群聚峰度(Kurtosis) | RigL 群聚峰度 | 交叉平均相似度 (Ours vs RigL) | 最佳交叉匹配 (Max) |\n")
+        f_rep.write("|---|---|---|---|---|---|---|\n")
         
         metrics_summary = []
         
@@ -160,7 +160,7 @@ def main():
                 
             metrics_summary.append((layer_name, o_info, r_info))
             
-            f_rep.write(f"| `{layer_name}` | **{o_info['kurtosis']:.2f}** | {r_info['kurtosis']:.2f} | {cross_info['mean_cross']:.4f} | **{cross_info['mean_max_cross']:.4f}** |\n")
+            f_rep.write(f"| `{layer_name}` | {o_info['mean']:.4f} | {r_info['mean']:.4f} | **{o_info['kurtosis']:.2f}** | {r_info['kurtosis']:.2f} | {cross_info['mean_cross']:.4f} | **{cross_info['mean_max_cross']:.4f}** |\n")
             
         # 繪製分佈直方圖 (KDE)
         f_rep.write("\n## 2. 同層 Filter 內部遮罩相似度分佈圖 (KDE Distribution)\n\n")
