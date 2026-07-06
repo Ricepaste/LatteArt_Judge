@@ -29,16 +29,15 @@ def extract_masks_from_weights(checkpoint_path):
                 
             if is_pure_mask:
                 clean_name = k.replace("encoder.", "").replace(".layer.weight", "").replace(".weight", "")
-                # 強制二值化
-                conv_masks[clean_name] = (v.abs() > 0.5).float().numpy()
+                conv_masks[clean_name] = (v.abs() >= 1e-7).float().numpy()
             elif "weight" in k:
                 clean_name = k.replace("encoder.", "").replace(".layer.weight", "").replace(".weight", "")
                 
                 mask_key = k.replace(".layer.weight", ".mask").replace(".weight", ".mask")
                 if mask_key in state_dict:
                     raw_mask = state_dict[mask_key].float().numpy()
-                    # 強制二值化，消除小數或負數誤差
-                    mask = (raw_mask > 0.5).astype(float)
+                    # 真正的二值化：非零值(包含正負數)即為 active 突觸，絕對為 0 才是被剪枝
+                    mask = (np.abs(raw_mask) >= 1e-7).astype(float)
                 else:
                     mask = (v.abs() >= 1e-7).float().numpy()
                 
