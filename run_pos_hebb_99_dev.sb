@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=pos_hebb_99_dev ## Job 名稱
 #SBATCH --nodes=1                  ## 索取 1 個節點
-#SBATCH --cpus-per-task=16         ## 每個 task 索取 16 顆 CPU
+#SBATCH --cpus-per-task=12         ## 每個 task 索取 12 顆 CPU
 #SBATCH --gres=gpu:1               ## 每個節點索取 1 張 H200/H100 GPU
 #SBATCH --account="MST113277"      ## iService_ID 計畫 ID
 #SBATCH --partition=dev            ## 使用 dev queue (快速熱測試)
@@ -20,6 +20,7 @@ export TARGET_SPARSITY=0.99
 # 開發模式：將 Epoch 縮短到 2，確認能正常跑到 Linear probing 階段
 export NUM_EPOCHS=2
 export TARGET_DATASET="cifar100"
+export DATALOADER_WORKERS=10
 
 # 確保日誌目錄存在
 mkdir -p logs
