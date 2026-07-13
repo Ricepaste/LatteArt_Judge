@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH --job-name=recover_eval       ## Job 名稱
+#SBATCH --mail-type=ALL            ## 收到通知條件
+#SBATCH --mail-user=n22126@gmail.com ## 請替換為您的 Email
+#SBATCH --nodes=1                  ## 索取 1 個節點
+#SBATCH --cpus-per-task=12         ## 每個 task 索取 12 顆 CPU
+#SBATCH --gres=gpu:1               ## 每個節點索取 1 張 H200/H100 GPU
+#SBATCH --account="MST113277"      ## iService_ID 計畫 ID
+#SBATCH --partition=dev            ## 使用 dev queue，因為只需評估 50 Epochs 很快
+#SBATCH --output=logs/%x-%j-%N.out
+#SBATCH --error=logs/%x-%j-%N.err
+
+# 清理並加載環境
+module purge
+module load singularity
+
+SIF="/home/sharpaste236/sparse_ssl_image.sif"
+SINGULARITY="singularity run --nv $SIF"
+
+export SINGULARITY_BINDPATH="/work:/work,/home:/home"
+export METHOD="hebbian"
+export TARGET_DATASET="cifar100"
+export NUM_EPOCHS=50
+export TARGET_SPARSITY=0.99
+export DATALOADER_WORKERS=10
+
+mkdir -p logs
+WORKDIR="/home/sharpaste236/LatteArt_Judge"
+cd $WORKDIR
+
+# 定義我們要補跑評估的兩組權重資料夾（請根據您實際的資料夾名稱確認）
+# 這裡以您截圖的格式推測資料夾名稱
+FOLDERS=(
+    "main/runs/Hebbian_SSL_s99_seed17953_c100_20260712-230808"
+    "main/runs/Hebbian_SSL_s99_seed23288_c100_20260712-230808"
+)
+
+SEEDS=(17953 23288)
+
+for i in ${!FOLDERS[@]}; do
+    FOLDER="${FOLDERS[$i]}"
+    SEED="${SEEDS[$i]}"
+    
+    # 由於我們不知道確切的時間戳，我們用萬用字元去抓真實的路徑
+    ACTUAL_PATH=$(ls -d main/runs/*_SSL_*seed${SEED}* | head -n 1)
+    
+    if [ -z "$ACTUAL_PATH" ]; then
+        echo "❌ 找不到種子碼 ${SEED} 的權重資料夾"
+        continue
+    fi
+    
+    ENCODER_PATH="${ACTUAL_PATH}/last.pt"
+    
+    echo "============================================================"
+    echo "🚀 補跑評估 Seed: ${SEED}"
+    echo "📂 權重路徑: ${ENCODER_PATH}"
+    echo "============================================================"
+    
+    export RUN_SEED=$SEED
+    export ENCODER_PATH=$ENCODER_PATH
+    
+    LOG_FILE="main/ablation_logs/recovery_eval_seed${SEED}.log"
+    
+    srun $SINGULARITY bash -c "export PYTHONPATH=\"$WORKDIR:\$PYTHONPATH\" && python main/evaluate_model.py" | tee $LOG_FILE
+done
+
+echo "✅ 補跑評估完成！"

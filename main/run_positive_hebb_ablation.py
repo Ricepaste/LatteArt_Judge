@@ -7,9 +7,9 @@ import sys
 
 MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def find_latest_hebbian_run(runs_dir):
-    # Hebbian runs are named "*_SSL_*"
-    folders = glob.glob(os.path.join(runs_dir, "*_SSL_*"))
+def find_latest_hebbian_run(runs_dir, seed):
+    # Hebbian runs are named "*_SSL_*seed{seed}*"
+    folders = glob.glob(os.path.join(runs_dir, f"*_SSL_*seed{seed}*"))
     if not folders:
         return None
     folders.sort(key=os.path.getmtime)
@@ -66,7 +66,7 @@ def main():
         sys.exit(1)
 
     # 2. Find the saved checkpoint
-    latest_run = find_latest_hebbian_run(runs_dir)
+    latest_run = find_latest_hebbian_run(runs_dir, run_seed)
     if not latest_run:
         print("❌ Could not locate the latest Hebbian run folder.")
         sys.exit(1)
