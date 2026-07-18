@@ -197,9 +197,16 @@ class HebbianSparseLayer(nn.Module):
                 # 正規化到 [0, 1]，0.5 (最大熵) 時分數為 1，全 0 或全 1 時分數為 0
                 entropy_1d = 1.0 - torch.abs(self.input_firing_score - 0.5) * 2.0
                 
+                use_positive_hebb_only = os.environ.get("ABLATION_POSITIVE_HEBB_ONLY", "0") == "1"
+                
                 # 2. 準備 2D 反赫布分數 (-abs(Corr))
                 # 轉換為正向乘數，1.0 代表「完全不相關/正交」，0.0 代表「完全線性相關」
-                anti_hebbian_2d = 1.0 - self.hebbian_score.clone()
+                if use_positive_hebb_only:
+                    # 正赫布：越相關的分數越高
+                    anti_hebbian_2d = self.hebbian_score.clone()
+                else:
+                    # 負赫布：越不相關的分數越高
+                    anti_hebbian_2d = 1.0 - self.hebbian_score.clone()
                 
                 # 3. 準備 2D 方差分數 (Variance/SNR Mask) 
                 if isinstance(self.layer, nn.Conv2d):
@@ -227,17 +234,14 @@ class HebbianSparseLayer(nn.Module):
                 use_anti_hebb = os.environ.get("ABLATION_ANTI_HEBB", "1") == "1"
                 use_variance = os.environ.get("ABLATION_VARIANCE", "1") == "1"
                 use_entropy = os.environ.get("ABLATION_ENTROPY", "1") == "1"
-                use_positive_hebb_only = os.environ.get("ABLATION_POSITIVE_HEBB_ONLY", "0") == "1"
                 use_random_growth = os.environ.get("ABLATION_RANDOM_GROWTH", "0") == "1"
                 
                 if use_random_growth:
                     # 純隨機生長 (SET)，對齊所有的網絡拓撲保護與 ERK 分佈
                     # 生成與權重形狀相同的隨機分數，並在潛在池中進行選擇
                     joint_score = torch.rand_like(self.layer.weight)
-                elif use_positive_hebb_only:
-                    # 完全使用正赫布 (Positive Hebbian) 作為生長依據，不使用 joint score 評分 (不乘以 variance 和 entropy)
-                    joint_score = self.hebbian_score.clone()
                 else:
+                    # 正赫布與負赫布都會進來這裡，聯合 Entropy 與 Variance 指標
                     joint_score = torch.ones_like(anti_hebbian_2d)
                     if use_anti_hebb:
                         joint_score *= anti_hebbian_2d
